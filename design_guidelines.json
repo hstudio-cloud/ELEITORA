@@ -1,0 +1,169 @@
+{
+  "identity": {
+    "persona": "E1 - The Anti-AI Designer",
+    "principles": [
+      "Fusion over Imitation",
+      "Emotion First",
+      "Content is King",
+      "Zoom In",
+      "Negative Space",
+      "Contrast"
+    ],
+    "anti_patterns": [
+      "Purple/Teal for CTA",
+      "Inter for Headings",
+      "Center-Everything",
+      "Gradient Overload"
+    ]
+  },
+  "project_context": {
+    "app_name": "Eleitora 360",
+    "app_type": "SaaS / ERP / Dashboard",
+    "target_audience": "Brazilian Political Candidates & Accountants",
+    "emotional_tone": "The Performance Pro (Archetype 2) - Elite, Precise, Tactical, Trustworthy",
+    "theme_strategy": "Dark Mode First (Tactical Minimalism)"
+  },
+  "design_system": {
+    "typography": {
+      "headings": {
+        "font_family": "Manrope, sans-serif",
+        "weights": ["600", "700", "800"],
+        "usage": "Main headers, section titles, KPIs. Tight tracking.",
+        "fallback": "system-ui"
+      },
+      "body": {
+        "font_family": "Public Sans, sans-serif",
+        "weights": ["400", "500"],
+        "usage": "Paragraphs, data tables, form inputs. Relaxed leading.",
+        "fallback": "sans-serif"
+      },
+      "mono": {
+        "font_family": "JetBrains Mono, monospace",
+        "usage": "Financial data, transaction IDs, code snippets."
+      }
+    },
+    "colors": {
+      "palette_name": "Brasília Night Operations",
+      "background": {
+        "default": "#09090B",
+        "paper": "#18181B",
+        "subtle": "#27272A"
+      },
+      "primary": {
+        "main": "#2563EB",
+        "hover": "#1D4ED8",
+        "foreground": "#FFFFFF",
+        "description": "Trustworthy Blue - Use for primary actions (Save, Submit)"
+      },
+      "secondary": {
+        "main": "#10B981",
+        "foreground": "#FFFFFF",
+        "description": "Growth Emerald - Use for Revenue, Positive Trends"
+      },
+      "destructive": {
+        "main": "#EF4444",
+        "foreground": "#FFFFFF",
+        "description": "Alert Red - Use for Expenses, Errors, Delete"
+      },
+      "accent": {
+        "main": "#F59E0B",
+        "foreground": "#000000",
+        "description": "Warning Amber - Use for Pending Status, Alerts"
+      },
+      "neutral": {
+        "border": "#27272A",
+        "text_primary": "#FAFAFA",
+        "text_secondary": "#A1A1AA",
+        "text_muted": "#71717A"
+      }
+    },
+    "spacing": {
+      "scale": "Tailwind Default",
+      "philosophy": "Generous. Use p-6 or p-8 for cards. Gap-6 for grids.",
+      "container_padding": "px-4 md:px-8 lg:px-12"
+    },
+    "layout": {
+      "dashboard_grid": "Bento Grid Mode B (High Density)",
+      "marketing_grid": "Tetris Grid Mode A (Asymmetrical)",
+      "container_width": "max-w-7xl mx-auto"
+    },
+    "surfaces": {
+      "cards": "Flat background (#18181B) with 1px border (#27272A). No shadow by default. Hover: Border lightens.",
+      "headers": "Glassmorphism: bg-background/70 backdrop-blur-xl border-b border-white/10",
+      "tables": "Grid Borders style. Row borders only. Minimalist."
+    },
+    "motion": {
+      "transitions": "transition-all duration-200 ease-out",
+      "micro_interactions": "Hover: scale-[1.01] or border-color change. Active: scale-[0.98].",
+      "page_load": "Staggered fade-in-up for dashboard widgets."
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "Sharp or slightly rounded (rounded-md). High contrast.",
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(37,99,235,0.3)]",
+      "secondary": "bg-secondary/10 text-secondary hover:bg-secondary/20 border border-secondary/20"
+    },
+    "inputs": {
+      "style": "bg-background border-input focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all",
+      "height": "h-10 or h-12 for touch targets"
+    },
+    "cards": {
+      "style": "bg-card text-card-foreground border border-border rounded-lg p-6"
+    },
+    "charts": {
+      "library": "Recharts (via Shadcn Charts)",
+      "style": "Minimalist. Hide grid lines if possible. Use tooltips for details."
+    }
+  },
+  "assets": {
+    "images": [
+      {
+        "category": "Hero Background",
+        "url": "https://images.pexels.com/photos/30187976/pexels-photo-30187976.jpeg",
+        "description": "Abstract artistic representation of Brazil flag colors, dark and moody. Use with heavy overlay (opacity 10-20%) as background texture."
+      },
+      {
+        "category": "Dashboard Feature",
+        "url": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGZpbmFuY2lhbCUyMGRhdGElMjB2aXN1YWxpemF0aW9uJTIwZGFyayUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzY4OTI4NzUxfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Laptop screen showing analytics. Use for 'Features' section or Login page side image."
+      },
+      {
+        "category": "Team/About",
+        "url": "https://images.pexels.com/photos/1367274/pexels-photo-1367274.jpeg",
+        "description": "Professional office meeting. Use for 'About Us' or 'For Accountants' section."
+      }
+    ],
+    "icons": {
+      "library": "Lucide React",
+      "style": "Stroke width 1.5px or 2px. Consistent sizing (w-5 h-5)."
+    }
+  },
+  "universal_guidelines": [
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms.",
+    "You MUST NOT center align the app container.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations.",
+    "NEVER use AI assistant Emoji characters for icons.",
+    "Every interaction needs micro-animations.",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations.",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Components MUST use named exports.",
+    "Pages MUST use default exports.",
+    "Use sonner for toasts.",
+    "All interactive and key informational elements MUST include a data-testid attribute."
+  ],
+  "instructions_to_main_agent": [
+    "Implement the 'Brasília Night Operations' color palette in tailwind.config.js immediately.",
+    "Set up the font families (Manrope, Public Sans) in index.css and tailwind.config.js.",
+    "Create a 'Layout' component that handles the sidebar/header structure for the dashboard.",
+    "Use the 'Bento Grid' strategy for the Dashboard Overview page.",
+    "Ensure all forms (Revenue, Expense, Contracts) use Shadcn Form components with Zod validation.",
+    "Use the provided image URLs for the Landing Page and Login screens.",
+    "Strictly follow the 'Anti-Patterns' list: No purple/teal CTAs, no Inter headings."
+  ]
+}
