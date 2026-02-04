@@ -13,6 +13,7 @@ class ContractSystemTester:
         self.signature_token = None
         self.tests_run = 0
         self.tests_passed = 0
+        self.test_email = "test@eleitora.com"
 
     def run_test(self, name, method, endpoint, expected_status, data=None, headers=None):
         """Run a single API test"""
