@@ -178,6 +178,49 @@ class ContractCreate(BaseModel):
     end_date: str
     status: ContractStatus = ContractStatus.RASCUNHO
     notes: Optional[str] = None
+    # New fields for template contracts
+    template_type: Optional[ContractTemplateType] = None
+    # Locador (Prestador de Serviço) fields
+    locador_nome: Optional[str] = None
+    locador_nacionalidade: Optional[str] = "Brasileiro(a)"
+    locador_estado_civil: Optional[str] = None
+    locador_profissao: Optional[str] = None
+    locador_endereco: Optional[str] = None
+    locador_numero: Optional[str] = None
+    locador_cep: Optional[str] = None
+    locador_bairro: Optional[str] = None
+    locador_cidade: Optional[str] = None
+    locador_estado: Optional[str] = None
+    locador_rg: Optional[str] = None
+    locador_cpf: Optional[str] = None
+    locador_email: Optional[str] = None
+    # Object description
+    objeto_descricao: Optional[str] = None
+    # Vehicle specific fields
+    veiculo_marca: Optional[str] = None
+    veiculo_modelo: Optional[str] = None
+    veiculo_ano: Optional[str] = None
+    veiculo_placa: Optional[str] = None
+    veiculo_renavam: Optional[str] = None
+    # Property specific fields
+    imovel_descricao: Optional[str] = None
+    imovel_registro: Optional[str] = None
+    # Motorista fields
+    motorista_nome: Optional[str] = None
+    motorista_cnh: Optional[str] = None
+    # Reboque/Paredão fields
+    reboque_descricao: Optional[str] = None
+    reboque_placa: Optional[str] = None
+    reboque_renavam: Optional[str] = None
+    # Event specific fields
+    evento_horario_inicio: Optional[str] = None
+    evento_horario_fim: Optional[str] = None
+    # Signature fields
+    locador_assinatura_data: Optional[str] = None
+    locador_assinatura_hash: Optional[str] = None
+    locatario_assinatura_data: Optional[str] = None
+    locatario_assinatura_hash: Optional[str] = None
+    signature_request_token: Optional[str] = None
 
 class ContractResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -193,6 +236,42 @@ class ContractResponse(BaseModel):
     notes: Optional[str] = None
     campaign_id: str
     created_at: str
+    # New fields
+    template_type: Optional[str] = None
+    locador_nome: Optional[str] = None
+    locador_nacionalidade: Optional[str] = None
+    locador_estado_civil: Optional[str] = None
+    locador_profissao: Optional[str] = None
+    locador_endereco: Optional[str] = None
+    locador_numero: Optional[str] = None
+    locador_cep: Optional[str] = None
+    locador_bairro: Optional[str] = None
+    locador_cidade: Optional[str] = None
+    locador_estado: Optional[str] = None
+    locador_rg: Optional[str] = None
+    locador_cpf: Optional[str] = None
+    locador_email: Optional[str] = None
+    objeto_descricao: Optional[str] = None
+    veiculo_marca: Optional[str] = None
+    veiculo_modelo: Optional[str] = None
+    veiculo_ano: Optional[str] = None
+    veiculo_placa: Optional[str] = None
+    veiculo_renavam: Optional[str] = None
+    imovel_descricao: Optional[str] = None
+    imovel_registro: Optional[str] = None
+    motorista_nome: Optional[str] = None
+    motorista_cnh: Optional[str] = None
+    reboque_descricao: Optional[str] = None
+    reboque_placa: Optional[str] = None
+    reboque_renavam: Optional[str] = None
+    evento_horario_inicio: Optional[str] = None
+    evento_horario_fim: Optional[str] = None
+    locador_assinatura_data: Optional[str] = None
+    locador_assinatura_hash: Optional[str] = None
+    locatario_assinatura_data: Optional[str] = None
+    locatario_assinatura_hash: Optional[str] = None
+    signature_request_token: Optional[str] = None
+    contract_html: Optional[str] = None
 
 class PaymentCreate(BaseModel):
     description: str
