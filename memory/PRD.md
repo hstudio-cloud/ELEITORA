@@ -94,3 +94,58 @@ Construir uma plataforma web de gestão eleitoral e contábil para candidatos br
 2. Implementar filtros por período nas listagens
 3. Adicionar upload de documentos/comprovantes
 4. Sistema de alertas para pagamentos próximos do vencimento
+
+---
+
+## Update (2026-02-04): Templates de Contratos e Assinatura Digital
+
+### Novas Funcionalidades Implementadas
+
+#### Templates de Contratos
+- 5 tipos de contratos baseados nos modelos TSE:
+  - Locação de Bem Móvel
+  - Locação de Espaço para Evento
+  - Locação de Imóvel
+  - Locação de Veículo com Motorista (carro de som, paredão)
+  - Locação de Veículo sem Motorista
+
+#### Dados Automatizados
+- **Locador (Prestador):** Nome, CPF, RG, endereço completo, profissão, estado civil, email
+- **Locatário (Candidato):** Preenchido automaticamente com dados da campanha
+
+#### Campos Específicos por Tipo
+- Veículos: Marca, modelo, ano, placa, RENAVAM
+- Veículo com motorista: Dados do motorista (CNH), reboque/paredão
+- Imóvel: Descrição detalhada, registro
+- Espaço para evento: Horário início/fim
+
+#### Sistema de Assinatura Digital
+- Geração de link único para assinatura do locador
+- Página pública de assinatura (sem login necessário)
+- Fluxo de assinatura:
+  1. Candidato cria contrato e solicita assinatura
+  2. Link é gerado e pode ser enviado por email/WhatsApp
+  3. Locador acessa link, lê contrato e assina
+  4. Candidato assina como locatário
+  5. Contrato fica ativo quando ambos assinam
+
+#### Status de Contratos
+- Rascunho
+- Aguardando Assinatura
+- Assinado pelo Locador
+- Assinado pelo Locatário
+- Ativo (ambos assinaram)
+- Concluído
+- Cancelado
+
+### Arquivos Modificados
+- /app/backend/server.py - Novos endpoints e geração de HTML
+- /app/frontend/src/pages/Contratos.jsx - Interface completa com templates
+- /app/frontend/src/pages/AssinarContrato.jsx - Nova página de assinatura
+- /app/frontend/src/App.js - Rota /assinar/:token
+
+### Próximos Passos (P1)
+- [ ] Integração com envio de email para link de assinatura
+- [ ] Integração com GOV.BR para assinatura com certificado digital
+- [ ] Geração de PDF do contrato assinado
+- [ ] Notificações quando contrato for assinado
