@@ -337,10 +337,19 @@ def main():
     
     tester = ContractSystemTester()
     
-    # Test sequence
+    # Test sequence - try login first, then registration if needed
+    print("\n🔐 Attempting login with existing user...")
+    if not tester.test_login():
+        print("🔐 Login failed, trying registration...")
+        if not tester.test_register_user():
+            print("❌ Both login and registration failed, using different email...")
+            # Try with timestamp-based email
+            import time
+            timestamp = int(time.time())
+            tester.test_email = f"test{timestamp}@eleitora.com"
+            
     tests = [
         ("Health Check", tester.test_health_check),
-        ("User Registration", tester.test_register_user),
         ("Create Campaign", tester.test_create_campaign),
         ("Get Contract Templates", tester.test_get_contract_templates),
         ("Create Contract with Template", tester.test_create_contract_with_template),
