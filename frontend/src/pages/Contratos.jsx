@@ -524,10 +524,7 @@ export default function Contratos() {
                                                 <SelectContent>
                                                     {contractTemplates.map(template => (
                                                         <SelectItem key={template.value} value={template.value}>
-                                                            <div>
-                                                                <div className="font-medium">{template.label}</div>
-                                                                <div className="text-xs text-muted-foreground">{template.description}</div>
-                                                            </div>
+                                                            {template.label}
                                                         </SelectItem>
                                                     ))}
                                                 </SelectContent>
