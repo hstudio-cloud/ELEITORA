@@ -794,6 +794,9 @@ async def create_contract(data: ContractCreate, current_user: dict = Depends(get
     if not current_user.get("campaign_id"):
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
+    # Get campaign data for contract generation
+    campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
+    
     contract_id = str(uuid.uuid4())
     contract_doc = {
         "id": contract_id,
@@ -801,6 +804,11 @@ async def create_contract(data: ContractCreate, current_user: dict = Depends(get
         "campaign_id": current_user["campaign_id"],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    
+    # Generate contract HTML if template type is specified
+    if data.template_type:
+        contract_doc["contract_html"] = generate_contract_html(contract_doc, campaign)
+    
     await db.contracts.insert_one(contract_doc)
     contract_doc.pop("_id", None)
     return contract_doc
@@ -819,13 +827,30 @@ async def get_contract(contract_id: str, current_user: dict = Depends(get_curren
         raise HTTPException(status_code=404, detail="Contrato não encontrado")
     return contract
 
+@api_router.get("/contracts/{contract_id}/html")
+async def get_contract_html(contract_id: str, current_user: dict = Depends(get_current_user)):
+    contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")}, {"_id": 0})
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
+    html = generate_contract_html(contract, campaign)
+    return {"html": html}
+
 @api_router.put("/contracts/{contract_id}", response_model=ContractResponse)
 async def update_contract(contract_id: str, data: ContractCreate, current_user: dict = Depends(get_current_user)):
     contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")})
     if not contract:
         raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
-    await db.contracts.update_one({"id": contract_id}, {"$set": data.model_dump()})
+    campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
+    update_data = data.model_dump()
+    
+    # Regenerate HTML if template type exists
+    if data.template_type:
+        update_data["contract_html"] = generate_contract_html({**contract, **update_data}, campaign)
+    
+    await db.contracts.update_one({"id": contract_id}, {"$set": update_data})
     updated = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
     return updated
 
@@ -835,6 +860,175 @@ async def delete_contract(contract_id: str, current_user: dict = Depends(get_cur
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Contrato não encontrado")
     return {"message": "Contrato excluído"}
+
+# ============== SIGNATURE ROUTES ==============
+class SignatureRequest(BaseModel):
+    contract_id: str
+    locador_email: str
+
+class SignContract(BaseModel):
+    signature_hash: str
+
+@api_router.post("/contracts/{contract_id}/request-signature")
+async def request_signature(contract_id: str, data: SignatureRequest, current_user: dict = Depends(get_current_user)):
+    """Request signature from locador (service provider)"""
+    contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")})
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    # Generate signature token
+    token = generate_signature_token(contract_id, data.locador_email, "locador")
+    
+    # Update contract with signature request
+    await db.contracts.update_one(
+        {"id": contract_id},
+        {"$set": {
+            "signature_request_token": token,
+            "locador_email": data.locador_email,
+            "status": "aguardando_assinatura"
+        }}
+    )
+    
+    # In production, send email with signature link
+    # For now, return the token for testing
+    return {
+        "message": "Solicitação de assinatura enviada",
+        "signature_link": f"/assinar/{token}",
+        "token": token
+    }
+
+@api_router.post("/contracts/{contract_id}/sign-locatario")
+async def sign_as_locatario(contract_id: str, data: SignContract, current_user: dict = Depends(get_current_user)):
+    """Sign contract as locatário (candidate)"""
+    contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")})
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Update with signature
+    update_data = {
+        "locatario_assinatura_hash": data.signature_hash,
+        "locatario_assinatura_data": now
+    }
+    
+    # Check if both parties signed
+    if contract.get("locador_assinatura_hash"):
+        update_data["status"] = "ativo"
+    else:
+        update_data["status"] = "assinado_locatario"
+    
+    await db.contracts.update_one({"id": contract_id}, {"$set": update_data})
+    
+    # Regenerate HTML with signature
+    campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
+    updated_contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
+    html = generate_contract_html(updated_contract, campaign)
+    await db.contracts.update_one({"id": contract_id}, {"$set": {"contract_html": html}})
+    
+    return {"message": "Contrato assinado pelo locatário", "status": update_data["status"]}
+
+@api_router.post("/contracts/sign-locador/{token}")
+async def sign_as_locador(token: str, data: SignContract):
+    """Sign contract as locador (service provider) using token"""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        contract_id = payload["contract_id"]
+        
+        contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
+        if not contract:
+            raise HTTPException(status_code=404, detail="Contrato não encontrado")
+        
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Update with signature
+        update_data = {
+            "locador_assinatura_hash": data.signature_hash,
+            "locador_assinatura_data": now
+        }
+        
+        # Check if both parties signed
+        if contract.get("locatario_assinatura_hash"):
+            update_data["status"] = "ativo"
+        else:
+            update_data["status"] = "assinado_locador"
+        
+        await db.contracts.update_one({"id": contract_id}, {"$set": update_data})
+        
+        # Regenerate HTML
+        campaign = await db.campaigns.find_one({"id": contract["campaign_id"]}, {"_id": 0})
+        updated_contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
+        html = generate_contract_html(updated_contract, campaign)
+        await db.contracts.update_one({"id": contract_id}, {"$set": {"contract_html": html}})
+        
+        return {"message": "Contrato assinado pelo locador", "status": update_data["status"]}
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="Token expirado")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=400, detail="Token inválido")
+
+@api_router.get("/contracts/verify/{token}")
+async def verify_signature_token(token: str):
+    """Verify signature token and get contract preview"""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        contract_id = payload["contract_id"]
+        
+        contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
+        if not contract:
+            raise HTTPException(status_code=404, detail="Contrato não encontrado")
+        
+        campaign = await db.campaigns.find_one({"id": contract["campaign_id"]}, {"_id": 0})
+        html = generate_contract_html(contract, campaign)
+        
+        return {
+            "valid": True,
+            "contract_id": contract_id,
+            "contract_html": html,
+            "locador_nome": contract.get("locador_nome"),
+            "candidate_name": campaign.get("candidate_name"),
+            "value": contract.get("value"),
+            "status": contract.get("status")
+        }
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="Token expirado")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=400, detail="Token inválido")
+
+@api_router.get("/contract-templates")
+async def get_contract_templates():
+    """Get available contract templates"""
+    return {
+        "templates": [
+            {
+                "type": "bem_movel",
+                "name": "Locação de Bem Móvel",
+                "description": "Contrato para locação de equipamentos, rádios, etc."
+            },
+            {
+                "type": "espaco_evento",
+                "name": "Locação de Espaço para Evento",
+                "description": "Contrato para locação de espaço para evento eleitoral"
+            },
+            {
+                "type": "imovel",
+                "name": "Locação de Imóvel",
+                "description": "Contrato para locação de imóvel (comitê, escritório)"
+            },
+            {
+                "type": "veiculo_com_motorista",
+                "name": "Locação de Veículo com Motorista",
+                "description": "Contrato para veículo com motorista (carro de som, paredão)"
+            },
+            {
+                "type": "veiculo_sem_motorista",
+                "name": "Locação de Veículo sem Motorista",
+                "description": "Contrato para locação de veículo sem motorista"
+            }
+        ]
+    }
 
 # ============== PAYMENT ROUTES ==============
 @api_router.post("/payments", response_model=PaymentResponse)
