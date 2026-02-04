@@ -149,3 +149,45 @@ Construir uma plataforma web de gestão eleitoral e contábil para candidatos br
 - [ ] Integração com GOV.BR para assinatura com certificado digital
 - [ ] Geração de PDF do contrato assinado
 - [ ] Notificações quando contrato for assinado
+
+---
+
+## Update (2026-02-04): Dados Obrigatórios SPCE e Exportação
+
+### Novas Funcionalidades Implementadas
+
+#### Dados do Candidato (Configurações)
+- CNPJ da Campanha
+- CPF do Candidato
+- Número do Candidato
+- Título de Eleitor
+- Endereço completo da campanha
+
+#### Contas Bancárias (3 obrigatórias TSE)
+1. **Conta de Doação (Outros Recursos)** - doações PF e recursos próprios
+2. **Conta do Fundo Partidário** - recursos do partido
+3. **Conta FEFEC** - Fundo Especial de Financiamento de Campanha
+
+#### Dados de Referência
+- Lista de 34 partidos políticos brasileiros com siglas e números
+- Lista de 27 estados com regiões (Norte, Nordeste, Sul, etc.)
+- Lista de 18 bancos brasileiros
+- Lista de 11 cargos eletivos
+
+#### Exportação SPCE
+- Layout DOACINTE (Doações pela Internet)
+- Arquivo .TXT no formato exigido pela Justiça Eleitoral
+- Exportação de doações PF e recursos próprios
+
+### Endpoints Adicionados
+- GET /api/reference/partidos
+- GET /api/reference/estados
+- GET /api/reference/bancos
+- GET /api/reference/cargos
+- GET /api/export/spce-doacoes
+
+### Próximos Passos (P1)
+- [ ] Importação de extratos bancários
+- [ ] Conciliação bancária automática
+- [ ] Mais layouts SPCE (despesas, contratos)
+- [ ] Validação de CPF/CNPJ
