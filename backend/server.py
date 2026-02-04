@@ -107,6 +107,35 @@ class CampaignCreate(BaseModel):
     city: str
     state: str
     election_year: int
+    # SPCE Required Fields
+    cnpj: Optional[str] = None  # CNPJ da campanha
+    numero_candidato: Optional[str] = None  # Número do candidato
+    # Candidate personal data
+    cpf_candidato: Optional[str] = None
+    titulo_eleitor: Optional[str] = None
+    # Bank accounts (3 types required by TSE)
+    conta_doacao_banco: Optional[str] = None
+    conta_doacao_agencia: Optional[str] = None
+    conta_doacao_numero: Optional[str] = None
+    conta_doacao_digito: Optional[str] = None
+    
+    conta_fundo_partidario_banco: Optional[str] = None
+    conta_fundo_partidario_agencia: Optional[str] = None
+    conta_fundo_partidario_numero: Optional[str] = None
+    conta_fundo_partidario_digito: Optional[str] = None
+    
+    conta_fefec_banco: Optional[str] = None  # FEFEC - Fundo Especial de Financiamento de Campanha
+    conta_fefec_agencia: Optional[str] = None
+    conta_fefec_numero: Optional[str] = None
+    conta_fefec_digito: Optional[str] = None
+    # Address
+    endereco: Optional[str] = None
+    numero: Optional[str] = None
+    complemento: Optional[str] = None
+    bairro: Optional[str] = None
+    cep: Optional[str] = None
+    telefone: Optional[str] = None
+    email: Optional[str] = None
 
 class CampaignResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -119,6 +148,34 @@ class CampaignResponse(BaseModel):
     election_year: int
     owner_id: str
     created_at: str
+    # SPCE Fields
+    cnpj: Optional[str] = None
+    numero_candidato: Optional[str] = None
+    cpf_candidato: Optional[str] = None
+    titulo_eleitor: Optional[str] = None
+    # Bank accounts
+    conta_doacao_banco: Optional[str] = None
+    conta_doacao_agencia: Optional[str] = None
+    conta_doacao_numero: Optional[str] = None
+    conta_doacao_digito: Optional[str] = None
+    
+    conta_fundo_partidario_banco: Optional[str] = None
+    conta_fundo_partidario_agencia: Optional[str] = None
+    conta_fundo_partidario_numero: Optional[str] = None
+    conta_fundo_partidario_digito: Optional[str] = None
+    
+    conta_fefec_banco: Optional[str] = None
+    conta_fefec_agencia: Optional[str] = None
+    conta_fefec_numero: Optional[str] = None
+    conta_fefec_digito: Optional[str] = None
+    # Address
+    endereco: Optional[str] = None
+    numero: Optional[str] = None
+    complemento: Optional[str] = None
+    bairro: Optional[str] = None
+    cep: Optional[str] = None
+    telefone: Optional[str] = None
+    email: Optional[str] = None
 
 class RevenueCreate(BaseModel):
     description: str
