@@ -39,9 +39,19 @@ class UserRole(str, Enum):
 
 class ContractStatus(str, Enum):
     RASCUNHO = "rascunho"
+    AGUARDANDO_ASSINATURA = "aguardando_assinatura"
+    ASSINADO_LOCADOR = "assinado_locador"
+    ASSINADO_LOCATARIO = "assinado_locatario"
     ATIVO = "ativo"
     CONCLUIDO = "concluido"
     CANCELADO = "cancelado"
+
+class ContractTemplateType(str, Enum):
+    BEM_MOVEL = "bem_movel"
+    ESPACO_EVENTO = "espaco_evento"
+    IMOVEL = "imovel"
+    VEICULO_COM_MOTORISTA = "veiculo_com_motorista"
+    VEICULO_SEM_MOTORISTA = "veiculo_sem_motorista"
 
 class PaymentStatus(str, Enum):
     PENDENTE = "pendente"
