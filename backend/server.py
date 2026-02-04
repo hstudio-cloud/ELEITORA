@@ -1087,6 +1087,202 @@ async def get_contract_templates():
         ]
     }
 
+# ============== REFERENCE DATA ROUTES ==============
+@api_router.get("/reference/partidos")
+async def get_partidos():
+    """Get list of Brazilian political parties"""
+    return {
+        "partidos": [
+            {"sigla": "AGIR", "nome": "Agir", "numero": 36},
+            {"sigla": "AVANTE", "nome": "Avante", "numero": 70},
+            {"sigla": "CIDADANIA", "nome": "Cidadania", "numero": 23},
+            {"sigla": "DC", "nome": "Democracia Cristã", "numero": 27},
+            {"sigla": "MDB", "nome": "Movimento Democrático Brasileiro", "numero": 15},
+            {"sigla": "MOBILIZA", "nome": "Mobiliza", "numero": 33},
+            {"sigla": "NOVO", "nome": "Partido Novo", "numero": 30},
+            {"sigla": "PATRIOTA", "nome": "Patriota", "numero": 51},
+            {"sigla": "PCB", "nome": "Partido Comunista Brasileiro", "numero": 21},
+            {"sigla": "PCdoB", "nome": "Partido Comunista do Brasil", "numero": 65},
+            {"sigla": "PCO", "nome": "Partido da Causa Operária", "numero": 29},
+            {"sigla": "PDT", "nome": "Partido Democrático Trabalhista", "numero": 12},
+            {"sigla": "PL", "nome": "Partido Liberal", "numero": 22},
+            {"sigla": "PMB", "nome": "Partido da Mulher Brasileira", "numero": 35},
+            {"sigla": "PMN", "nome": "Partido da Mobilização Nacional", "numero": 33},
+            {"sigla": "PODE", "nome": "Podemos", "numero": 20},
+            {"sigla": "PP", "nome": "Progressistas", "numero": 11},
+            {"sigla": "PRD", "nome": "Partido Renovação Democrática", "numero": 25},
+            {"sigla": "PROS", "nome": "Partido Republicano da Ordem Social", "numero": 90},
+            {"sigla": "PRTB", "nome": "Partido Renovador Trabalhista Brasileiro", "numero": 28},
+            {"sigla": "PSB", "nome": "Partido Socialista Brasileiro", "numero": 40},
+            {"sigla": "PSC", "nome": "Partido Social Cristão", "numero": 20},
+            {"sigla": "PSD", "nome": "Partido Social Democrático", "numero": 55},
+            {"sigla": "PSDB", "nome": "Partido da Social Democracia Brasileira", "numero": 45},
+            {"sigla": "PSOL", "nome": "Partido Socialismo e Liberdade", "numero": 50},
+            {"sigla": "PSTU", "nome": "Partido Socialista dos Trabalhadores Unificado", "numero": 16},
+            {"sigla": "PT", "nome": "Partido dos Trabalhadores", "numero": 13},
+            {"sigla": "PTB", "nome": "Partido Trabalhista Brasileiro", "numero": 14},
+            {"sigla": "PV", "nome": "Partido Verde", "numero": 43},
+            {"sigla": "REDE", "nome": "Rede Sustentabilidade", "numero": 18},
+            {"sigla": "REPUBLICANOS", "nome": "Republicanos", "numero": 10},
+            {"sigla": "SOLIDARIEDADE", "nome": "Solidariedade", "numero": 77},
+            {"sigla": "UNIÃO", "nome": "União Brasil", "numero": 44},
+            {"sigla": "UP", "nome": "Unidade Popular", "numero": 80}
+        ]
+    }
+
+@api_router.get("/reference/estados")
+async def get_estados():
+    """Get list of Brazilian states with regions"""
+    return {
+        "estados": [
+            {"uf": "AC", "nome": "Acre", "regiao": "Norte"},
+            {"uf": "AL", "nome": "Alagoas", "regiao": "Nordeste"},
+            {"uf": "AP", "nome": "Amapá", "regiao": "Norte"},
+            {"uf": "AM", "nome": "Amazonas", "regiao": "Norte"},
+            {"uf": "BA", "nome": "Bahia", "regiao": "Nordeste"},
+            {"uf": "CE", "nome": "Ceará", "regiao": "Nordeste"},
+            {"uf": "DF", "nome": "Distrito Federal", "regiao": "Centro-Oeste"},
+            {"uf": "ES", "nome": "Espírito Santo", "regiao": "Sudeste"},
+            {"uf": "GO", "nome": "Goiás", "regiao": "Centro-Oeste"},
+            {"uf": "MA", "nome": "Maranhão", "regiao": "Nordeste"},
+            {"uf": "MT", "nome": "Mato Grosso", "regiao": "Centro-Oeste"},
+            {"uf": "MS", "nome": "Mato Grosso do Sul", "regiao": "Centro-Oeste"},
+            {"uf": "MG", "nome": "Minas Gerais", "regiao": "Sudeste"},
+            {"uf": "PA", "nome": "Pará", "regiao": "Norte"},
+            {"uf": "PB", "nome": "Paraíba", "regiao": "Nordeste"},
+            {"uf": "PR", "nome": "Paraná", "regiao": "Sul"},
+            {"uf": "PE", "nome": "Pernambuco", "regiao": "Nordeste"},
+            {"uf": "PI", "nome": "Piauí", "regiao": "Nordeste"},
+            {"uf": "RJ", "nome": "Rio de Janeiro", "regiao": "Sudeste"},
+            {"uf": "RN", "nome": "Rio Grande do Norte", "regiao": "Nordeste"},
+            {"uf": "RS", "nome": "Rio Grande do Sul", "regiao": "Sul"},
+            {"uf": "RO", "nome": "Rondônia", "regiao": "Norte"},
+            {"uf": "RR", "nome": "Roraima", "regiao": "Norte"},
+            {"uf": "SC", "nome": "Santa Catarina", "regiao": "Sul"},
+            {"uf": "SP", "nome": "São Paulo", "regiao": "Sudeste"},
+            {"uf": "SE", "nome": "Sergipe", "regiao": "Nordeste"},
+            {"uf": "TO", "nome": "Tocantins", "regiao": "Norte"}
+        ],
+        "regioes": ["Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"]
+    }
+
+@api_router.get("/reference/bancos")
+async def get_bancos():
+    """Get list of Brazilian banks"""
+    return {
+        "bancos": [
+            {"codigo": "001", "nome": "Banco do Brasil"},
+            {"codigo": "033", "nome": "Santander"},
+            {"codigo": "104", "nome": "Caixa Econômica Federal"},
+            {"codigo": "237", "nome": "Bradesco"},
+            {"codigo": "341", "nome": "Itaú"},
+            {"codigo": "399", "nome": "HSBC"},
+            {"codigo": "422", "nome": "Safra"},
+            {"codigo": "745", "nome": "Citibank"},
+            {"codigo": "756", "nome": "Sicoob"},
+            {"codigo": "041", "nome": "Banrisul"},
+            {"codigo": "070", "nome": "BRB"},
+            {"codigo": "077", "nome": "Inter"},
+            {"codigo": "212", "nome": "Original"},
+            {"codigo": "260", "nome": "Nubank"},
+            {"codigo": "290", "nome": "PagBank"},
+            {"codigo": "336", "nome": "C6 Bank"},
+            {"codigo": "380", "nome": "PicPay"},
+            {"codigo": "748", "nome": "Sicredi"}
+        ]
+    }
+
+@api_router.get("/reference/cargos")
+async def get_cargos():
+    """Get list of electoral positions"""
+    return {
+        "cargos": [
+            {"codigo": "1", "nome": "Presidente"},
+            {"codigo": "2", "nome": "Vice-Presidente"},
+            {"codigo": "3", "nome": "Governador"},
+            {"codigo": "4", "nome": "Vice-Governador"},
+            {"codigo": "5", "nome": "Senador"},
+            {"codigo": "6", "nome": "Deputado Federal"},
+            {"codigo": "7", "nome": "Deputado Estadual"},
+            {"codigo": "8", "nome": "Deputado Distrital"},
+            {"codigo": "11", "nome": "Prefeito"},
+            {"codigo": "12", "nome": "Vice-Prefeito"},
+            {"codigo": "13", "nome": "Vereador"}
+        ]
+    }
+
+# ============== SPCE EXPORT ROUTES ==============
+@api_router.get("/export/spce-doacoes")
+async def export_spce_doacoes(current_user: dict = Depends(get_current_user)):
+    """Export donations in SPCE format (DOACINTE layout)"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    if not campaign.get("cnpj"):
+        raise HTTPException(status_code=400, detail="CNPJ da campanha não configurado")
+    
+    # Generate SPCE format file
+    lines = []
+    
+    # HEADER (Record type 1)
+    cnpj = campaign.get("cnpj", "").replace(".", "").replace("/", "").replace("-", "").zfill(14)
+    now = datetime.now(timezone.utc)
+    data_mov = now.strftime("%d%m%Y%H%M")
+    banco = campaign.get("conta_doacao_banco", "").zfill(3)
+    agencia = campaign.get("conta_doacao_agencia", "").zfill(8)
+    agencia_dv = "00"
+    conta = campaign.get("conta_doacao_numero", "").zfill(18)
+    conta_dv = campaign.get("conta_doacao_digito", "").zfill(2)
+    
+    header = f"1{cnpj}{data_mov}{banco}{agencia}{agencia_dv}{conta}{conta_dv}400DOACINTE{' ' * 96}"
+    lines.append(header[:167])
+    
+    # DETAILS (Record type 2) - Only donations (PF)
+    donation_count = 0
+    for rev in revenues:
+        if rev.get("category") in ["doacao_pf", "recursos_proprios"]:
+            donation_count += 1
+            
+            tipo_doacao = "03" if rev.get("category") == "doacao_pf" else "02"
+            especie = "19"  # PIX by default
+            cpf = rev.get("donor_cpf_cnpj", "").replace(".", "").replace("-", "").zfill(11)
+            nome = rev.get("donor_name", "DOADOR NAO IDENTIFICADO")[:60].ljust(60)
+            
+            date_str = rev.get("date", "")
+            try:
+                date_obj = datetime.fromisoformat(date_str)
+                data_doacao = date_obj.strftime("%d%m%Y")
+            except:
+                data_doacao = now.strftime("%d%m%Y")
+            
+            valor = int(rev.get("amount", 0) * 100)
+            valor_str = str(valor).zfill(18)
+            
+            recibo = rev.get("receipt_number", "")[:21].ljust(21)
+            doc = " " * 23
+            autorizacao = " " * 20
+            
+            detail = f"2{recibo}{doc}{autorizacao}{tipo_doacao}{especie}{cpf}F{nome}{data_doacao}{valor_str}"
+            lines.append(detail[:167])
+    
+    # TRAILER (Record type 9)
+    trailer = f"9{str(donation_count).zfill(9)}{' ' * 157}"
+    lines.append(trailer[:167])
+    
+    # Generate filename
+    filename = f"ATSEDOACINTE{now.strftime('%Y%m%d')}001.TXT"
+    
+    return {
+        "filename": filename,
+        "content": "\n".join(lines),
+        "total_doacoes": donation_count,
+        "format": "SPCE-DOACINTE"
+    }
+
 # ============== PAYMENT ROUTES ==============
 @api_router.post("/payments", response_model=PaymentResponse)
 async def create_payment(data: PaymentCreate, current_user: dict = Depends(get_current_user)):
