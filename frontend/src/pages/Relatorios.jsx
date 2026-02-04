@@ -82,14 +82,33 @@ export default function Relatorios() {
         toast.success('Exportação concluída!');
     };
 
+    const handleExportSPCE = async () => {
+        try {
+            const response = await axios.get(`${API}/export/spce-doacoes`);
+            const { filename, content, total_doacoes } = response.data;
+            
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            toast.success(`Arquivo SPCE exportado! ${total_doacoes} doações.`);
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Erro ao exportar SPCE. Verifique se o CNPJ e contas bancárias estão configurados.');
+        }
+    };
+
     return (
         <Layout>
             <div className="space-y-6" data-testid="relatorios-page">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                        <h1 className="font-heading text-3xl font-bold">Relatórios TSE</h1>
-                        <p className="text-muted-foreground">Gere relatórios em conformidade com a Justiça Eleitoral</p>
+                        <h1 className="font-heading text-3xl font-bold">Relatórios e Exportação</h1>
+                        <p className="text-muted-foreground">Gere relatórios e exporte para o SPCE da Justiça Eleitoral</p>
                     </div>
                     <div className="flex gap-3">
                         <Button
@@ -102,32 +121,31 @@ export default function Relatorios() {
                             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                             Atualizar
                         </Button>
-                        <Button
-                            onClick={handleExportJSON}
-                            disabled={!report}
-                            className="gap-2"
-                            data-testid="export-json-btn"
-                        >
-                            <Download className="h-4 w-4" />
-                            Exportar JSON
-                        </Button>
                     </div>
                 </div>
 
-                {loading ? (
-                    <div className="text-center py-20 text-muted-foreground">
-                        <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-                        <p>Gerando relatório...</p>
-                    </div>
-                ) : !report ? (
-                    <Card>
-                        <CardContent className="py-20 text-center">
-                            <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                            <p className="text-muted-foreground">
-                                Configure uma campanha para gerar relatórios
-                            </p>
-                        </CardContent>
-                    </Card>
+                <Tabs defaultValue="relatorio" className="space-y-6">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="relatorio">Relatório Geral</TabsTrigger>
+                        <TabsTrigger value="spce">Exportação SPCE</TabsTrigger>
+                    </TabsList>
+
+                    {/* Relatório Tab */}
+                    <TabsContent value="relatorio">
+                        {loading ? (
+                            <div className="text-center py-20 text-muted-foreground">
+                                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
+                                <p>Gerando relatório...</p>
+                            </div>
+                        ) : !report ? (
+                            <Card>
+                                <CardContent className="py-20 text-center">
+                                    <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                                    <p className="text-muted-foreground">
+                                        Configure uma campanha para gerar relatórios
+                                    </p>
+                                </CardContent>
+                            </Card>
                 ) : (
                     <>
                         {/* Campaign Info */}
