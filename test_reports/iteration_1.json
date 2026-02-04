@@ -1,0 +1,46 @@
+{
+  "summary": "Completed comprehensive testing of electoral contract system with digital signatures. All core features working correctly including contract templates, HTML generation, and digital signature workflow.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Contratos page",
+        "issue": "React runtime errors showing 'Objects are not valid as a React child' in browser console",
+        "selector": "Various components",
+        "fix_priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend API health check",
+    "User authentication (login)",
+    "Campaign creation",
+    "Contract template retrieval (all 5 types)",
+    "Contract creation with template data",
+    "Contract HTML generation",
+    "Signature request generation",
+    "Signature token verification",
+    "Digital signature as locador (service provider)",
+    "Digital signature as locatario (candidate)",
+    "Contract status updates after signatures",
+    "Contract listing",
+    "Digital signature page functionality",
+    "Contract preview display",
+    "Signature form interaction",
+    "Success page after signing"
+  ],
+  "test_report_links": ["/app/backend_test.py"],
+  "success_percentage": {
+    "backend": "100%",
+    "frontend": "95%"
+  },
+  "updated_files": ["/app/backend_test.py"],
+  "action_item_for_main_agent": "Fix React runtime errors in frontend components - investigate object rendering issues that are causing console errors",
+  "should_call_test_agent_after_fix": "false",
+  "should_main_agent_test_itself": "true"
+}
