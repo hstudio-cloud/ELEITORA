@@ -336,6 +336,277 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token inválido")
 
+# ============== CONTRACT TEMPLATE GENERATORS ==============
+def format_currency(value):
+    """Format value as Brazilian currency"""
+    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def format_date_br(date_str):
+    """Format date to Brazilian format"""
+    if not date_str:
+        return ""
+    try:
+        date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
+                  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+        return f"{date.day} de {months[date.month-1]} de {date.year}"
+    except:
+        return date_str
+
+def generate_contract_html(contract_data: dict, campaign: dict) -> str:
+    """Generate HTML contract based on template type"""
+    template_type = contract_data.get("template_type", "bem_movel")
+    
+    # Common header
+    header = f"""
+    <div style="font-family: 'Times New Roman', serif; max-width: 800px; margin: 0 auto; padding: 40px; line-height: 1.8;">
+        <h1 style="text-align: center; font-size: 16pt; margin-bottom: 30px;">
+            CONTRATO DE LOCAÇÃO DE {get_contract_title(template_type)}
+        </h1>
+        <p style="text-align: justify;">
+            Pelo presente instrumento particular, os signatários têm entre si justa e contratada a locação 
+            do bem abaixo descrito, mediante as seguintes cláusulas.
+        </p>
+    """
+    
+    # Locador section
+    locador_section = f"""
+        <h2 style="font-size: 14pt; margin-top: 30px;">IDENTIFICAÇÃO DAS PARTES</h2>
+        
+        <p><strong>LOCADOR(A):</strong></p>
+        <p style="text-align: justify;">
+            <strong>Nome:</strong> {contract_data.get('locador_nome', '_______________')}<br>
+            <strong>Nacionalidade:</strong> {contract_data.get('locador_nacionalidade', 'Brasileiro(a)')}<br>
+            <strong>Estado Civil:</strong> {contract_data.get('locador_estado_civil', '_______________')}<br>
+            <strong>Profissão:</strong> {contract_data.get('locador_profissao', '_______________')}<br>
+            <strong>Endereço:</strong> {contract_data.get('locador_endereco', '_______________')}, 
+            nº {contract_data.get('locador_numero', '___')}, 
+            CEP: {contract_data.get('locador_cep', '_______________')}, 
+            Bairro: {contract_data.get('locador_bairro', '_______________')}, 
+            {contract_data.get('locador_cidade', '_______________')}/{contract_data.get('locador_estado', '__')}<br>
+            <strong>RG:</strong> {contract_data.get('locador_rg', '_______________')}<br>
+            <strong>CPF:</strong> {contract_data.get('locador_cpf', '_______________')}
+        </p>
+    """
+    
+    # Locatário section (Candidate - auto-filled)
+    locatario_section = f"""
+        <p><strong>LOCATÁRIO:</strong></p>
+        <p style="text-align: justify;">
+            <strong>Campanha:</strong> ELEIÇÃO {campaign.get('election_year', '2024')} - {campaign.get('candidate_name', '_______________')} - {campaign.get('position', 'VEREADOR').upper()}<br>
+            <strong>Partido:</strong> {campaign.get('party', '_______________')}<br>
+            <strong>Endereço:</strong> {campaign.get('city', '_______________')}/{campaign.get('state', '__')}
+        </p>
+    """
+    
+    # Object clause based on template type
+    object_clause = generate_object_clause(template_type, contract_data)
+    
+    # Value and term clauses
+    value_clause = f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DO VALOR DO ALUGUEL</h3>
+        <p style="text-align: justify;">
+            <strong>CLÁUSULA TERCEIRA.</strong> Pela locação ora ajustada, o LOCATÁRIO pagará a quantia de 
+            <strong>{format_currency(contract_data.get('value', 0))}</strong>, cujo pagamento será efetuado 
+            até o dia {format_date_br(contract_data.get('end_date', ''))}.
+        </p>
+    """
+    
+    term_clause = f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DA VIGÊNCIA</h3>
+        <p style="text-align: justify;">
+            <strong>CLÁUSULA SEGUNDA.</strong> O presente contrato terá vigência a partir de 
+            {format_date_br(contract_data.get('start_date', ''))} até {format_date_br(contract_data.get('end_date', ''))}.
+        </p>
+    """
+    
+    # Forum clause
+    forum_clause = f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DO FORO</h3>
+        <p style="text-align: justify;">
+            <strong>CLÁUSULA QUARTA.</strong> As partes elegem o Foro da Comarca de 
+            {campaign.get('city', '_______________')}/{campaign.get('state', '__')} para dirimir eventuais 
+            controvérsias decorrentes deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.
+        </p>
+    """
+    
+    # Signature section
+    signature_section = f"""
+        <p style="margin-top: 40px; text-align: justify;">
+            E, por estarem assim ajustados e contratados, assinam o presente em 02 (Duas) vias de igual forma 
+            e teor, na presença das testemunhas abaixo.
+        </p>
+        
+        <p style="text-align: right; margin-top: 30px;">
+            {campaign.get('city', '_______________')}/{campaign.get('state', '__')}, {format_date_br(datetime.now(timezone.utc).isoformat())}
+        </p>
+        
+        <div style="margin-top: 60px; display: flex; justify-content: space-between;">
+            <div style="text-align: center; width: 45%;">
+                <div style="border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px;">
+                    {get_signature_status(contract_data, 'locador')}
+                </div>
+                <p><strong>{contract_data.get('locador_nome', '_______________')}</strong><br>LOCADOR</p>
+            </div>
+            <div style="text-align: center; width: 45%;">
+                <div style="border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px;">
+                    {get_signature_status(contract_data, 'locatario')}
+                </div>
+                <p><strong>{campaign.get('candidate_name', '_______________')}</strong><br>LOCATÁRIO</p>
+            </div>
+        </div>
+        
+        <h3 style="font-size: 12pt; margin-top: 40px;">TESTEMUNHAS:</h3>
+        <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <div style="width: 45%;">
+                <p>Nome: _________________________________<br>
+                RG: ________________<br>
+                CPF: _______________</p>
+            </div>
+            <div style="width: 45%;">
+                <p>Nome: _________________________________<br>
+                RG: ________________<br>
+                CPF: _______________</p>
+            </div>
+        </div>
+    </div>
+    """
+    
+    return header + locador_section + locatario_section + object_clause + term_clause + value_clause + forum_clause + signature_section
+
+def get_contract_title(template_type: str) -> str:
+    titles = {
+        "bem_movel": "BEM MÓVEL PARA CAMPANHA ELEITORAL",
+        "espaco_evento": "ESPAÇO PARA EVENTO ELEITORAL",
+        "imovel": "IMÓVEL PARA CAMPANHA ELEITORAL",
+        "veiculo_com_motorista": "VEÍCULO COM MOTORISTA PARA CAMPANHA ELEITORAL",
+        "veiculo_sem_motorista": "VEÍCULO SEM MOTORISTA PARA CAMPANHA ELEITORAL"
+    }
+    return titles.get(template_type, "BEM MÓVEL PARA CAMPANHA ELEITORAL")
+
+def generate_object_clause(template_type: str, contract_data: dict) -> str:
+    if template_type == "bem_movel":
+        return f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
+        <p style="text-align: justify;">
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
+            da campanha eleitoral do LOCATÁRIO, do seguinte bem móvel de propriedade do LOCADOR:
+        </p>
+        <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
+        <p style="text-align: justify;">
+            <em>Parágrafo primeiro.</em> O LOCATÁRIO é obrigado a conservar o bem móvel ora alugado, 
+            ficando responsável pelo seu bom estado de conservação.
+        </p>
+        <p style="text-align: justify;">
+            <em>Parágrafo Segundo.</em> São vedados a transferência, a sublocação, a cessão ou o empréstimo, 
+            total ou parcial, do bem locado sem prévia anuência expressa do LOCADOR.
+        </p>
+        """
+    elif template_type == "espaco_evento":
+        return f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
+        <p style="text-align: justify;">
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para realização 
+            de atividade da campanha eleitoral do LOCATÁRIO, do seguinte espaço de propriedade do LOCADOR:
+        </p>
+        <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
+        <p style="text-align: justify;">
+            <em>Parágrafo primeiro.</em> O LOCADOR colocará o espaço à disposição do LOCATÁRIO entre as 
+            {contract_data.get('evento_horario_inicio', '___')} e {contract_data.get('evento_horario_fim', '___')} horas.
+        </p>
+        <p style="text-align: justify;">
+            <em>Parágrafo Segundo.</em> O LOCATÁRIO usará com zelo as dependências, devendo restituí-lo 
+            ao término do período em seu estado inicial.
+        </p>
+        """
+    elif template_type == "imovel":
+        return f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
+        <p style="text-align: justify;">
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
+            da campanha eleitoral do LOCATÁRIO, do seguinte bem imóvel de propriedade do LOCADOR:
+        </p>
+        <p style="margin-left: 40px;">
+            <strong>{contract_data.get('imovel_descricao', '_______________')}</strong><br>
+            Registro: {contract_data.get('imovel_registro', '_______________')}
+        </p>
+        <p style="text-align: justify;">
+            <em>Parágrafo primeiro.</em> O LOCATÁRIO é obrigado a conservar o bem imóvel ora alugado, 
+            ficando responsável pelas obras necessárias ao seu bom estado de conservação.
+        </p>
+        <p style="text-align: justify;">
+            <em>Parágrafo Segundo.</em> São vedados a transferência, a sublocação, a cessão ou o empréstimo, 
+            total ou parcial, do imóvel locado sem prévia anuência expressa do LOCADOR.
+        </p>
+        """
+    elif template_type == "veiculo_com_motorista":
+        return f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
+        <p style="text-align: justify;">
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação do veículo:
+        </p>
+        <p style="margin-left: 40px;">
+            <strong>Veículo:</strong> {contract_data.get('veiculo_marca', '___')} {contract_data.get('veiculo_modelo', '___')}<br>
+            <strong>Ano:</strong> {contract_data.get('veiculo_ano', '___')}<br>
+            <strong>Placa:</strong> {contract_data.get('veiculo_placa', '___')}<br>
+            <strong>RENAVAM:</strong> {contract_data.get('veiculo_renavam', '___')}
+        </p>
+        <p style="text-align: justify;">
+            <strong>Motorista:</strong> {contract_data.get('motorista_nome', '_______________')}, 
+            CNH nº {contract_data.get('motorista_cnh', '_______________')}
+        </p>
+        <p style="text-align: justify;">
+            <strong>Equipamento a ser puxado (se aplicável):</strong><br>
+            {contract_data.get('reboque_descricao', '_______________')}<br>
+            Placa: {contract_data.get('reboque_placa', '___')} - RENAVAM: {contract_data.get('reboque_renavam', '___')}
+        </p>
+        <p style="text-align: justify;">
+            <em>Parágrafo único.</em> O LOCATÁRIO deverá devolver o veículo ao LOCADOR nas mesmas condições 
+            em que o recebeu, respondendo por danos ou prejuízos causados.
+        </p>
+        """
+    else:  # veiculo_sem_motorista
+        return f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
+        <p style="text-align: justify;">
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação do veículo:
+        </p>
+        <p style="margin-left: 40px;">
+            <strong>Veículo:</strong> {contract_data.get('veiculo_marca', '___')} {contract_data.get('veiculo_modelo', '___')}<br>
+            <strong>Ano:</strong> {contract_data.get('veiculo_ano', '___')}<br>
+            <strong>Placa:</strong> {contract_data.get('veiculo_placa', '___')}<br>
+            <strong>RENAVAM:</strong> {contract_data.get('veiculo_renavam', '___')}
+        </p>
+        <p style="text-align: justify;">
+            <em>Parágrafo primeiro.</em> O automóvel será utilizado exclusivamente pelo LOCATÁRIO ou 
+            terceiros sob sua responsabilidade.
+        </p>
+        <p style="text-align: justify;">
+            <em>Parágrafo segundo.</em> O LOCATÁRIO deverá devolver o automóvel ao LOCADOR nas mesmas 
+            condições em que o recebeu, respondendo por danos ou prejuízos causados.
+        </p>
+        """
+
+def get_signature_status(contract_data: dict, party: str) -> str:
+    if party == "locador":
+        if contract_data.get('locador_assinatura_hash'):
+            return f"<span style='color: green;'>✓ Assinado digitalmente em {contract_data.get('locador_assinatura_data', '')}</span>"
+        return "<span style='color: #999;'>Aguardando assinatura</span>"
+    else:
+        if contract_data.get('locatario_assinatura_hash'):
+            return f"<span style='color: green;'>✓ Assinado digitalmente em {contract_data.get('locatario_assinatura_data', '')}</span>"
+        return "<span style='color: #999;'>Aguardando assinatura</span>"
+
+def generate_signature_token(contract_id: str, email: str, party: str) -> str:
+    """Generate a unique token for signature request"""
+    payload = {
+        "contract_id": contract_id,
+        "email": email,
+        "party": party,
+        "exp": datetime.now(timezone.utc) + timedelta(days=7)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
 # ============== AUTH ROUTES ==============
 @api_router.post("/auth/register", response_model=dict)
 async def register(user_data: UserCreate):
