@@ -68,7 +68,7 @@ class ContractSystemTester:
     def test_register_user(self):
         """Test user registration"""
         user_data = {
-            "email": "test@eleitora.com",
+            "email": self.test_email,
             "password": "123456",
             "name": "Test User",
             "role": "candidato",
@@ -86,7 +86,7 @@ class ContractSystemTester:
     def test_login(self):
         """Test user login"""
         login_data = {
-            "email": "test@eleitora.com",
+            "email": self.test_email,
             "password": "123456"
         }
         
