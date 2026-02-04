@@ -13,6 +13,7 @@ import Contratos from "./pages/Contratos";
 import Pagamentos from "./pages/Pagamentos";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
+import AssinarContrato from "./pages/AssinarContrato";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -66,6 +67,9 @@ function AppRoutes() {
                     <Register />
                 </PublicRoute>
             } />
+            
+            {/* Digital Signature Route (public - accessed via token) */}
+            <Route path="/assinar/:token" element={<AssinarContrato />} />
             
             {/* Protected Routes */}
             <Route path="/dashboard" element={
