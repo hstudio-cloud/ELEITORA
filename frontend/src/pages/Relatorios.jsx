@@ -357,6 +357,104 @@ export default function Relatorios() {
                         </div>
                     </>
                 )}
+                    </TabsContent>
+
+                    {/* SPCE Export Tab */}
+                    <TabsContent value="spce">
+                        <div className="space-y-6">
+                            <Card className="border-accent">
+                                <CardHeader>
+                                    <CardTitle className="font-heading flex items-center gap-2">
+                                        <AlertCircle className="h-5 w-5 text-accent" />
+                                        Importante
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-muted-foreground">
+                                        Para exportar os arquivos no formato SPCE, certifique-se de que os seguintes dados estão preenchidos 
+                                        nas <strong>Configurações</strong>:
+                                    </p>
+                                    <ul className="list-disc list-inside mt-3 space-y-1 text-muted-foreground">
+                                        <li>CNPJ da Campanha</li>
+                                        <li>Dados das 3 contas bancárias (Doação, Fundo Partidário, FEFEC)</li>
+                                        <li>CPF do candidato</li>
+                                    </ul>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="font-heading flex items-center gap-2">
+                                        <FileCode className="h-5 w-5" />
+                                        Exportação SPCE - Doações pela Internet
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Gere o arquivo DOACINTE para importação no SPCE com as doações recebidas
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="bg-muted/50 p-4 rounded-lg">
+                                        <p className="text-sm text-muted-foreground">
+                                            Este arquivo contém as doações de pessoas físicas e recursos próprios no layout 
+                                            exigido pelo SPCE (Sistema de Prestação de Contas Eleitorais).
+                                        </p>
+                                        <p className="text-sm text-muted-foreground mt-2">
+                                            <strong>Layout:</strong> DOACINTE (Doações pela Internet)
+                                        </p>
+                                    </div>
+                                    <Button 
+                                        onClick={handleExportSPCE}
+                                        className="gap-2"
+                                        data-testid="export-spce-btn"
+                                    >
+                                        <Download className="h-4 w-4" />
+                                        Exportar Arquivo SPCE
+                                    </Button>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="font-heading">Outros Formatos de Exportação</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <Button 
+                                            variant="outline" 
+                                            onClick={handleExportJSON}
+                                            disabled={!report}
+                                            className="gap-2"
+                                            data-testid="export-json-btn"
+                                        >
+                                            <Download className="h-4 w-4" />
+                                            Exportar JSON
+                                        </Button>
+                                        <Button 
+                                            variant="outline" 
+                                            onClick={() => handleExportCSV('receitas')}
+                                            disabled={!report}
+                                            className="gap-2"
+                                            data-testid="export-receitas-csv-btn"
+                                        >
+                                            <Download className="h-4 w-4" />
+                                            Receitas CSV
+                                        </Button>
+                                        <Button 
+                                            variant="outline" 
+                                            onClick={() => handleExportCSV('despesas')}
+                                            disabled={!report}
+                                            className="gap-2"
+                                            data-testid="export-despesas-csv-btn"
+                                        >
+                                            <Download className="h-4 w-4" />
+                                            Despesas CSV
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </TabsContent>
+                </Tabs>
             </div>
         </Layout>
     );
