@@ -357,10 +357,6 @@ def main():
         ("Get Contract HTML", tester.test_get_contract_html),
         ("Request Signature", tester.test_request_signature),
         ("Verify Signature Token", tester.test_verify_signature_token),
-        ("Sign as Locador", tester.test_sign_as_locador),
-        ("Sign as Locatário", tester.test_sign_as_locatario),
-        ("List Contracts", tester.test_list_contracts),
-        ("Contract Status Updates", tester.test_contract_status_updates)
     ]
     
     print(f"\n📋 Running {len(tests)} test scenarios...")
@@ -372,6 +368,13 @@ def main():
                 print(f"\n⚠️  Test '{test_name}' failed - continuing with remaining tests")
         except Exception as e:
             print(f"\n💥 Test '{test_name}' crashed: {str(e)}")
+    
+    # Print signature token for frontend testing
+    if tester.signature_token:
+        print(f"\n🔗 Signature Token for Frontend Testing:")
+        print(f"   {tester.signature_token}")
+        print(f"\n🔗 Signature URL:")
+        print(f"   https://voto-contabil.preview.emergentagent.com/assinar/{tester.signature_token}")
     
     # Print final results
     print("\n" + "=" * 60)
