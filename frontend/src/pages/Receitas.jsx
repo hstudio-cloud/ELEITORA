@@ -416,6 +416,44 @@ export default function Receitas() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex gap-1">
+                                                        {!revenue.attachment_id ? (
+                                                            <label className="cursor-pointer">
+                                                                <input
+                                                                    type="file"
+                                                                    accept=".jpg,.jpeg,.png,.pdf"
+                                                                    className="hidden"
+                                                                    onChange={(e) => handleUploadReceipt(revenue.id, e.target.files[0])}
+                                                                    disabled={uploadingId === revenue.id}
+                                                                />
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-accent hover:text-accent"
+                                                                    asChild
+                                                                    disabled={uploadingId === revenue.id}
+                                                                    title="Anexar comprovante"
+                                                                >
+                                                                    <span data-testid={`upload-receipt-${revenue.id}`}>
+                                                                        {uploadingId === revenue.id ? (
+                                                                            <span className="animate-spin">⏳</span>
+                                                                        ) : (
+                                                                            <Upload className="h-4 w-4" />
+                                                                        )}
+                                                                    </span>
+                                                                </Button>
+                                                            </label>
+                                                        ) : (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-green-400"
+                                                                title="Ver comprovante"
+                                                                onClick={() => window.open(`${API}/attachments/${revenue.attachment_id}/download`, '_blank')}
+                                                                data-testid={`view-receipt-${revenue.id}`}
+                                                            >
+                                                                <Paperclip className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
