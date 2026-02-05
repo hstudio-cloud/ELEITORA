@@ -122,10 +122,21 @@ export default function Receitas() {
         }
     };
 
-    const filteredRevenues = revenues.filter(r =>
-        r.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.donor_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredRevenues = revenues.filter(r => {
+        const matchesSearch = r.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            r.donor_name?.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesDateRange = (!startDate || r.date >= startDate) && 
+            (!endDate || r.date <= endDate);
+        
+        return matchesSearch && matchesDateRange;
+    });
+
+    const clearFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setSearchTerm('');
+    };
 
     const totalRevenues = filteredRevenues.reduce((sum, r) => sum + r.amount, 0);
 
