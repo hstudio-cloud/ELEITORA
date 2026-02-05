@@ -1,0 +1,135 @@
+<analysis>**original_problem_statement:**
+O usuário solicitou a construção de uma plataforma web de gestão eleitoral e contábil (ERP Eleitoral) para candidatos no Brasil. Os requisitos iniciais incluíam organização financeira, gestão de contratos, controle de receitas e despesas, conformidade com a Justiça Eleitoral e comunicação.
+
+**Requisitos do Produto Adicionais (adicionados durante a sessão):**
+1.  **Templates de Contrato e Assinatura Digital:** Geração de contratos a partir de modelos (arquivos .docx fornecidos pelo usuário), com campos preenchidos dinamicamente e um fluxo de assinatura digital (não certificada).
+2.  **Conformidade com SPCE:** Adição de campos obrigatórios para candidatos (CNPJ, partido, 3 contas bancárias específicas) e exportação de relatórios no formato exigido pelo SPCE (Sistema de Prestação de Contas Eleitorais).
+3.  **Lista de Funcionalidades Pendentes (última solicitação do usuário):**
+    *   Exportação de relatórios em PDF.
+    *   Filtros por período nas listagens.
+    *   Upload de anexos a documentos/componentes.
+    *   Sistema de alertas para pagamentos próximos ao vencimento.
+    *   Integração com envio de e-mail automático para links de assinatura (usando Resend).
+    *   Estrutura para futura integração com GOV.BR/ICP-Brasil.
+    *   Assinatura via validação facial (em vez de GOV.BR por enquanto).
+    *   Geração automática de PDF do contrato assinado.
+    *   Implementação de mais layouts de exportação SPCE (despesas, contratos).
+    *   Importação de extratos bancários e conciliação automática.
+    *   Validação de CPF/CNPJ com dígito verificador.
+
+**User's preferred language**: Portuguese (Brazil)
+
+**what currently exists?**
+A aplicação full-stack (FastAPI/React/MongoDB) está funcional com as seguintes características:
+*   **Backend:** Endpoints para autenticação JWT, CRUD completo para usuários, campanhas, receitas, despesas e contratos. Geração de contratos a partir de templates, endpoints para um fluxo de assinatura simples e exportação de relatórios no formato SPCE para doações.
+*   **Frontend:** UI com tema escuro, páginas de Login, Registro, Dashboard com KPIs, seções para Receitas, Despesas, Contratos, Relatórios e Configurações. A página de Contratos permite criar contratos a partir de templates e visualizar o status da assinatura. A página de Configurações inclui todos os campos detalhados do candidato necessários para a conformidade com o SPCE.
+
+**Last working item**:
+O agente estava no meio da implementação de um grande conjunto de funcionalidades solicitadas pelo usuário (ver lista de pendências na declaração do problema).
+-   **Last item agent was working:** O agente estava fazendo modificações extensas no backend para suportar a lista de novas funcionalidades. Ele adicionou novos modelos de dados (anexos, alertas), novas rotas (upload, geração de PDF, validação de CPF/CNPJ, etc.) e a integração com a API Resend para envio de e-mails. O trabalho foi concentrado em . O agente planejava começar a trabalhar no frontend a seguir, especificamente na página de assinatura para adicionar a captura de selfie.
+-   **Status:** IN PROGRESS
+-   **Agent Testing Done:** N (As extensas modificações no backend ainda não foram testadas.)
+-   **Which testing method agent to use?** both
+    -   Primeiro, use  para testar cada um dos novos endpoints de backend individualmente.
+    -   Depois de implementar o frontend, use o  para uma verificação completa e2e.
+-   **User Testing Done:** N
+
+**All Pending/In progress Issue list**:
+-   **Issue 1:** O backend foi massivamente modificado e é instável (P0)
+    -   **Attempted fixes:** Nenhuma. O código é novo e ainda não foi testado.
+    -   **Next debug checklist:**
+        1.  Reinicie o serviço de backend com backend: stopped
+backend: started.
+        2.  Verifique os logs de erro do supervisor para erros de inicialização ou sintaxe: ==> /var/log/supervisor/backend.err.log <==
+INFO:     Stopping reloader process [48]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [155] using WatchFiles
+
+==> /var/log/supervisor/backend.out.log <==.
+        3.  Corrija quaisquer erros de importação ou de sintaxe em .
+        4.  Depois que o servidor iniciar, teste os novos endpoints principais com  (ex: , , ) para garantir que funcionem de forma isolada antes de construir o frontend.
+    -   **Why fix this issue and what will be achieved with the fix?** O backend é a base para todas as novas funcionalidades solicitadas. Sem um backend estável e testado, o trabalho no frontend será bloqueado e propenso a erros.
+    -   **Status:** IN PROGRESS
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** backend
+    -   **Blocked on other issue:** Não
+
+**In progress Task List**:
+-   **Task 1:** Implementar o frontend para as novas funcionalidades de backend (P0)
+    -   **Where to resume:** O agente planejava começar atualizando a página de assinatura () para incluir a captura de selfie (validação facial). A partir daí, atualize as outras páginas relevantes:
+        *   **Relatórios ():** Adicionar botão para exportar PDF.
+        *   **Receitas, Despesas, Contratos:** Adicionar filtros de data e funcionalidade de upload de anexos.
+        *   **Dashboard/Layout:** Implementar um sistema de notificação para os alertas de pagamento.
+    -   **What will be achieved with this?** Isso tornará as novas funcionalidades do backend acessíveis aos usuários, completando o ciclo de desenvolvimento para a última solicitação do usuário.
+    -   **Status:** NOT STARTED
+    -   **Should Test frontend/backend/both after fix?** both
+    -   **Blocked on something:**  - O backend precisa ser estabilizado primeiro.
+
+**Upcoming and Future Tasks**
+*   **Upcoming Tasks:**
+    *   **P1: Geração de PDF do contrato assinado:** Implementar a lógica para gerar e armazenar um PDF após a assinatura do contrato ser concluída.
+    *   **P1: Mais layouts de exportação SPCE:** Adicionar a exportação para despesas e contratos, além das doações já implementadas.
+    *   **P2: Validação facial para assinatura:** Pesquisar e implementar uma solução de validação facial para a assinatura de contratos. Isso foi uma sugestão do usuário e precisa de mais detalhes.
+*   **Future Tasks:**
+    *   **P2: Integração com GOV.BR/ICP-Brasil:** Implementar a assinatura com certificação digital real, como solicitado inicialmente (atualmente adiado).
+    *   **P2: Importação de extratos bancários e conciliação:** Funcionalidade complexa que requer análise de arquivos de extrato e lógica de conciliação.
+
+**Completed work in this session**
+-   **MVP Inicial:** Construção da estrutura completa da aplicação com autenticação, dashboard, e CRUD para receitas e despesas.
+-   **Templates de Contrato e Assinatura:** Implementação da geração de contratos a partir de arquivos  e um fluxo de assinatura digital simples.
+-   **Conformidade com SPCE:** Adição de campos de dados obrigatórios do candidato (CNPJ, contas bancárias, etc.) e a funcionalidade de exportação de doações no formato SPCE.
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+*   **Backend:** FastAPI, MongoDB (via ), Pydantic, JWT para autenticação.
+*   **Frontend:** React, Tailwind CSS, Shadcn/UI para componentes.
+*   **Integrações:** Resend (para e-mail).
+
+**key DB schema**
+*   **users:** 
+*   **campaigns:** 
+*   **revenues:** 
+*   **expenses:** 
+*   **contracts:** 
+*   **attachments:**  (NOVO, NÃO TESTADO)
+*   **alerts:**  (NOVO, NÃO TESTADO)
+
+**All files of reference**
+*   **/app/backend/server.py:** Arquivo principal do backend, massivamente editado para adicionar as novas funcionalidades. **Requer revisão e teste urgentes.**
+*   **/app/backend/requirements.txt:** Atualizado para incluir , , .
+*   **/app/frontend/src/pages/Configuracoes.jsx:** Contém os formulários para os dados detalhados do candidato (SPCE).
+*   **/app/frontend/src/pages/Contratos.jsx:** Página principal para gerenciamento de contratos. Precisará de atualizações.
+*   **/app/frontend/src/pages/AssinarContrato.jsx:** Página para o fluxo de assinatura. Planejado para ser atualizado com validação facial.
+*   **/app/frontend/src/pages/Relatorios.jsx:** Contém a lógica de exportação. Precisará ser atualizado para exportação de PDF.
+
+**Critical Info for New Agent**
+*   Você está assumindo no meio de um grande ciclo de desenvolvimento. O agente anterior tentou implementar uma longa lista de funcionalidades de uma só vez, resultando em um backend modificado, mas não testado, e um frontend desatualizado.
+*   A prioridade número um é estabilizar e testar as mudanças no backend () antes de prosseguir. Não presuma que qualquer um dos novos códigos funcione.
+*   O usuário concordou em adiar a integração com GOV.BR e, em vez disso, solicitou uma validação facial para assinaturas. Esta é uma funcionalidade complexa e pode precisar de mais esclarecimentos do usuário sobre os requisitos exatos.
+*   A integração com a API  foi adicionada ao backend, mas precisa de uma chave de API no arquivo  e de testes para garantir o envio de e-mails.
+
+**documents and test reports created in this job**
+*   /app/memory/PRD.md
+*   /app/test_reports/iteration_1.json
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **Msg 193:** O usuário respondeu às perguntas de esclarecimento: Use o que for melhor para e-mail (o agente escolheu Resend), não tem API GOV.BR, mas prepare a estrutura e adicione uma assinatura por validação facial, e escolha a opção A para outra pergunta. (CONCLUÍDO)
+2.  **Msg 192:** O agente enviou perguntas de esclarecimento sobre as integrações necessárias. (CONCLUÍDO)
+3.  **Msg 190:** O usuário listou um grande número de funcionalidades pendentes que ele quer que sejam implementadas. (EM ANDAMENTO)
+4.  **Msg 136:** O usuário solicitou conformidade com o SPCE, forneceu manuais e especificou novos campos obrigatórios para o candidato. (CONCLUÍDO)
+5.  **Msg 70:** O usuário solicitou templates de contrato baseados em arquivos  que ele enviou, com campos dinâmicos e um fluxo de assinatura digital. (CONCLUÍDO)
+
+**3rd Party Integrations**
+*   **Resend:** Para envio de e-mails (ex: links de assinatura). O SDK foi adicionado ao , e a lógica foi adicionada ao , mas ainda não foi testado e requer uma chave de API.
+
+**Testing status**
+-   **Testing agent used after significant changes:** YES (após a implementação do contrato, mas não após as últimas grandes mudanças no backend).
+-   **Troubleshoot agent used after agent stuck in loop:** NO
+-   **Test files created:** Nenhum
+-   **Known regressions:** Nenhum conhecido, mas altamente provável devido às mudanças não testadas no backend.
+
+**What agent forgot to execute**
+O agente tentou implementar uma lista muito grande de funcionalidades de uma só vez no backend, sem uma abordagem incremental. Ele não testou nenhuma das novas rotas ou lógicas do backend () após as modificações maciças. O trabalho no frontend para essas novas funcionalidades nem sequer começou.</analysis>

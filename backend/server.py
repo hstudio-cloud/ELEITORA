@@ -54,7 +54,7 @@ JWT_EXPIRATION_HOURS = 24
 # Email Config
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
-APP_URL = os.environ.get('APP_URL', 'https://voto-contabil.preview.emergentagent.com')
+APP_URL = os.environ.get('APP_URL', 'https://gestao-campanha.preview.emergentagent.com')
 
 if RESEND_AVAILABLE and RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
