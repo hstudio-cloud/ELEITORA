@@ -152,6 +152,42 @@ class ContractTemplateType(str, Enum):
     VEICULO_COM_MOTORISTA = "veiculo_com_motorista"
     VEICULO_SEM_MOTORISTA = "veiculo_sem_motorista"
 
+# Required attachments by contract type
+CONTRACT_REQUIRED_ATTACHMENTS = {
+    "veiculo_com_motorista": [
+        {"key": "doc_veiculo", "label": "Documento do Veículo (CRLV)", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário (RG/CPF)", "required": True},
+        {"key": "cnh_motorista", "label": "CNH do Motorista", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência", "required": True},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "veiculo_sem_motorista": [
+        {"key": "doc_veiculo", "label": "Documento do Veículo (CRLV)", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário (RG/CPF)", "required": True},
+        {"key": "cnh_proprietario", "label": "CNH do Proprietário", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência", "required": True},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "imovel": [
+        {"key": "doc_imovel", "label": "Documento do Imóvel (Escritura/Contrato)", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário/Locador (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência do Locador", "required": True},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "bem_movel": [
+        {"key": "doc_proprietario", "label": "Documento do Proprietário (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência", "required": True},
+        {"key": "doc_bem", "label": "Documento do Bem (se houver)", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "espaco_evento": [
+        {"key": "doc_proprietario", "label": "Documento do Proprietário/Responsável (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência", "required": True},
+        {"key": "doc_espaco", "label": "Documento do Espaço (se houver)", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ]
+}
+
 class PaymentStatus(str, Enum):
     PENDENTE = "pendente"
     PAGO = "pago"
