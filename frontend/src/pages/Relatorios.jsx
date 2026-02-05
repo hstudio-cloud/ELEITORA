@@ -126,6 +126,29 @@ export default function Relatorios() {
         }
     };
 
+    const handleExportSPCEZip = async () => {
+        setGeneratingZip(true);
+        try {
+            const response = await axios.get(`${API}/export/spce-zip`, {
+                responseType: 'blob'
+            });
+            
+            const blob = new Blob([response.data], { type: 'application/zip' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `SPCE_${new Date().toISOString().split('T')[0]}.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            toast.success('Pacote SPCE exportado com sucesso!');
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Erro ao gerar pacote SPCE. Verifique se o CNPJ da campanha está configurado.');
+        } finally {
+            setGeneratingZip(false);
+        }
+    };
+
     return (
         <Layout>
             <div className="space-y-6" data-testid="relatorios-page">
