@@ -52,12 +52,14 @@ export default function Dashboard() {
 
     const fetchData = async () => {
         try {
-            const [statsRes, campaignRes] = await Promise.all([
+            const [statsRes, campaignRes, alertsRes] = await Promise.all([
                 axios.get(`${API}/dashboard/stats`),
-                axios.get(`${API}/campaigns/my`)
+                axios.get(`${API}/campaigns/my`),
+                axios.get(`${API}/payments/alerts?days_ahead=7`).catch(() => ({ data: { alerts: [], total: 0 } }))
             ]);
             setStats(statsRes.data);
             setCampaign(campaignRes.data);
+            setAlerts(alertsRes.data);
         } catch (error) {
             toast.error('Erro ao carregar dados');
         } finally {
