@@ -1698,51 +1698,6 @@ async def validate_cnpj_endpoint(cnpj: str):
         "formatted": format_cnpj(cnpj) if is_valid else None
     }
 
-# ============== PAYMENT ALERTS ROUTES ==============
-@api_router.get("/payments/alerts")
-async def get_payment_alerts(
-    days_ahead: int = Query(default=7, description="Days to look ahead"),
-    current_user: dict = Depends(get_current_user)
-):
-    """Get payments due within the next X days"""
-    campaign_id = current_user.get("campaign_id")
-    if not campaign_id:
-        return {"alerts": [], "total": 0}
-    
-    today = datetime.now(timezone.utc).date()
-    future_date = today + timedelta(days=days_ahead)
-    
-    # Get all pending payments
-    payments = await db.payments.find(
-        {"campaign_id": campaign_id, "status": "pendente"},
-        {"_id": 0}
-    ).to_list(1000)
-    
-    alerts = []
-    for p in payments:
-        try:
-            due_date = datetime.fromisoformat(p["due_date"]).date()
-            if due_date <= future_date:
-                days_until = (due_date - today).days
-                alerts.append({
-                    **p,
-                    "days_until_due": days_until,
-                    "is_overdue": days_until < 0,
-                    "urgency": "high" if days_until <= 2 else ("medium" if days_until <= 5 else "low")
-                })
-        except:
-            pass
-    
-    # Sort by due date
-    alerts.sort(key=lambda x: x.get("days_until_due", 999))
-    
-    return {
-        "alerts": alerts,
-        "total": len(alerts),
-        "overdue_count": len([a for a in alerts if a.get("is_overdue")]),
-        "due_today": len([a for a in alerts if a.get("days_until_due") == 0])
-    }
-
 # ============== PDF GENERATION ROUTES ==============
 @api_router.get("/reports/pdf")
 async def generate_pdf_report(current_user: dict = Depends(get_current_user)):
