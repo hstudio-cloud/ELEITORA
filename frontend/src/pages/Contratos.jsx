@@ -1023,42 +1023,17 @@ export default function Contratos() {
                                                                 <DollarSign className="h-4 w-4" />
                                                             </Button>
                                                         )}
-                                                        {/* Upload document */}
-                                                        {!contract.attachment_id ? (
-                                                            <label className="cursor-pointer">
-                                                                <input
-                                                                    type="file"
-                                                                    accept=".jpg,.jpeg,.png,.pdf"
-                                                                    className="hidden"
-                                                                    onChange={(e) => handleUploadContractDoc(contract.id, e.target.files[0])}
-                                                                    disabled={uploadingId === contract.id}
-                                                                />
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    asChild
-                                                                    disabled={uploadingId === contract.id}
-                                                                    title="Anexar documento"
-                                                                >
-                                                                    <span data-testid={`upload-contract-${contract.id}`}>
-                                                                        {uploadingId === contract.id ? (
-                                                                            <span className="animate-spin">⏳</span>
-                                                                        ) : (
-                                                                            <Upload className="h-4 w-4" />
-                                                                        )}
-                                                                    </span>
-                                                                </Button>
-                                                            </label>
-                                                        ) : (
+                                                        {/* Required attachments button */}
+                                                        {contract.template_type && (
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
-                                                                className="text-green-400"
-                                                                title="Ver documento"
-                                                                onClick={() => window.open(`${API}/attachments/${contract.attachment_id}/download`, '_blank')}
-                                                                data-testid={`view-contract-doc-${contract.id}`}
+                                                                onClick={() => fetchContractAttachments(contract.id)}
+                                                                title="Gerenciar Anexos Obrigatórios"
+                                                                className={contract.attachments && Object.keys(contract.attachments || {}).length > 0 ? "text-green-400" : "text-amber-400"}
+                                                                data-testid={`attachments-contract-${contract.id}`}
                                                             >
-                                                                <Paperclip className="h-4 w-4" />
+                                                                <FileCheck className="h-4 w-4" />
                                                             </Button>
                                                         )}
                                                         {contract.template_type && (
