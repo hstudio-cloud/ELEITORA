@@ -167,7 +167,7 @@ export default function Contratos() {
                 ...formData,
                 value: parseFloat(formData.value),
                 num_parcelas: parseInt(formData.num_parcelas) || 1,
-                gerar_despesas: formData.gerar_despesas
+                gerar_despesas: formData.gerar_despesas !== false // Default to true
             };
 
             if (editingId) {
@@ -175,7 +175,7 @@ export default function Contratos() {
                 toast.success('Contrato atualizado!');
             } else {
                 await axios.post(`${API}/contracts`, payload);
-                toast.success('Contrato criado com despesas geradas automaticamente!');
+                toast.success('Contrato criado! Despesas geradas automaticamente.');
             }
 
             setDialogOpen(false);
