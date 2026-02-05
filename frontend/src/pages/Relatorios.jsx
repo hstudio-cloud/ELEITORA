@@ -102,6 +102,29 @@ export default function Relatorios() {
         }
     };
 
+    const handleExportPDF = async (type) => {
+        setGeneratingPdf(true);
+        try {
+            const response = await axios.get(`${API}/reports/pdf?report_type=${type}`, {
+                responseType: 'blob'
+            });
+            
+            const blob = new Blob([response.data], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `relatorio_${type}_${new Date().toISOString().split('T')[0]}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            toast.success('PDF gerado com sucesso!');
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Erro ao gerar PDF');
+        } finally {
+            setGeneratingPdf(false);
+        }
+    };
+
     return (
         <Layout>
             <div className="space-y-6" data-testid="relatorios-page">
