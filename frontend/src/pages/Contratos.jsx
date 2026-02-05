@@ -165,7 +165,9 @@ export default function Contratos() {
         try {
             const payload = {
                 ...formData,
-                value: parseFloat(formData.value)
+                value: parseFloat(formData.value),
+                num_parcelas: parseInt(formData.num_parcelas) || 1,
+                gerar_despesas: formData.gerar_despesas
             };
 
             if (editingId) {
@@ -173,7 +175,7 @@ export default function Contratos() {
                 toast.success('Contrato atualizado!');
             } else {
                 await axios.post(`${API}/contracts`, payload);
-                toast.success('Contrato criado!');
+                toast.success('Contrato criado com despesas geradas automaticamente!');
             }
 
             setDialogOpen(false);
@@ -184,6 +186,42 @@ export default function Contratos() {
             toast.error(error.response?.data?.detail || 'Erro ao salvar contrato');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const fetchContractExpenses = async (contractId) => {
+        try {
+            const response = await axios.get(`${API}/contracts/${contractId}/expenses`);
+            setContractExpenses(response.data);
+            setExpensesDialogOpen(true);
+        } catch (error) {
+            toast.error('Erro ao carregar despesas do contrato');
+        }
+    };
+
+    const handleUploadContractDoc = async (contractId, file) => {
+        if (!file) return;
+        
+        const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (!allowedTypes.includes(file.type)) {
+            toast.error('Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF');
+            return;
+        }
+
+        setUploadingId(contractId);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            await axios.post(`${API}/contracts/${contractId}/attach`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            toast.success('Documento anexado com sucesso!');
+            fetchContracts();
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Erro ao anexar documento');
+        } finally {
+            setUploadingId(null);
         }
     };
 
