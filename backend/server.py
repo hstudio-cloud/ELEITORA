@@ -1668,9 +1668,6 @@ async def generate_tse_report(current_user: dict = Depends(get_current_user)):
     return report
 
 # ============== SPCE ZIP EXPORT ==============
-import zipfile
-import io
-import hashlib
 
 @api_router.get("/export/spce-zip")
 async def export_spce_zip(current_user: dict = Depends(get_current_user)):
