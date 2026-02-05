@@ -1,18 +1,42 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import asyncio
+import base64
+import hashlib
+import re
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict, EmailStr
+from pydantic import BaseModel, Field, ConfigDict, EmailStr, validator
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
 import bcrypt
 from enum import Enum
+from io import BytesIO
+
+# Optional imports for PDF and Email
+try:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+    from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+
+try:
+    import resend
+    RESEND_AVAILABLE = True
+except ImportError:
+    RESEND_AVAILABLE = False
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -27,10 +51,82 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'eleitora360-secret-key-2024')
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
+# Email Config
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+APP_URL = os.environ.get('APP_URL', 'https://voto-contabil.preview.emergentagent.com')
+
+if RESEND_AVAILABLE and RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
+# File upload config
+UPLOAD_DIR = ROOT_DIR / 'uploads'
+UPLOAD_DIR.mkdir(exist_ok=True)
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
 # Create the main app
 app = FastAPI(title="Eleitora 360 API", version="1.0.0")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
+
+# ============== VALIDATION HELPERS ==============
+def validate_cpf(cpf: str) -> bool:
+    """Validate Brazilian CPF"""
+    cpf = re.sub(r'[^0-9]', '', cpf)
+    if len(cpf) != 11 or cpf == cpf[0] * 11:
+        return False
+    
+    # First digit
+    soma = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    resto = soma % 11
+    digito1 = 0 if resto < 2 else 11 - resto
+    
+    if int(cpf[9]) != digito1:
+        return False
+    
+    # Second digit
+    soma = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    resto = soma % 11
+    digito2 = 0 if resto < 2 else 11 - resto
+    
+    return int(cpf[10]) == digito2
+
+def validate_cnpj(cnpj: str) -> bool:
+    """Validate Brazilian CNPJ"""
+    cnpj = re.sub(r'[^0-9]', '', cnpj)
+    if len(cnpj) != 14 or cnpj == cnpj[0] * 14:
+        return False
+    
+    # First digit
+    pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    soma = sum(int(cnpj[i]) * pesos1[i] for i in range(12))
+    resto = soma % 11
+    digito1 = 0 if resto < 2 else 11 - resto
+    
+    if int(cnpj[12]) != digito1:
+        return False
+    
+    # Second digit
+    pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    soma = sum(int(cnpj[i]) * pesos2[i] for i in range(13))
+    resto = soma % 11
+    digito2 = 0 if resto < 2 else 11 - resto
+    
+    return int(cnpj[13]) == digito2
+
+def format_cpf(cpf: str) -> str:
+    """Format CPF to XXX.XXX.XXX-XX"""
+    cpf = re.sub(r'[^0-9]', '', cpf)
+    if len(cpf) == 11:
+        return f"{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:]}"
+    return cpf
+
+def format_cnpj(cnpj: str) -> str:
+    """Format CNPJ to XX.XXX.XXX/XXXX-XX"""
+    cnpj = re.sub(r'[^0-9]', '', cnpj)
+    if len(cnpj) == 14:
+        return f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}"
+    return cnpj
 
 # ============== ENUMS ==============
 class UserRole(str, Enum):
