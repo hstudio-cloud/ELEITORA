@@ -1542,6 +1542,762 @@ async def generate_tse_report(current_user: dict = Depends(get_current_user)):
     
     return report
 
+# ============== FILE UPLOAD ROUTES ==============
+@api_router.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a file attachment"""
+    if not current_user.get("campaign_id"):
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    # Check file size
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
+    
+    # Generate unique filename
+    file_id = str(uuid.uuid4())
+    file_ext = Path(file.filename).suffix if file.filename else '.bin'
+    safe_filename = f"{file_id}{file_ext}"
+    file_path = UPLOAD_DIR / safe_filename
+    
+    # Save file
+    with open(file_path, 'wb') as f:
+        f.write(contents)
+    
+    # Save metadata to DB
+    attachment_doc = {
+        "id": file_id,
+        "original_name": file.filename,
+        "filename": safe_filename,
+        "content_type": file.content_type,
+        "size": len(contents),
+        "campaign_id": current_user["campaign_id"],
+        "uploaded_by": current_user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.attachments.insert_one(attachment_doc)
+    attachment_doc.pop("_id", None)
+    
+    return attachment_doc
+
+@api_router.get("/attachments/{attachment_id}")
+async def get_attachment(attachment_id: str, current_user: dict = Depends(get_current_user)):
+    """Get attachment metadata"""
+    attachment = await db.attachments.find_one(
+        {"id": attachment_id, "campaign_id": current_user.get("campaign_id")},
+        {"_id": 0}
+    )
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    return attachment
+
+@api_router.get("/attachments/{attachment_id}/download")
+async def download_attachment(attachment_id: str, current_user: dict = Depends(get_current_user)):
+    """Download attachment file"""
+    attachment = await db.attachments.find_one(
+        {"id": attachment_id, "campaign_id": current_user.get("campaign_id")},
+        {"_id": 0}
+    )
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    
+    file_path = UPLOAD_DIR / attachment["filename"]
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado no servidor")
+    
+    return StreamingResponse(
+        open(file_path, 'rb'),
+        media_type=attachment.get("content_type", "application/octet-stream"),
+        headers={"Content-Disposition": f"attachment; filename={attachment['original_name']}"}
+    )
+
+@api_router.delete("/attachments/{attachment_id}")
+async def delete_attachment(attachment_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete attachment"""
+    attachment = await db.attachments.find_one(
+        {"id": attachment_id, "campaign_id": current_user.get("campaign_id")}
+    )
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    
+    # Delete file
+    file_path = UPLOAD_DIR / attachment["filename"]
+    if file_path.exists():
+        file_path.unlink()
+    
+    # Delete from DB
+    await db.attachments.delete_one({"id": attachment_id})
+    
+    return {"message": "Arquivo excluído"}
+
+# ============== VALIDATION ROUTES ==============
+@api_router.post("/validate/cpf")
+async def validate_cpf_endpoint(cpf: str):
+    """Validate CPF"""
+    is_valid = validate_cpf(cpf)
+    return {
+        "cpf": cpf,
+        "valid": is_valid,
+        "formatted": format_cpf(cpf) if is_valid else None
+    }
+
+@api_router.post("/validate/cnpj")
+async def validate_cnpj_endpoint(cnpj: str):
+    """Validate CNPJ"""
+    is_valid = validate_cnpj(cnpj)
+    return {
+        "cnpj": cnpj,
+        "valid": is_valid,
+        "formatted": format_cnpj(cnpj) if is_valid else None
+    }
+
+# ============== PAYMENT ALERTS ROUTES ==============
+@api_router.get("/payments/alerts")
+async def get_payment_alerts(
+    days_ahead: int = Query(default=7, description="Days to look ahead"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get payments due within the next X days"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        return {"alerts": [], "total": 0}
+    
+    today = datetime.now(timezone.utc).date()
+    future_date = today + timedelta(days=days_ahead)
+    
+    # Get all pending payments
+    payments = await db.payments.find(
+        {"campaign_id": campaign_id, "status": "pendente"},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    alerts = []
+    for p in payments:
+        try:
+            due_date = datetime.fromisoformat(p["due_date"]).date()
+            if due_date <= future_date:
+                days_until = (due_date - today).days
+                alerts.append({
+                    **p,
+                    "days_until_due": days_until,
+                    "is_overdue": days_until < 0,
+                    "urgency": "high" if days_until <= 2 else ("medium" if days_until <= 5 else "low")
+                })
+        except:
+            pass
+    
+    # Sort by due date
+    alerts.sort(key=lambda x: x.get("days_until_due", 999))
+    
+    return {
+        "alerts": alerts,
+        "total": len(alerts),
+        "overdue_count": len([a for a in alerts if a.get("is_overdue")]),
+        "due_today": len([a for a in alerts if a.get("days_until_due") == 0])
+    }
+
+# ============== PDF GENERATION ROUTES ==============
+@api_router.get("/reports/pdf")
+async def generate_pdf_report(current_user: dict = Depends(get_current_user)):
+    """Generate PDF report"""
+    if not PDF_AVAILABLE:
+        raise HTTPException(status_code=500, detail="PDF generation not available")
+    
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    # Create PDF buffer
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+    
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER, fontSize=14, spaceAfter=20))
+    styles.add(ParagraphStyle(name='Title2', alignment=TA_CENTER, fontSize=18, spaceAfter=30, fontName='Helvetica-Bold'))
+    
+    elements = []
+    
+    # Title
+    elements.append(Paragraph("PRESTAÇÃO DE CONTAS ELEITORAL", styles['Title2']))
+    elements.append(Spacer(1, 20))
+    
+    # Campaign Info
+    if campaign:
+        info_text = f"""
+        <b>Candidato:</b> {campaign.get('candidate_name', '')}<br/>
+        <b>Partido:</b> {campaign.get('party', '')} - {campaign.get('position', '')}<br/>
+        <b>Cidade/UF:</b> {campaign.get('city', '')}/{campaign.get('state', '')}<br/>
+        <b>Ano:</b> {campaign.get('election_year', '')}<br/>
+        <b>CNPJ:</b> {campaign.get('cnpj', 'Não informado')}
+        """
+        elements.append(Paragraph(info_text, styles['Normal']))
+        elements.append(Spacer(1, 30))
+    
+    # Summary
+    total_revenues = sum(r.get("amount", 0) for r in revenues)
+    total_expenses = sum(e.get("amount", 0) for e in expenses)
+    balance = total_revenues - total_expenses
+    
+    summary_data = [
+        ["RESUMO FINANCEIRO", ""],
+        ["Total de Receitas", f"R$ {total_revenues:,.2f}"],
+        ["Total de Despesas", f"R$ {total_expenses:,.2f}"],
+        ["Saldo", f"R$ {balance:,.2f}"]
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[10*cm, 5*cm])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2563eb')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 30))
+    
+    # Revenues table
+    if revenues:
+        elements.append(Paragraph("<b>RECEITAS</b>", styles['Heading2']))
+        revenue_data = [["Data", "Descrição", "Categoria", "Valor"]]
+        for r in revenues[:50]:  # Limit to 50 items
+            revenue_data.append([
+                r.get("date", "")[:10],
+                r.get("description", "")[:40],
+                r.get("category", ""),
+                f"R$ {r.get('amount', 0):,.2f}"
+            ])
+        
+        revenue_table = Table(revenue_data, colWidths=[2.5*cm, 8*cm, 3*cm, 3*cm])
+        revenue_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#10b981')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        elements.append(revenue_table)
+        elements.append(Spacer(1, 20))
+    
+    # Expenses table
+    if expenses:
+        elements.append(Paragraph("<b>DESPESAS</b>", styles['Heading2']))
+        expense_data = [["Data", "Descrição", "Categoria", "Valor"]]
+        for e in expenses[:50]:
+            expense_data.append([
+                e.get("date", "")[:10],
+                e.get("description", "")[:40],
+                e.get("category", ""),
+                f"R$ {e.get('amount', 0):,.2f}"
+            ])
+        
+        expense_table = Table(expense_data, colWidths=[2.5*cm, 8*cm, 3*cm, 3*cm])
+        expense_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ef4444')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        elements.append(expense_table)
+    
+    # Footer
+    elements.append(Spacer(1, 40))
+    elements.append(Paragraph(
+        f"Relatório gerado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}",
+        styles['Normal']
+    ))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"prestacao_contas_{campaign.get('candidate_name', 'campanha').replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@api_router.get("/contracts/{contract_id}/pdf")
+async def generate_contract_pdf(contract_id: str, current_user: dict = Depends(get_current_user)):
+    """Generate PDF of contract"""
+    if not PDF_AVAILABLE:
+        raise HTTPException(status_code=500, detail="PDF generation not available")
+    
+    contract = await db.contracts.find_one(
+        {"id": contract_id, "campaign_id": current_user.get("campaign_id")},
+        {"_id": 0}
+    )
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+    
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Justify', alignment=TA_JUSTIFY, fontSize=11, leading=16))
+    styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER, fontSize=12))
+    styles.add(ParagraphStyle(name='Title2', alignment=TA_CENTER, fontSize=14, spaceAfter=20, fontName='Helvetica-Bold'))
+    
+    elements = []
+    
+    # Title
+    elements.append(Paragraph(contract.get("title", "CONTRATO"), styles['Title2']))
+    elements.append(Spacer(1, 20))
+    
+    # Contract HTML content converted to paragraphs
+    contract_html = contract.get("contract_html", "")
+    if contract_html:
+        # Simple HTML to text conversion for PDF
+        import re
+        text = re.sub(r'<br\s*/?>', '\n', contract_html)
+        text = re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r'\n\s*\n', '\n\n', text)
+        
+        for para in text.split('\n\n'):
+            if para.strip():
+                elements.append(Paragraph(para.strip(), styles['Justify']))
+                elements.append(Spacer(1, 10))
+    
+    # Signature section
+    elements.append(Spacer(1, 30))
+    
+    # Add signature images if available
+    if contract.get("locador_selfie"):
+        elements.append(Paragraph("<b>Assinatura do Locador (com validação facial):</b>", styles['Normal']))
+        elements.append(Paragraph(f"Assinado em: {contract.get('locador_assinatura_data', '')}", styles['Normal']))
+        elements.append(Paragraph(f"Hash: {contract.get('locador_assinatura_hash', '')[:20]}...", styles['Normal']))
+        elements.append(Spacer(1, 10))
+    
+    if contract.get("locatario_selfie"):
+        elements.append(Paragraph("<b>Assinatura do Locatário (com validação facial):</b>", styles['Normal']))
+        elements.append(Paragraph(f"Assinado em: {contract.get('locatario_assinatura_data', '')}", styles['Normal']))
+        elements.append(Paragraph(f"Hash: {contract.get('locatario_assinatura_hash', '')[:20]}...", styles['Normal']))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"contrato_{contract_id[:8]}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+# ============== EMAIL ROUTES ==============
+async def send_email_async(to_email: str, subject: str, html_content: str):
+    """Send email using Resend"""
+    if not RESEND_AVAILABLE or not RESEND_API_KEY:
+        logging.warning("Email service not configured")
+        return False
+    
+    try:
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content
+        }
+        await asyncio.to_thread(resend.Emails.send, params)
+        return True
+    except Exception as e:
+        logging.error(f"Failed to send email: {e}")
+        return False
+
+@api_router.post("/email/send-signature-request")
+async def send_signature_email(
+    contract_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user)
+):
+    """Send signature request email"""
+    contract = await db.contracts.find_one(
+        {"id": contract_id, "campaign_id": current_user.get("campaign_id")},
+        {"_id": 0}
+    )
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    locador_email = contract.get("locador_email")
+    if not locador_email:
+        raise HTTPException(status_code=400, detail="Email do locador não informado")
+    
+    # Generate signature token
+    token = generate_signature_token(contract_id, locador_email, "locador")
+    signature_link = f"{APP_URL}/assinar/{token}"
+    
+    # Update contract
+    await db.contracts.update_one(
+        {"id": contract_id},
+        {"$set": {
+            "signature_request_token": token,
+            "status": "aguardando_assinatura"
+        }}
+    )
+    
+    # Email content
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #2563eb;">Solicitação de Assinatura de Contrato</h2>
+        <p>Olá <strong>{contract.get('locador_nome', 'Prezado(a)')}</strong>,</p>
+        <p>Você recebeu uma solicitação para assinar o seguinte contrato:</p>
+        <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p><strong>Título:</strong> {contract.get('title', '')}</p>
+            <p><strong>Valor:</strong> R$ {contract.get('value', 0):,.2f}</p>
+        </div>
+        <p>Para assinar o contrato, clique no botão abaixo:</p>
+        <a href="{signature_link}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 20px 0;">
+            Assinar Contrato
+        </a>
+        <p style="color: #666; font-size: 12px;">Este link é válido por 7 dias.</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="color: #999; font-size: 11px;">Este é um email automático do Eleitora 360.</p>
+    </div>
+    """
+    
+    # Send email in background
+    background_tasks.add_task(
+        send_email_async,
+        locador_email,
+        "Solicitação de Assinatura de Contrato - Eleitora 360",
+        html_content
+    )
+    
+    return {
+        "message": "Email de solicitação enviado",
+        "signature_link": signature_link,
+        "email_sent_to": locador_email
+    }
+
+# ============== FACIAL SIGNATURE ROUTES ==============
+class FacialSignature(BaseModel):
+    signature_hash: str
+    selfie_base64: str  # Base64 encoded image from webcam
+    signer_name: str
+
+@api_router.post("/contracts/{contract_id}/sign-with-facial")
+async def sign_contract_with_facial(
+    contract_id: str,
+    data: FacialSignature,
+    party: str = Query(..., description="locador or locatario"),
+    token: Optional[str] = None,
+    current_user: Optional[dict] = None
+):
+    """Sign contract with facial validation (selfie)"""
+    
+    # Validate request based on party
+    if party == "locador" and token:
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            if payload["contract_id"] != contract_id:
+                raise HTTPException(status_code=400, detail="Token inválido para este contrato")
+            contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=400, detail="Token expirado")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=400, detail="Token inválido")
+    elif party == "locatario" and current_user:
+        contract = await db.contracts.find_one(
+            {"id": contract_id, "campaign_id": current_user.get("campaign_id")},
+            {"_id": 0}
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Autenticação necessária")
+    
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    # Validate selfie (must be base64 image)
+    if not data.selfie_base64 or len(data.selfie_base64) < 1000:
+        raise HTTPException(status_code=400, detail="Selfie inválida")
+    
+    # Generate unique signature hash with selfie
+    now = datetime.now(timezone.utc).isoformat()
+    signature_content = f"{contract_id}-{party}-{data.signer_name}-{now}-{data.selfie_base64[:100]}"
+    full_hash = hashlib.sha256(signature_content.encode()).hexdigest()
+    
+    # Save selfie to file
+    selfie_id = str(uuid.uuid4())
+    try:
+        # Extract base64 data (remove data:image/... prefix if present)
+        selfie_data = data.selfie_base64
+        if ',' in selfie_data:
+            selfie_data = selfie_data.split(',')[1]
+        
+        selfie_bytes = base64.b64decode(selfie_data)
+        selfie_path = UPLOAD_DIR / f"selfie_{selfie_id}.jpg"
+        with open(selfie_path, 'wb') as f:
+            f.write(selfie_bytes)
+    except Exception as e:
+        logging.error(f"Failed to save selfie: {e}")
+        raise HTTPException(status_code=400, detail="Erro ao processar selfie")
+    
+    # Update contract
+    update_data = {
+        f"{party}_assinatura_hash": full_hash,
+        f"{party}_assinatura_data": now,
+        f"{party}_selfie": selfie_id,
+        f"{party}_nome_assinatura": data.signer_name
+    }
+    
+    # Check if both parties signed
+    other_party = "locatario" if party == "locador" else "locador"
+    if contract.get(f"{other_party}_assinatura_hash"):
+        update_data["status"] = "ativo"
+    else:
+        update_data["status"] = f"assinado_{party}"
+    
+    await db.contracts.update_one({"id": contract_id}, {"$set": update_data})
+    
+    # Regenerate HTML with signature info
+    campaign = await db.campaigns.find_one({"id": contract["campaign_id"]}, {"_id": 0})
+    updated_contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
+    html = generate_contract_html(updated_contract, campaign)
+    await db.contracts.update_one({"id": contract_id}, {"$set": {"contract_html": html}})
+    
+    return {
+        "message": f"Contrato assinado pelo {party} com validação facial",
+        "status": update_data["status"],
+        "signature_hash": full_hash[:20] + "...",
+        "selfie_id": selfie_id
+    }
+
+# ============== SPCE EXPORT - DESPESAS ==============
+@api_router.get("/export/spce-despesas")
+async def export_spce_despesas(current_user: dict = Depends(get_current_user)):
+    """Export expenses in SPCE format"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    if not campaign.get("cnpj"):
+        raise HTTPException(status_code=400, detail="CNPJ da campanha não configurado")
+    
+    # Generate CSV format for SPCE import
+    lines = ["DATA;DESCRICAO;VALOR;CATEGORIA;FORNECEDOR;CPF_CNPJ;NOTA_FISCAL"]
+    
+    for exp in expenses:
+        line = ";".join([
+            exp.get("date", ""),
+            f'"{exp.get("description", "")}"',
+            str(exp.get("amount", 0)).replace(".", ","),
+            exp.get("category", ""),
+            f'"{exp.get("supplier_name", "")}"',
+            exp.get("supplier_cpf_cnpj", ""),
+            exp.get("invoice_number", "")
+        ])
+        lines.append(line)
+    
+    now = datetime.now(timezone.utc)
+    filename = f"despesas_spce_{now.strftime('%Y%m%d')}.csv"
+    
+    return {
+        "filename": filename,
+        "content": "\n".join(lines),
+        "total_despesas": len(expenses),
+        "format": "SPCE-DESPESAS-CSV"
+    }
+
+# ============== BANK STATEMENT IMPORT ==============
+class BankStatementEntry(BaseModel):
+    date: str
+    description: str
+    amount: float
+    type: str  # credit or debit
+    matched: bool = False
+    matched_to: Optional[str] = None
+
+@api_router.post("/import/bank-statement")
+async def import_bank_statement(
+    file: UploadFile = File(...),
+    account_type: str = Query(..., description="doacao, fundo_partidario, or fefec"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Import bank statement (CSV/OFX)"""
+    if not current_user.get("campaign_id"):
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    contents = await file.read()
+    content_str = contents.decode('utf-8', errors='ignore')
+    
+    entries = []
+    
+    # Parse CSV format
+    if file.filename.lower().endswith('.csv'):
+        lines = content_str.strip().split('\n')
+        for line in lines[1:]:  # Skip header
+            parts = line.split(';')
+            if len(parts) >= 3:
+                try:
+                    date = parts[0].strip()
+                    description = parts[1].strip().strip('"')
+                    amount_str = parts[2].strip().replace(',', '.').replace('"', '')
+                    amount = float(amount_str)
+                    
+                    entries.append({
+                        "date": date,
+                        "description": description,
+                        "amount": abs(amount),
+                        "type": "credit" if amount > 0 else "debit"
+                    })
+                except:
+                    continue
+    
+    # Save import record
+    import_id = str(uuid.uuid4())
+    import_doc = {
+        "id": import_id,
+        "campaign_id": current_user["campaign_id"],
+        "account_type": account_type,
+        "filename": file.filename,
+        "entries": entries,
+        "total_entries": len(entries),
+        "imported_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.bank_imports.insert_one(import_doc)
+    
+    return {
+        "import_id": import_id,
+        "total_entries": len(entries),
+        "entries": entries[:20],  # Return first 20 for preview
+        "message": f"Importadas {len(entries)} transações"
+    }
+
+@api_router.post("/reconcile/auto")
+async def auto_reconcile(
+    import_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Automatically match bank entries with revenues/expenses"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    # Get import
+    bank_import = await db.bank_imports.find_one(
+        {"id": import_id, "campaign_id": campaign_id},
+        {"_id": 0}
+    )
+    if not bank_import:
+        raise HTTPException(status_code=404, detail="Importação não encontrada")
+    
+    # Get revenues and expenses
+    revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    matched_count = 0
+    entries = bank_import.get("entries", [])
+    
+    for entry in entries:
+        if entry.get("matched"):
+            continue
+        
+        # Try to match by amount and date
+        if entry["type"] == "credit":
+            for rev in revenues:
+                if abs(rev.get("amount", 0) - entry["amount"]) < 0.01:
+                    if rev.get("date", "")[:10] == entry["date"][:10]:
+                        entry["matched"] = True
+                        entry["matched_to"] = f"revenue:{rev['id']}"
+                        matched_count += 1
+                        break
+        else:
+            for exp in expenses:
+                if abs(exp.get("amount", 0) - entry["amount"]) < 0.01:
+                    if exp.get("date", "")[:10] == entry["date"][:10]:
+                        entry["matched"] = True
+                        entry["matched_to"] = f"expense:{exp['id']}"
+                        matched_count += 1
+                        break
+    
+    # Update import
+    await db.bank_imports.update_one(
+        {"id": import_id},
+        {"$set": {"entries": entries, "reconciled_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {
+        "total_entries": len(entries),
+        "matched": matched_count,
+        "unmatched": len(entries) - matched_count,
+        "entries": entries
+    }
+
+# ============== FILTERED QUERIES ==============
+@api_router.get("/revenues/filtered")
+async def list_revenues_filtered(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    category: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """List revenues with date and category filters"""
+    if not current_user.get("campaign_id"):
+        return []
+    
+    query = {"campaign_id": current_user["campaign_id"]}
+    
+    if start_date:
+        query["date"] = {"$gte": start_date}
+    if end_date:
+        if "date" in query:
+            query["date"]["$lte"] = end_date
+        else:
+            query["date"] = {"$lte": end_date}
+    if category:
+        query["category"] = category
+    
+    revenues = await db.revenues.find(query, {"_id": 0}).to_list(1000)
+    return revenues
+
+@api_router.get("/expenses/filtered")
+async def list_expenses_filtered(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    category: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """List expenses with date and category filters"""
+    if not current_user.get("campaign_id"):
+        return []
+    
+    query = {"campaign_id": current_user["campaign_id"]}
+    
+    if start_date:
+        query["date"] = {"$gte": start_date}
+    if end_date:
+        if "date" in query:
+            query["date"]["$lte"] = end_date
+        else:
+            query["date"] = {"$lte": end_date}
+    if category:
+        query["category"] = category
+    
+    expenses = await db.expenses.find(query, {"_id": 0}).to_list(1000)
+    return expenses
+
 # ============== HEALTH CHECK ==============
 @api_router.get("/")
 async def root():
