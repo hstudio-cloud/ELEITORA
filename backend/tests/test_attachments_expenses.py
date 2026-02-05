@@ -220,7 +220,9 @@ class TestComprovantePagamentoAutoExpense:
         
         if expenses_before.status_code == 200:
             expenses_data = expenses_before.json()
-            pending_before = [e for e in expenses_data if e.get("payment_status") == "pendente"]
+            # The endpoint returns nested structure with 'expenses' key
+            expense_list = expenses_data.get("expenses", [])
+            pending_before = [e for e in expense_list if e.get("payment_status") == "pendente"]
             print(f"  Pending expenses before: {len(pending_before)}")
         
         # Upload comprovante_pagamento
@@ -245,14 +247,16 @@ class TestComprovantePagamentoAutoExpense:
         
         if expenses_after.status_code == 200:
             expenses_data = expenses_after.json()
-            pending_after = [e for e in expenses_data if e.get("payment_status") == "pendente"]
-            paid_after = [e for e in expenses_data if e.get("payment_status") == "pago"]
+            # The endpoint returns nested structure with 'expenses' key
+            expense_list = expenses_data.get("expenses", [])
+            pending_after = [e for e in expense_list if e.get("payment_status") == "pendente"]
+            paid_after = [e for e in expense_list if e.get("payment_status") == "pago"]
             
             print(f"  Pending expenses after: {len(pending_after)}")
             print(f"  Paid expenses after: {len(paid_after)}")
             
-            # All should be marked as paid now (or at least pending count should be 0)
-            assert len(pending_after) == 0, f"Expected 0 pending expenses, but found {len(pending_after)}"
+            # Verify total_pending is 0 in response
+            assert expenses_data.get("total_pending") == 0, f"Expected total_pending=0, got {expenses_data.get('total_pending')}"
             print(f"✓ All expenses marked as 'pago' after comprovante upload")
 
 
@@ -263,18 +267,16 @@ class TestAutoExpenseGeneration:
         """Verify that contract with gerar_despesas=true has generated expenses"""
         response = api_client.get(f"{BASE_URL}/api/contracts/{CONTRACT_ID}/expenses")
         
-        # Note: endpoint may be /api/expenses with contract_id filter if /contracts/{id}/expenses doesn't exist
-        if response.status_code == 404:
-            # Try fetching all expenses and filter
-            all_expenses = api_client.get(f"{BASE_URL}/api/expenses")
-            assert all_expenses.status_code == 200, f"Failed to get expenses: {all_expenses.text}"
-            
-            expenses = [e for e in all_expenses.json() if e.get("contract_id") == CONTRACT_ID]
-        else:
-            assert response.status_code == 200, f"Failed to get contract expenses: {response.text}"
-            expenses = response.json()
+        assert response.status_code == 200, f"Failed to get contract expenses: {response.text}"
+        
+        data = response.json()
+        # The endpoint returns nested structure with 'expenses' key
+        expenses = data.get("expenses", [])
         
         print(f"✓ Found {len(expenses)} expenses for contract {CONTRACT_ID}")
+        print(f"  Total value: R$ {data.get('total_value')}")
+        print(f"  Total paid: R$ {data.get('total_paid')}")
+        print(f"  Total pending: R$ {data.get('total_pending')}")
         
         for exp in expenses:
             print(f"  - {exp.get('description')}: R$ {exp.get('amount')} ({exp.get('payment_status')})")
