@@ -2194,6 +2194,11 @@ async def get_contract_expenses(contract_id: str, current_user: dict = Depends(g
         "total_pending": sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pendente")
     }
 
+@api_router.get("/contracts/attachment-types")
+async def get_attachment_types():
+    """Get all available contract attachment types by contract template"""
+    return CONTRACT_REQUIRED_ATTACHMENTS
+
 @api_router.get("/contracts/{contract_id}/required-attachments")
 async def get_contract_required_attachments(contract_id: str, current_user: dict = Depends(get_current_user)):
     """Get list of required attachments for a contract based on its type"""
