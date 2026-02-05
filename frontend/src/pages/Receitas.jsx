@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, categoryLabels } from '../lib/utils';
-import { Plus, Pencil, Trash2, TrendingUp, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, TrendingUp, Search, Filter, X } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -44,6 +44,8 @@ export default function Receitas() {
     const [formData, setFormData] = useState(emptyForm);
     const [searchTerm, setSearchTerm] = useState('');
     const [saving, setSaving] = useState(false);
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     useEffect(() => {
         fetchRevenues();
