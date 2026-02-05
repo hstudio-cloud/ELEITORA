@@ -1160,6 +1160,89 @@ export default function Contratos() {
                         </div>
                     </DialogContent>
                 </Dialog>
+
+                {/* Contract Expenses Dialog */}
+                <Dialog open={expensesDialogOpen} onOpenChange={setExpensesDialogOpen}>
+                    <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle>
+                                Despesas do Contrato
+                            </DialogTitle>
+                            <DialogDescription>
+                                {contractExpenses.contract_title} - {formatCurrency(contractExpenses.total_value || 0)}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 mt-4">
+                            {/* Summary */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <Card className="bg-green-500/10 border-green-500/30">
+                                    <CardContent className="p-4">
+                                        <p className="text-sm text-muted-foreground">Total Pago</p>
+                                        <p className="text-xl font-bold text-green-400">
+                                            {formatCurrency(contractExpenses.total_paid || 0)}
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-amber-500/10 border-amber-500/30">
+                                    <CardContent className="p-4">
+                                        <p className="text-sm text-muted-foreground">Total Pendente</p>
+                                        <p className="text-xl font-bold text-amber-400">
+                                            {formatCurrency(contractExpenses.total_pending || 0)}
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                            
+                            {/* Expenses List */}
+                            <div className="space-y-2">
+                                {contractExpenses.expenses?.map((expense, index) => (
+                                    <div 
+                                        key={expense.id}
+                                        className={`flex items-center justify-between p-3 rounded-lg ${
+                                            expense.payment_status === 'pago' 
+                                                ? 'bg-green-500/10 border border-green-500/30' 
+                                                : 'bg-muted/50 border border-muted'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            {expense.payment_status === 'pago' ? (
+                                                <CheckCircle className="h-5 w-5 text-green-400" />
+                                            ) : (
+                                                <Clock className="h-5 w-5 text-amber-400" />
+                                            )}
+                                            <div>
+                                                <p className="font-medium text-sm">{expense.description}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Vencimento: {formatDate(expense.date)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className={`font-mono font-bold ${expense.payment_status === 'pago' ? 'text-green-400' : 'text-amber-400'}`}>
+                                                {formatCurrency(expense.amount)}
+                                            </p>
+                                            <Badge 
+                                                variant="outline" 
+                                                className={expense.payment_status === 'pago' ? 'text-green-400 border-green-500/30' : 'text-amber-400 border-amber-500/30'}
+                                            >
+                                                {expense.payment_status === 'pago' ? 'Pago' : 'Pendente'}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <p className="text-sm text-muted-foreground">
+                                Para marcar uma despesa como paga, anexe o comprovante na página de Despesas.
+                            </p>
+                        </div>
+                        <div className="flex justify-end mt-4">
+                            <Button variant="outline" onClick={() => setExpensesDialogOpen(false)}>
+                                Fechar
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         </Layout>
     );
