@@ -965,6 +965,57 @@ export default function Contratos() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex gap-1">
+                                                        {/* View contract expenses */}
+                                                        {contract.gerar_despesas !== false && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => fetchContractExpenses(contract.id)}
+                                                                title="Ver Despesas"
+                                                                className="text-accent hover:text-accent"
+                                                                data-testid={`expenses-contract-${contract.id}`}
+                                                            >
+                                                                <DollarSign className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+                                                        {/* Upload document */}
+                                                        {!contract.attachment_id ? (
+                                                            <label className="cursor-pointer">
+                                                                <input
+                                                                    type="file"
+                                                                    accept=".jpg,.jpeg,.png,.pdf"
+                                                                    className="hidden"
+                                                                    onChange={(e) => handleUploadContractDoc(contract.id, e.target.files[0])}
+                                                                    disabled={uploadingId === contract.id}
+                                                                />
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    asChild
+                                                                    disabled={uploadingId === contract.id}
+                                                                    title="Anexar documento"
+                                                                >
+                                                                    <span data-testid={`upload-contract-${contract.id}`}>
+                                                                        {uploadingId === contract.id ? (
+                                                                            <span className="animate-spin">⏳</span>
+                                                                        ) : (
+                                                                            <Upload className="h-4 w-4" />
+                                                                        )}
+                                                                    </span>
+                                                                </Button>
+                                                            </label>
+                                                        ) : (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-green-400"
+                                                                title="Ver documento"
+                                                                onClick={() => window.open(`${API}/attachments/${contract.attachment_id}/download`, '_blank')}
+                                                                data-testid={`view-contract-doc-${contract.id}`}
+                                                            >
+                                                                <Paperclip className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
                                                         {contract.template_type && (
                                                             <Button
                                                                 variant="ghost"
