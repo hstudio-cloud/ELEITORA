@@ -378,7 +378,8 @@ class ContractCreate(BaseModel):
     end_date: str
     status: ContractStatus = ContractStatus.RASCUNHO
     notes: Optional[str] = None
-    attachment_id: Optional[str] = None  # Contract attachment
+    attachment_id: Optional[str] = None  # Contract attachment (legacy)
+    attachments: Optional[dict] = None  # New: multiple attachments by key
     # Payment installments
     num_parcelas: int = 1  # Number of installments
     parcelas_config: Optional[List[dict]] = None  # [{percentual: 50, data_vencimento: "2024-08-15"}, ...]
