@@ -42,6 +42,7 @@ export default function Dashboard() {
     const [stats, setStats] = useState(null);
     const [campaign, setCampaign] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [alerts, setAlerts] = useState({ alerts: [], total: 0, overdue_count: 0, due_today: 0 });
     const { user } = useAuth();
     const navigate = useNavigate();
 
