@@ -123,6 +123,32 @@ export default function Receitas() {
         }
     };
 
+    const handleUploadReceipt = async (revenueId, file) => {
+        if (!file) return;
+        
+        const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (!allowedTypes.includes(file.type)) {
+            toast.error('Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF');
+            return;
+        }
+
+        setUploadingId(revenueId);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            await axios.post(`${API}/revenues/${revenueId}/attach-receipt`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            toast.success('Comprovante anexado com sucesso!');
+            fetchRevenues();
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Erro ao anexar comprovante');
+        } finally {
+            setUploadingId(null);
+        }
+    };
+
     const filteredRevenues = revenues.filter(r => {
         const matchesSearch = r.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
             r.donor_name?.toLowerCase().includes(searchTerm.toLowerCase());
