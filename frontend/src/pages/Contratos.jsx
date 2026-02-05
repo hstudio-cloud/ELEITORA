@@ -230,6 +230,46 @@ export default function Contratos() {
         }
     };
 
+    const fetchContractAttachments = async (contractId) => {
+        try {
+            const response = await axios.get(`${API}/contracts/${contractId}/required-attachments`);
+            setSelectedContractAttachments(response.data);
+            setAttachmentsDialogOpen(true);
+        } catch (error) {
+            toast.error('Erro ao carregar anexos do contrato');
+        }
+    };
+
+    const handleUploadSpecificAttachment = async (contractId, attachmentKey, file) => {
+        if (!file) return;
+        
+        const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (!allowedTypes.includes(file.type)) {
+            toast.error('Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF');
+            return;
+        }
+
+        setUploadingAttachmentKey(attachmentKey);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await axios.post(
+                `${API}/contracts/${contractId}/attachments/${attachmentKey}`, 
+                formData, 
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+            );
+            toast.success(response.data.message);
+            // Refresh attachments
+            fetchContractAttachments(contractId);
+            fetchContracts();
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Erro ao anexar documento');
+        } finally {
+            setUploadingAttachmentKey(null);
+        }
+    };
+
     const handleEdit = (contract) => {
         setFormData({
             title: contract.title || '',
