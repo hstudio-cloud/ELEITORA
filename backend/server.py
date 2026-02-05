@@ -1664,6 +1664,242 @@ async def generate_tse_report(current_user: dict = Depends(get_current_user)):
     
     return report
 
+# ============== SPCE ZIP EXPORT ==============
+import zipfile
+import io
+import hashlib
+
+@api_router.get("/export/spce-zip")
+async def export_spce_zip(current_user: dict = Depends(get_current_user)):
+    """Export complete SPCE package as ZIP file with all required folders and files"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+    
+    # Validate required SPCE fields
+    cnpj = campaign.get("cnpj", "").replace(".", "").replace("/", "").replace("-", "")
+    if not cnpj or len(cnpj) != 14:
+        raise HTTPException(status_code=400, detail="CNPJ da campanha inválido ou não configurado")
+    
+    # Get all data
+    revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    attachments = await db.attachments.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    # Create ZIP in memory
+    zip_buffer = io.BytesIO()
+    date_str = datetime.now().strftime("%d%m%Y")
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Create SPCE folder structure
+        folders = [
+            "ASSUNCAO_DIVIDAS",
+            "AVULSOS_OUTROS",
+            "AVULSOS_SPCE",
+            "COMERCIALIZACAO",
+            "DEMONSTRATIVOS",
+            "DESPESAS",
+            "DEVOLUCAO_RECEITAS",
+            "EXTRATOS_BANCARIOS",
+            "EXTRATO_PRESTACAO",
+            "NOTAS_EXPLICATIVAS",
+            "RECEITAS",
+            "REPRESENTANTES",
+            "SIGILOSO_SPCE",
+            "SOBRAS_CAMPANHA"
+        ]
+        
+        # Create empty folders
+        for folder in folders:
+            zf.writestr(f"{folder}/", "")
+        
+        # Generate receipts for RECEITAS folder
+        receitas_arquivos = []
+        for i, rev in enumerate(revenues):
+            donor_cpf = (rev.get("donor_cpf_cnpj") or "").replace(".", "").replace("-", "").replace("/", "")
+            date_rev = rev.get("date", "").replace("-", "")
+            if date_rev:
+                date_rev = date_rev[6:8] + date_rev[4:6] + date_rev[0:4]  # DDMMYYYY
+            
+            # Generate hash for unique ID
+            hash_id = hashlib.sha1(f"{rev.get('id', str(i))}".encode()).hexdigest()
+            filename = f"REC_DOA_{hash_id}_{date_rev}_{donor_cpf}.pdf"
+            
+            # Create simple receipt content
+            receipt_content = f"""RECIBO DE DOAÇÃO ELEITORAL
+
+Campanha: {campaign.get('candidate_name', '')}
+CNPJ: {cnpj}
+Partido: {campaign.get('party', '')}
+
+Doador: {rev.get('donor_name', '')}
+CPF/CNPJ: {rev.get('donor_cpf_cnpj', '')}
+
+Descrição: {rev.get('description', '')}
+Valor: R$ {rev.get('amount', 0):,.2f}
+Data: {rev.get('date', '')}
+Categoria: {rev.get('category', '')}
+
+Número do Recibo: {i + 1}
+"""
+            zf.writestr(f"RECEITAS/{filename}", receipt_content.encode('utf-8'))
+            
+            receitas_arquivos.append({
+                "codigo": filename,
+                "descricao": f"REC_DOA_{rev.get('donor_name', '').replace(' ', '_')[:20]}_{donor_cpf}_{date_rev}_R${rev.get('amount', 0):.2f}_{i+1}"
+            })
+        
+        # Generate documents for DESPESAS folder
+        despesas_arquivos = []
+        for i, exp in enumerate(expenses):
+            supplier_cpf = (exp.get("supplier_cpf_cnpj") or "").replace(".", "").replace("-", "").replace("/", "")
+            date_exp = exp.get("date", "").replace("-", "")
+            if date_exp:
+                date_exp = date_exp[6:8] + date_exp[4:6] + date_exp[0:4]  # DDMMYYYY
+            
+            filename = f"DESP_{i+247}_{date_exp}_{supplier_cpf}.pdf"
+            
+            # Create expense document content
+            expense_content = f"""COMPROVANTE DE DESPESA ELEITORAL
+
+Campanha: {campaign.get('candidate_name', '')}
+CNPJ: {cnpj}
+
+Fornecedor: {exp.get('supplier_name', '')}
+CPF/CNPJ: {exp.get('supplier_cpf_cnpj', '')}
+
+Descrição: {exp.get('description', '')}
+Valor: R$ {exp.get('amount', 0):,.2f}
+Data: {exp.get('date', '')}
+Categoria: {exp.get('category', '')}
+Status: {exp.get('payment_status', 'pendente')}
+
+Nota Fiscal: {exp.get('invoice_number', '-')}
+"""
+            zf.writestr(f"DESPESAS/{filename}", expense_content.encode('utf-8'))
+            
+            category_desc = exp.get('category', '').replace('_', ' ').title()
+            despesas_arquivos.append({
+                "codigo": filename,
+                "descricao": f"DESP_{category_desc}_{exp.get('supplier_name', '').replace(' ', '_')[:20]}_{supplier_cpf}_{date_exp}_R${exp.get('amount', 0):.2f}_{i+247}"
+            })
+        
+        # Generate DEMONSTRATIVOS
+        demonstrativos_arquivos = []
+        total_receitas = sum(r.get("amount", 0) for r in revenues)
+        total_despesas = sum(e.get("amount", 0) for e in expenses)
+        saldo = total_receitas - total_despesas
+        
+        # Relatório de Receitas e Despesas
+        rel_content = f"""DEMONSTRATIVO DE RECEITAS E DESPESAS
+Campanha: {campaign.get('candidate_name', '')}
+CNPJ: {cnpj}
+Data: {datetime.now().strftime('%d/%m/%Y')}
+
+RESUMO FINANCEIRO
+-----------------
+Total de Receitas: R$ {total_receitas:,.2f}
+Total de Despesas: R$ {total_despesas:,.2f}
+Saldo: R$ {saldo:,.2f}
+
+RECEITAS DETALHADAS
+-------------------
+"""
+        for r in revenues:
+            rel_content += f"- {r.get('date', '')} | {r.get('description', '')} | R$ {r.get('amount', 0):,.2f} | {r.get('donor_name', '')}\n"
+        
+        rel_content += f"\nDESPESAS DETALHADAS\n-------------------\n"
+        for e in expenses:
+            rel_content += f"- {e.get('date', '')} | {e.get('description', '')} | R$ {e.get('amount', 0):,.2f} | {e.get('supplier_name', '')}\n"
+        
+        rel_filename = f"REL_RECEITADESPESA_{cnpj}_{date_str}.pdf"
+        zf.writestr(f"DEMONSTRATIVOS/{rel_filename}", rel_content.encode('utf-8'))
+        demonstrativos_arquivos.append({"codigo": rel_filename, "descricao": rel_filename})
+        
+        # Relatório de Despesas Efetuadas
+        desp_efetuadas = f"""RELATÓRIO DE DESPESAS EFETUADAS
+Campanha: {campaign.get('candidate_name', '')}
+CNPJ: {cnpj}
+Data: {datetime.now().strftime('%d/%m/%Y')}
+
+Total de Despesas: R$ {total_despesas:,.2f}
+Despesas Pagas: R$ {sum(e.get('amount', 0) for e in expenses if e.get('payment_status') == 'pago'):,.2f}
+Despesas Pendentes: R$ {sum(e.get('amount', 0) for e in expenses if e.get('payment_status') == 'pendente'):,.2f}
+"""
+        desp_filename = f"REL_DESPESAS_EFETUADAS_{cnpj}_{date_str}.pdf"
+        zf.writestr(f"DEMONSTRATIVOS/{desp_filename}", desp_efetuadas.encode('utf-8'))
+        demonstrativos_arquivos.append({"codigo": desp_filename, "descricao": desp_filename})
+        
+        # Include attached files in appropriate folders
+        for att in attachments:
+            entity_type = att.get("entity_type", "")
+            file_path = UPLOAD_DIR / att.get("filename", "")
+            
+            if file_path.exists():
+                try:
+                    with open(file_path, 'rb') as f:
+                        file_content = f.read()
+                    
+                    if entity_type == "revenue":
+                        zf.writestr(f"RECEITAS/{att.get('original_name', att.get('filename'))}", file_content)
+                    elif entity_type == "expense":
+                        zf.writestr(f"DESPESAS/{att.get('original_name', att.get('filename'))}", file_content)
+                    elif entity_type == "contract":
+                        zf.writestr(f"AVULSOS_OUTROS/{att.get('original_name', att.get('filename'))}", file_content)
+                except:
+                    pass
+        
+        # Generate dados.info
+        dados_info = {
+            "codigoUnidadeEleitoral": campaign.get("city", "")[:5].upper().replace(" ", ""),
+            "codigoEleicao": 619,
+            "tipoPessoa": "CA",
+            "descricaoUnidadeEleitoral": campaign.get("city", "").upper(),
+            "numeroCandidatura": campaign.get("numero_candidato", ""),
+            "categorias": [
+                {"codigo": f, "descricao": f.replace("_", " ").title()}
+                for f in folders
+            ],
+            "arquivos": {
+                "RECEITAS": receitas_arquivos,
+                "DESPESAS": despesas_arquivos,
+                "DEMONSTRATIVOS": demonstrativos_arquivos
+            },
+            "tipoEntrega": "PARCIAL",
+            "nome": campaign.get("candidate_name", ""),
+            "turno": 1,
+            "numeroCnpj": cnpj,
+            "codigoPartido": campaign.get("party", "")[:2],
+            "uf": campaign.get("state", ""),
+            "anoEleicao": campaign.get("election_year", 2024),
+            "descricaoCargoOrgao": campaign.get("position", ""),
+            "numeroCpf": (campaign.get("cpf_candidato") or "").replace(".", "").replace("-", ""),
+            "siglaPartido": campaign.get("party", ""),
+            "numeroControle": f"000{cnpj}{campaign.get('state', '')}",
+            "codigoTipoEntrega": "PAR",
+            "codigoCargoOrgao": "11"
+        }
+        
+        zf.writestr("dados.info", json.dumps(dados_info, ensure_ascii=False, indent=2))
+    
+    zip_buffer.seek(0)
+    
+    # Generate filename
+    control_number = f"ATSEPJE_{cnpj}{campaign.get('state', 'XX')}_PAR"
+    
+    return Response(
+        content=zip_buffer.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{control_number}.zip"'
+        }
+    )
+
 # ============== FILE UPLOAD ROUTES ==============
 ALLOWED_FILE_TYPES = {
     "image/jpeg": ".jpg",
