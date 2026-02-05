@@ -16,6 +16,7 @@ export default function Relatorios() {
     const [report, setReport] = useState(null);
     const [loading, setLoading] = useState(true);
     const [generatingPdf, setGeneratingPdf] = useState(false);
+    const [generatingZip, setGeneratingZip] = useState(false);
 
     useEffect(() => {
         fetchReport();
