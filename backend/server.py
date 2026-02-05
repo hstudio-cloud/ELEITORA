@@ -443,6 +443,7 @@ class ContractResponse(BaseModel):
     campaign_id: str
     created_at: str
     attachment_id: Optional[str] = None
+    attachments: Optional[dict] = None  # Multiple attachments by key
     num_parcelas: Optional[int] = 1
     parcelas_config: Optional[List[dict]] = None
     gerar_despesas: Optional[bool] = True
