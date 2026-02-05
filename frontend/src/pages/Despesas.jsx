@@ -124,10 +124,21 @@ export default function Despesas() {
         }
     };
 
-    const filteredExpenses = expenses.filter(e =>
-        e.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredExpenses = expenses.filter(e => {
+        const matchesSearch = e.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            e.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesDateRange = (!startDate || e.date >= startDate) && 
+            (!endDate || e.date <= endDate);
+        
+        return matchesSearch && matchesDateRange;
+    });
+
+    const clearFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setSearchTerm('');
+    };
 
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
