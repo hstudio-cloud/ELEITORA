@@ -1,0 +1,70 @@
+{
+  "summary": "Complete testing of Contract Required Attachments feature with all endpoints working correctly. Backend 13/13 tests passed. Frontend UI verified with attachments dialog showing progress, file list, and upload functionality.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Dashboard charts",
+        "issues": ["Non-blocking console warnings about chart dimensions during initial render"]
+      }
+    ]
+  },
+  "passed_tests": [
+    "GET /api/contracts/{id}/required-attachments returns list with correct structure",
+    "GET /api/contracts/{id}/required-attachments returns correct attachment keys for veiculo_sem_motorista",
+    "GET /api/contracts/{id}/required-attachments requires authentication (401)",
+    "GET /api/contracts/{id}/required-attachments returns 404 for non-existent contract",
+    "POST /api/contracts/{id}/attachments/{key} successfully uploads PDF attachment",
+    "POST /api/contracts/{id}/attachments/{key} successfully uploads JPEG image",
+    "POST /api/contracts/{id}/attachments/{key} rejects invalid attachment key (400)",
+    "POST /api/contracts/{id}/attachments/{key} requires authentication",
+    "Upload comprovante_pagamento marks all contract expenses as 'pago'",
+    "Creating contract with gerar_despesas=true auto-generates expense records",
+    "Contract expense parcelas match contract value",
+    "Attachment progress calculation (total_required, total_uploaded, complete)",
+    "Frontend attachments dialog shows correct progress bar",
+    "Frontend attachments dialog shows all required documents with status",
+    "Frontend upload buttons work for missing attachments"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_attachments_expenses.py",
+    "/app/test_reports/pytest/pytest_results_attachments.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_attachments_expenses.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "email": "teste@teste.com",
+    "password": "123456"
+  },
+  "seed_data_creation": "Contract 43a7d7a8-651f-4029-9a7c-a0e8cbe9b9a4 used for testing with type veiculo_sem_motorista",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Contract attachments feature fully tested. Key findings: 1) GET /api/contracts/{id}/required-attachments returns nested response with attachments array containing key, label, required, uploaded, attachment_id, attachment_info. 2) POST /api/contracts/{id}/attachments/{key} uploads file and updates contract.attachments dict. 3) Uploading comprovante_pagamento automatically marks all pending expenses for that contract as 'pago'. 4) Contract expenses endpoint returns nested structure {contract_id, expenses: [...], total_paid, total_pending}. 5) Frontend dialog shows nice progress bar and file list with upload/view/replace buttons. Resend API key is configured in backend/.env.",
+  "features_verified": {
+    "get_required_attachments_endpoint": "Working - returns list with progress tracking",
+    "upload_specific_attachment_endpoint": "Working - validates key, saves file, updates contract",
+    "comprovante_pagamento_auto_payment": "Working - marks expenses as 'pago' with attachment_id",
+    "auto_expense_generation": "Working - creates parcelas based on num_parcelas config",
+    "frontend_attachments_dialog": "Working - shows progress bar, file list, upload buttons",
+    "resend_integration": "Configured - API key present in .env"
+  },
+  "contract_attachments_by_type": {
+    "veiculo_sem_motorista": ["doc_veiculo", "doc_proprietario", "cnh_proprietario", "comprovante_residencia", "comprovante_pagamento"],
+    "veiculo_com_motorista": ["doc_veiculo", "doc_proprietario", "cnh_motorista", "comprovante_residencia", "comprovante_pagamento"],
+    "imovel": ["doc_imovel", "doc_proprietario", "comprovante_residencia", "comprovante_pagamento"],
+    "bem_movel": ["doc_proprietario", "comprovante_residencia", "doc_bem", "comprovante_pagamento"],
+    "espaco_evento": ["doc_proprietario", "comprovante_residencia", "doc_espaco", "comprovante_pagamento"]
+  }
+}
