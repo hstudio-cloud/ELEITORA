@@ -1,0 +1,66 @@
+{
+  "summary": "Complete testing of new upload features for Brazilian Electoral ERP Platform - All features working correctly: Receipt uploads to expenses/revenues/contracts, automatic expense generation from contracts with installments (parcelas), automatic payment status change to 'pago' when receipt is attached to expense.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Dashboard charts",
+        "issues": ["Console warnings about chart width/height being -1 during initial render - non-blocking, visual works correctly after render"]
+      }
+    ]
+  },
+  "passed_tests": [
+    "Receipt upload to expense changes status to 'pago' (POST /api/expenses/{id}/attach-receipt)",
+    "Invalid file types rejected (only JPEG, PNG, PDF accepted)",
+    "PDF files accepted for uploads",
+    "Receipt upload to revenue (POST /api/revenues/{id}/attach-receipt)",
+    "Contract creation generates automatic expenses based on parcelas config",
+    "Contract expenses endpoint shows payment summary (total_paid, total_pending)",
+    "Document upload to contract (POST /api/contracts/{id}/attach)",
+    "Expense list includes payment_status field",
+    "JPEG, PNG, PDF file types accepted",
+    "GIF and other file types rejected with 400 status",
+    "UI: Status column in Despesas page shows Pago/Pendente badges",
+    "UI: Upload receipt button visible for pending expenses",
+    "UI: Contract expenses dialog shows parcelas with paid/pending status",
+    "UI: Contract form has parcelas selector (1-4 installments)",
+    "UI: Generate expenses checkbox in contract form",
+    "UI: 'Contrato' badge on contract-generated expenses"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_api.py",
+    "/app/backend/tests/test_upload_features.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_upload_features.py"
+  ],
+  "success_rate": {
+    "backend": "100% (30/30 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "email": "teste@teste.com",
+    "password": "123456"
+  },
+  "seed_data_creation": "Existing test data includes: 1 contract 'Contrato de Serviço Gráfico' with 2 parcelas (R$ 5.000 each) - Parcela 1/2 is 'Pago', Parcela 2/2 is 'Pendente'. Total contract value R$ 10.000.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All new upload features working correctly. Key endpoints tested: POST /api/expenses/{id}/attach-receipt (changes status to pago), POST /api/revenues/{id}/attach-receipt, POST /api/contracts/{id}/attach, GET /api/contracts/{id}/expenses (shows payment summary). File types restricted to JPEG, PNG, PDF only. Contract expenses dialog accessible via $ icon on contract row.",
+  "rca_of_the_issue": "N/A - No issues found",
+  "features_verified": {
+    "upload_comprovante_despesa_muda_status_pago": "✅ WORKING - Status changes from 'pendente' to 'pago' when receipt attached",
+    "criacao_contrato_gera_despesas_automaticamente": "✅ WORKING - Expenses generated based on num_parcelas config",
+    "pagina_contratos_mostra_dialog_despesas": "✅ WORKING - Dialog shows parcelas with paid/pending status and summary",
+    "coluna_status_na_pagina_despesas": "✅ WORKING - Status column shows Pago (green) / Pendente (amber) badges",
+    "upload_comprovante_receitas": "✅ WORKING - Receipts can be attached to revenues",
+    "validacao_tipos_arquivo": "✅ WORKING - Only JPEG, PNG, PDF accepted; other types rejected with 400"
+  }
+}
