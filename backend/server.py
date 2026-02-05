@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, BackgroundTasks, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -10,6 +10,9 @@ import asyncio
 import base64
 import hashlib
 import re
+import json
+import zipfile
+import io
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, validator
 from typing import List, Optional
