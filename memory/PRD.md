@@ -252,4 +252,60 @@ Construir uma plataforma web de gestão eleitoral e contábil para candidatos br
 ### Backlog (P2)
 - [ ] Integração com GOV.BR/ICP-Brasil para assinatura certificada
 - [ ] Conciliação bancária automática
-- [ ] Upload de anexos em documentos
+- [x] Upload de anexos em documentos
+
+---
+
+## Update (2026-02-05): Upload de Comprovantes e Parcelas de Contratos
+
+### Funcionalidades Implementadas
+
+#### Upload de Comprovantes (JPEG, PNG, PDF)
+- **Receitas:** POST /api/revenues/{id}/attach-receipt
+- **Despesas:** POST /api/expenses/{id}/attach-receipt (muda status para "pago")
+- **Contratos:** POST /api/contracts/{id}/attach
+- Validação de tipos de arquivo: apenas JPEG, PNG, PDF aceitos
+- Limite de 10MB por arquivo
+
+#### Sistema de Parcelas para Contratos
+- Número de parcelas configurável (1 a 4)
+- Geração automática de despesas com status "pendente"
+- Cálculo automático de valor por parcela
+- Distribuição de datas de vencimento (início e fim do contrato)
+- Opção de desativar geração de despesas
+
+#### Status de Pagamento em Despesas
+- Novo campo payment_status: "pendente" ou "pago"
+- Coluna de status na tabela com badges coloridos
+- Botão de upload para despesas pendentes
+- Mudança automática para "pago" ao anexar comprovante
+
+#### Dialog de Despesas do Contrato
+- Resumo de valores: Total Pago / Total Pendente
+- Lista de parcelas com status individual
+- Acessível via botão $ na linha do contrato
+
+### Endpoints Criados
+- POST /api/expenses/{id}/attach-receipt
+- POST /api/revenues/{id}/attach-receipt
+- POST /api/contracts/{id}/attach
+- GET /api/contracts/{id}/expenses
+
+### Modelos Atualizados
+- ExpenseCreate: payment_status, contract_id
+- ContractCreate: num_parcelas, gerar_despesas, parcelas_config
+
+### Testes
+- 100% de sucesso em testes de backend (30/30)
+- 100% de sucesso em testes de frontend
+- Arquivo: /app/test_reports/iteration_3.json
+
+### Próximas Tarefas (P1)
+- [ ] Integração com Resend para envio de e-mail automático
+- [ ] Geração automática de PDF do contrato assinado
+- [ ] Mais layouts de exportação SPCE (despesas, contratos)
+
+### Backlog (P2)
+- [ ] Integração com GOV.BR/ICP-Brasil para assinatura certificada
+- [ ] Importação de extratos bancários
+- [ ] Conciliação bancária automática
