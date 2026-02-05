@@ -339,6 +339,11 @@ class ContractCreate(BaseModel):
     end_date: str
     status: ContractStatus = ContractStatus.RASCUNHO
     notes: Optional[str] = None
+    attachment_id: Optional[str] = None  # Contract attachment
+    # Payment installments
+    num_parcelas: int = 1  # Number of installments
+    parcelas_config: Optional[List[dict]] = None  # [{percentual: 50, data_vencimento: "2024-08-15"}, ...]
+    gerar_despesas: bool = True  # Auto-generate expenses
     # New fields for template contracts
     template_type: Optional[ContractTemplateType] = None
     # Locador (Prestador de Serviço) fields
