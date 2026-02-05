@@ -776,6 +776,50 @@ export default function Contratos() {
                                                     data-testid="contract-end-date-input"
                                                 />
                                             </div>
+                                            
+                                            {/* Payment Installments Section */}
+                                            <div className="md:col-span-2 p-4 bg-muted/30 rounded-lg space-y-4">
+                                                <div className="flex items-center gap-2">
+                                                    <DollarSign className="h-5 w-5 text-accent" />
+                                                    <h4 className="font-medium">Configuração de Pagamento</h4>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <Label>Número de Parcelas</Label>
+                                                        <Select
+                                                            value={formData.num_parcelas?.toString() || "1"}
+                                                            onValueChange={(value) => handleChange('num_parcelas', parseInt(value))}
+                                                        >
+                                                            <SelectTrigger data-testid="contract-parcelas-select">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="1">1 Parcela (À vista)</SelectItem>
+                                                                <SelectItem value="2">2 Parcelas (50% + 50%)</SelectItem>
+                                                                <SelectItem value="3">3 Parcelas</SelectItem>
+                                                                <SelectItem value="4">4 Parcelas</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2 pt-6">
+                                                        <Checkbox
+                                                            id="gerar_despesas"
+                                                            checked={formData.gerar_despesas}
+                                                            onCheckedChange={(checked) => handleChange('gerar_despesas', checked)}
+                                                            data-testid="contract-gerar-despesas-checkbox"
+                                                        />
+                                                        <Label htmlFor="gerar_despesas" className="text-sm">
+                                                            Gerar despesas automaticamente (status: pendente)
+                                                        </Label>
+                                                    </div>
+                                                </div>
+                                                {formData.num_parcelas > 1 && formData.value && (
+                                                    <div className="text-sm text-muted-foreground">
+                                                        Valor por parcela: <span className="font-medium text-accent">{formatCurrency(parseFloat(formData.value) / formData.num_parcelas)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Descrição / Observações</Label>
                                                 <Textarea
