@@ -46,6 +46,7 @@ export default function Receitas() {
     const [saving, setSaving] = useState(false);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [uploadingId, setUploadingId] = useState(null);
 
     useEffect(() => {
         fetchRevenues();
