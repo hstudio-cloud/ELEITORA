@@ -297,17 +297,55 @@ export default function Despesas() {
                 {/* Search and Table */}
                 <Card>
                     <CardHeader className="pb-4">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <CardTitle className="font-heading">Lista de Despesas</CardTitle>
-                            <div className="relative w-full md:w-80">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <div className="flex flex-col gap-4">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                <CardTitle className="font-heading">Lista de Despesas</CardTitle>
+                                <div className="relative w-full md:w-80">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Buscar por descrição ou fornecedor..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-10"
+                                        data-testid="expense-search-input"
+                                    />
+                                </div>
+                            </div>
+                            {/* Date Filters */}
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Filter className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-sm text-muted-foreground">Período:</span>
+                                </div>
                                 <Input
-                                    placeholder="Buscar por descrição ou fornecedor..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10"
-                                    data-testid="expense-search-input"
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="w-40"
+                                    placeholder="Data início"
+                                    data-testid="expense-start-date-filter"
                                 />
+                                <span className="text-muted-foreground">até</span>
+                                <Input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="w-40"
+                                    placeholder="Data fim"
+                                    data-testid="expense-end-date-filter"
+                                />
+                                {(startDate || endDate || searchTerm) && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={clearFilters}
+                                        className="gap-1 text-muted-foreground"
+                                        data-testid="clear-filters-btn"
+                                    >
+                                        <X className="h-4 w-4" />
+                                        Limpar filtros
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </CardHeader>
