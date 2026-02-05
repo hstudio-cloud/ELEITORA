@@ -8,7 +8,7 @@ import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, categoryLabels } from '../lib/utils';
-import { Download, FileText, BarChart3, Calendar, RefreshCw, FileCode, AlertCircle, FileDown, Loader2 } from 'lucide-react';
+import { Download, FileText, BarChart3, Calendar, RefreshCw, FileCode, AlertCircle, FileDown, Loader2, FolderArchive } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
