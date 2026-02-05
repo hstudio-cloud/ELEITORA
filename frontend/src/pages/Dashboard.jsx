@@ -16,7 +16,10 @@ import {
     ArrowUpRight,
     ArrowDownRight,
     Plus,
-    AlertCircle
+    AlertCircle,
+    Bell,
+    Clock,
+    AlertTriangle
 } from 'lucide-react';
 import {
     BarChart,
