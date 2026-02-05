@@ -15,8 +15,9 @@ import { toast } from 'sonner';
 import { formatCurrency, formatDate, statusLabels, statusColors } from '../lib/utils';
 import { 
     Plus, Pencil, Trash2, FileText, Search, Eye, Send, 
-    CheckCircle, Clock, FileSignature, Download, Copy
+    CheckCircle, Clock, FileSignature, Download, Copy, Upload, Paperclip, DollarSign
 } from 'lucide-react';
+import { Checkbox } from '../components/ui/checkbox';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
