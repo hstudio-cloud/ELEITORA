@@ -461,6 +461,50 @@ export default function Relatorios() {
                                 </CardContent>
                             </Card>
 
+                            {/* Complete SPCE Package */}
+                            <Card className="border-secondary">
+                                <CardHeader>
+                                    <CardTitle className="font-heading flex items-center gap-2">
+                                        <FolderArchive className="h-5 w-5 text-secondary" />
+                                        Pacote Completo SPCE (ZIP)
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Exporte toda a prestação de contas em formato ZIP para o SPCE
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="bg-secondary/10 p-4 rounded-lg border border-secondary/30">
+                                        <p className="text-sm text-muted-foreground">
+                                            O pacote ZIP inclui todas as pastas e arquivos exigidos pelo SPCE:
+                                        </p>
+                                        <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-muted-foreground">
+                                            <span>• RECEITAS</span>
+                                            <span>• DESPESAS</span>
+                                            <span>• DEMONSTRATIVOS</span>
+                                            <span>• EXTRATOS_BANCARIOS</span>
+                                            <span>• REPRESENTANTES</span>
+                                            <span>• NOTAS_EXPLICATIVAS</span>
+                                            <span>• ASSUNCAO_DIVIDAS</span>
+                                            <span>• SOBRAS_CAMPANHA</span>
+                                            <span>• dados.info</span>
+                                        </div>
+                                    </div>
+                                    <Button 
+                                        onClick={handleExportSPCEZip}
+                                        disabled={generatingZip}
+                                        className="gap-2 bg-secondary hover:bg-secondary/90"
+                                        data-testid="export-spce-zip-btn"
+                                    >
+                                        {generatingZip ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <FolderArchive className="h-4 w-4" />
+                                        )}
+                                        Exportar Pacote ZIP Completo
+                                    </Button>
+                                </CardContent>
+                            </Card>
+
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="font-heading">Outros Formatos de Exportação</CardTitle>
