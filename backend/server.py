@@ -981,7 +981,71 @@ async def create_contract(data: ContractCreate, current_user: dict = Depends(get
     
     await db.contracts.insert_one(contract_doc)
     contract_doc.pop("_id", None)
+    
+    # Auto-generate expenses based on installment config
+    if data.gerar_despesas:
+        await generate_contract_expenses(contract_id, data, current_user["campaign_id"])
+    
     return contract_doc
+
+async def generate_contract_expenses(contract_id: str, data: ContractCreate, campaign_id: str):
+    """Generate expenses based on contract installment configuration"""
+    total_value = data.value
+    
+    # If parcelas_config is provided, use it
+    if data.parcelas_config and len(data.parcelas_config) > 0:
+        for i, parcela in enumerate(data.parcelas_config):
+            percentual = parcela.get("percentual", 100 / len(data.parcelas_config))
+            data_vencimento = parcela.get("data_vencimento", data.start_date)
+            parcela_value = total_value * (percentual / 100)
+            
+            expense_doc = {
+                "id": str(uuid.uuid4()),
+                "description": f"{data.title} - Parcela {i+1}/{len(data.parcelas_config)}",
+                "amount": round(parcela_value, 2),
+                "category": "servicos_terceiros",
+                "supplier_name": data.contractor_name,
+                "supplier_cpf_cnpj": data.contractor_cpf_cnpj,
+                "date": data_vencimento,
+                "payment_status": "pendente",
+                "contract_id": contract_id,
+                "campaign_id": campaign_id,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.expenses.insert_one(expense_doc)
+    else:
+        # Default: split equally based on num_parcelas
+        num_parcelas = data.num_parcelas or 1
+        parcela_value = total_value / num_parcelas
+        
+        for i in range(num_parcelas):
+            # Calculate due date based on start and end date
+            if num_parcelas == 1:
+                due_date = data.start_date
+            elif num_parcelas == 2:
+                due_date = data.start_date if i == 0 else data.end_date
+            else:
+                # Distribute evenly between start and end
+                start = datetime.fromisoformat(data.start_date)
+                end = datetime.fromisoformat(data.end_date)
+                days_diff = (end - start).days
+                days_offset = int(days_diff * i / (num_parcelas - 1)) if num_parcelas > 1 else 0
+                due_date = (start + timedelta(days=days_offset)).strftime("%Y-%m-%d")
+            
+            expense_doc = {
+                "id": str(uuid.uuid4()),
+                "description": f"{data.title} - Parcela {i+1}/{num_parcelas}" if num_parcelas > 1 else f"{data.title}",
+                "amount": round(parcela_value, 2),
+                "category": "servicos_terceiros",
+                "supplier_name": data.contractor_name,
+                "supplier_cpf_cnpj": data.contractor_cpf_cnpj,
+                "date": due_date,
+                "payment_status": "pendente",
+                "contract_id": contract_id,
+                "campaign_id": campaign_id,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.expenses.insert_one(expense_doc)
 
 @api_router.get("/contracts", response_model=List[ContractResponse])
 async def list_contracts(current_user: dict = Depends(get_current_user)):
