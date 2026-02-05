@@ -393,7 +393,8 @@ export default function Despesas() {
                                             <TableHead>Categoria</TableHead>
                                             <TableHead>Fornecedor</TableHead>
                                             <TableHead className="text-right">Valor</TableHead>
-                                            <TableHead className="w-24">Ações</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead className="w-32">Ações</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -403,7 +404,14 @@ export default function Despesas() {
                                                     {formatDate(expense.date)}
                                                 </TableCell>
                                                 <TableCell className="font-medium">
-                                                    {expense.description}
+                                                    <div className="flex items-center gap-2">
+                                                        {expense.description}
+                                                        {expense.contract_id && (
+                                                            <Badge variant="secondary" className="text-xs">
+                                                                Contrato
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge variant="outline">
@@ -417,7 +425,59 @@ export default function Despesas() {
                                                     {formatCurrency(expense.amount)}
                                                 </TableCell>
                                                 <TableCell>
+                                                    {expense.payment_status === 'pago' ? (
+                                                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30 gap-1">
+                                                            <CheckCircle className="h-3 w-3" />
+                                                            Pago
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-amber-400 border-amber-500/30 gap-1">
+                                                            <Clock className="h-3 w-3" />
+                                                            Pendente
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
                                                     <div className="flex gap-1">
+                                                        {expense.payment_status !== 'pago' && (
+                                                            <label className="cursor-pointer">
+                                                                <input
+                                                                    type="file"
+                                                                    accept=".jpg,.jpeg,.png,.pdf"
+                                                                    className="hidden"
+                                                                    onChange={(e) => handleUploadReceipt(expense.id, e.target.files[0])}
+                                                                    disabled={uploadingId === expense.id}
+                                                                />
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-accent hover:text-accent"
+                                                                    asChild
+                                                                    disabled={uploadingId === expense.id}
+                                                                    title="Anexar comprovante"
+                                                                >
+                                                                    <span data-testid={`upload-receipt-${expense.id}`}>
+                                                                        {uploadingId === expense.id ? (
+                                                                            <span className="animate-spin">⏳</span>
+                                                                        ) : (
+                                                                            <Upload className="h-4 w-4" />
+                                                                        )}
+                                                                    </span>
+                                                                </Button>
+                                                            </label>
+                                                        )}
+                                                        {expense.attachment_id && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-green-400"
+                                                                title="Ver comprovante"
+                                                                onClick={() => window.open(`${API}/attachments/${expense.attachment_id}/download`, '_blank')}
+                                                                data-testid={`view-receipt-${expense.id}`}
+                                                            >
+                                                                <Paperclip className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
