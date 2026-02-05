@@ -59,6 +59,10 @@ const emptyForm = {
     status: 'rascunho',
     notes: '',
     template_type: '',
+    // Payment installments
+    num_parcelas: 1,
+    gerar_despesas: true,
+    parcelas_config: [],
     // Locador fields
     locador_nome: '',
     locador_nacionalidade: 'Brasileiro(a)',
