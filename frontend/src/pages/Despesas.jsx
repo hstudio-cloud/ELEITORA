@@ -125,6 +125,32 @@ export default function Despesas() {
         }
     };
 
+    const handleUploadReceipt = async (expenseId, file) => {
+        if (!file) return;
+        
+        const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (!allowedTypes.includes(file.type)) {
+            toast.error('Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF');
+            return;
+        }
+
+        setUploadingId(expenseId);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            await axios.post(`${API}/expenses/${expenseId}/attach-receipt`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            toast.success('Comprovante anexado! Despesa marcada como paga.');
+            fetchExpenses();
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Erro ao anexar comprovante');
+        } finally {
+            setUploadingId(null);
+        }
+    };
+
     const filteredExpenses = expenses.filter(e => {
         const matchesSearch = e.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
             e.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase());
