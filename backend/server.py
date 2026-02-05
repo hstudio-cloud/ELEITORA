@@ -309,6 +309,8 @@ class ExpenseCreate(BaseModel):
     invoice_number: Optional[str] = None
     notes: Optional[str] = None
     attachment_id: Optional[str] = None
+    payment_status: Optional[str] = "pendente"  # pendente, pago
+    contract_id: Optional[str] = None  # Link to contract if auto-generated
 
 class ExpenseResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -323,6 +325,9 @@ class ExpenseResponse(BaseModel):
     notes: Optional[str] = None
     campaign_id: str
     created_at: str
+    attachment_id: Optional[str] = None
+    payment_status: Optional[str] = "pendente"
+    contract_id: Optional[str] = None
 
 class ContractCreate(BaseModel):
     title: str
