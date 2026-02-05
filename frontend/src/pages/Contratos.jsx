@@ -119,6 +119,9 @@ export default function Contratos() {
     const [contractExpenses, setContractExpenses] = useState([]);
     const [expensesDialogOpen, setExpensesDialogOpen] = useState(false);
     const [uploadingId, setUploadingId] = useState(null);
+    const [attachmentsDialogOpen, setAttachmentsDialogOpen] = useState(false);
+    const [selectedContractAttachments, setSelectedContractAttachments] = useState(null);
+    const [uploadingAttachmentKey, setUploadingAttachmentKey] = useState(null);
 
     useEffect(() => {
         fetchContracts();
