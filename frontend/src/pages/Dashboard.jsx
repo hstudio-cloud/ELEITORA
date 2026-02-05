@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, categoryLabels } from '../lib/utils';
+import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import {
     TrendingUp,
