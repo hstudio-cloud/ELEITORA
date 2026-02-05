@@ -1263,6 +1263,159 @@ export default function Contratos() {
                         </div>
                     </DialogContent>
                 </Dialog>
+
+                {/* Required Attachments Dialog */}
+                <Dialog open={attachmentsDialogOpen} onOpenChange={setAttachmentsDialogOpen}>
+                    <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <FileCheck className="h-5 w-5" />
+                                Anexos Obrigatórios do Contrato
+                            </DialogTitle>
+                            <DialogDescription>
+                                {selectedContractAttachments?.template_type && (
+                                    <span className="capitalize">
+                                        Tipo: {contractTemplates.find(t => t.value === selectedContractAttachments.template_type)?.label || selectedContractAttachments.template_type}
+                                    </span>
+                                )}
+                            </DialogDescription>
+                        </DialogHeader>
+                        
+                        {selectedContractAttachments && (
+                            <div className="space-y-4 mt-4">
+                                {/* Progress */}
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span>Progresso dos anexos obrigatórios</span>
+                                        <span className={selectedContractAttachments.complete ? "text-green-400" : "text-amber-400"}>
+                                            {selectedContractAttachments.total_uploaded}/{selectedContractAttachments.total_required} enviados
+                                        </span>
+                                    </div>
+                                    <Progress 
+                                        value={(selectedContractAttachments.total_uploaded / selectedContractAttachments.total_required) * 100} 
+                                        className="h-2"
+                                    />
+                                </div>
+
+                                {/* Warning if incomplete */}
+                                {!selectedContractAttachments.complete && (
+                                    <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                                        <AlertTriangle className="h-5 w-5 text-amber-400" />
+                                        <p className="text-sm text-amber-400">
+                                            Existem anexos obrigatórios pendentes. Envie todos os documentos necessários.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Attachments List */}
+                                <div className="space-y-3">
+                                    {selectedContractAttachments.attachments?.map((attachment) => (
+                                        <div 
+                                            key={attachment.key}
+                                            className={`flex items-center justify-between p-3 rounded-lg border ${
+                                                attachment.uploaded 
+                                                    ? 'bg-green-500/10 border-green-500/30' 
+                                                    : attachment.required 
+                                                        ? 'bg-amber-500/10 border-amber-500/30'
+                                                        : 'bg-muted/50 border-muted'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                {attachment.uploaded ? (
+                                                    <CheckCircle className="h-5 w-5 text-green-400" />
+                                                ) : attachment.required ? (
+                                                    <AlertTriangle className="h-5 w-5 text-amber-400" />
+                                                ) : (
+                                                    <FileText className="h-5 w-5 text-muted-foreground" />
+                                                )}
+                                                <div>
+                                                    <p className="font-medium text-sm">
+                                                        {attachment.label}
+                                                        {attachment.required && <span className="text-destructive ml-1">*</span>}
+                                                    </p>
+                                                    {attachment.attachment_info && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {attachment.attachment_info.original_name}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {attachment.uploaded ? (
+                                                    <>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="text-green-400"
+                                                            onClick={() => window.open(`${API}/attachments/${attachment.attachment_id}/download`, '_blank')}
+                                                        >
+                                                            <Download className="h-4 w-4 mr-1" />
+                                                            Ver
+                                                        </Button>
+                                                        <label className="cursor-pointer">
+                                                            <input
+                                                                type="file"
+                                                                accept=".jpg,.jpeg,.png,.pdf"
+                                                                className="hidden"
+                                                                onChange={(e) => handleUploadSpecificAttachment(
+                                                                    selectedContractAttachments.contract_id,
+                                                                    attachment.key,
+                                                                    e.target.files[0]
+                                                                )}
+                                                            />
+                                                            <Button variant="ghost" size="sm" asChild>
+                                                                <span>Substituir</span>
+                                                            </Button>
+                                                        </label>
+                                                    </>
+                                                ) : (
+                                                    <label className="cursor-pointer">
+                                                        <input
+                                                            type="file"
+                                                            accept=".jpg,.jpeg,.png,.pdf"
+                                                            className="hidden"
+                                                            onChange={(e) => handleUploadSpecificAttachment(
+                                                                selectedContractAttachments.contract_id,
+                                                                attachment.key,
+                                                                e.target.files[0]
+                                                            )}
+                                                            disabled={uploadingAttachmentKey === attachment.key}
+                                                        />
+                                                        <Button 
+                                                            variant={attachment.required ? "default" : "outline"} 
+                                                            size="sm" 
+                                                            asChild
+                                                            className={attachment.required ? "bg-accent hover:bg-accent/90" : ""}
+                                                        >
+                                                            <span>
+                                                                {uploadingAttachmentKey === attachment.key ? (
+                                                                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                                                ) : (
+                                                                    <Upload className="h-4 w-4 mr-1" />
+                                                                )}
+                                                                Enviar
+                                                            </span>
+                                                        </Button>
+                                                    </label>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <p className="text-xs text-muted-foreground">
+                                    * Campos obrigatórios. Formatos aceitos: JPEG, PNG, PDF (máx. 10MB)
+                                </p>
+                            </div>
+                        )}
+                        
+                        <div className="flex justify-end mt-4">
+                            <Button variant="outline" onClick={() => setAttachmentsDialogOpen(false)}>
+                                Fechar
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         </Layout>
     );
