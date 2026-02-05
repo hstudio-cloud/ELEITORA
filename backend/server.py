@@ -2194,6 +2194,133 @@ async def get_contract_expenses(contract_id: str, current_user: dict = Depends(g
         "total_pending": sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pendente")
     }
 
+@api_router.get("/contracts/{contract_id}/required-attachments")
+async def get_contract_required_attachments(contract_id: str, current_user: dict = Depends(get_current_user)):
+    """Get list of required attachments for a contract based on its type"""
+    contract = await db.contracts.find_one(
+        {"id": contract_id, "campaign_id": current_user.get("campaign_id")},
+        {"_id": 0}
+    )
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    template_type = contract.get("template_type")
+    required_list = CONTRACT_REQUIRED_ATTACHMENTS.get(template_type, [])
+    
+    # Get current attachments
+    current_attachments = contract.get("attachments") or {}
+    
+    # Build response with status
+    attachments_status = []
+    for req in required_list:
+        attachment_id = current_attachments.get(req["key"])
+        attachment_info = None
+        if attachment_id:
+            attachment_info = await db.attachments.find_one({"id": attachment_id}, {"_id": 0})
+        
+        attachments_status.append({
+            "key": req["key"],
+            "label": req["label"],
+            "required": req["required"],
+            "uploaded": attachment_id is not None,
+            "attachment_id": attachment_id,
+            "attachment_info": attachment_info
+        })
+    
+    return {
+        "contract_id": contract_id,
+        "template_type": template_type,
+        "attachments": attachments_status,
+        "total_required": len([a for a in attachments_status if a["required"]]),
+        "total_uploaded": len([a for a in attachments_status if a["uploaded"]]),
+        "complete": all(a["uploaded"] for a in attachments_status if a["required"])
+    }
+
+@api_router.post("/contracts/{contract_id}/attachments/{attachment_key}")
+async def upload_contract_attachment(
+    contract_id: str,
+    attachment_key: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a specific attachment for a contract (doc_veiculo, cnh_motorista, etc.)"""
+    contract = await db.contracts.find_one(
+        {"id": contract_id, "campaign_id": current_user.get("campaign_id")}
+    )
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    # Validate attachment key
+    template_type = contract.get("template_type")
+    valid_keys = [a["key"] for a in CONTRACT_REQUIRED_ATTACHMENTS.get(template_type, [])]
+    if attachment_key not in valid_keys:
+        raise HTTPException(status_code=400, detail=f"Tipo de anexo inválido. Válidos: {', '.join(valid_keys)}")
+    
+    # Validate file type
+    if file.content_type not in ALLOWED_FILE_TYPES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
+        )
+    
+    # Upload file
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
+    
+    file_id = str(uuid.uuid4())
+    file_ext = ALLOWED_FILE_TYPES.get(file.content_type, '.bin')
+    safe_filename = f"{file_id}{file_ext}"
+    file_path = UPLOAD_DIR / safe_filename
+    
+    with open(file_path, 'wb') as f:
+        f.write(contents)
+    
+    # Save attachment metadata
+    attachment_doc = {
+        "id": file_id,
+        "original_name": file.filename,
+        "filename": safe_filename,
+        "content_type": file.content_type,
+        "size": len(contents),
+        "campaign_id": current_user["campaign_id"],
+        "uploaded_by": current_user["id"],
+        "entity_type": "contract_attachment",
+        "entity_id": contract_id,
+        "attachment_key": attachment_key,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.attachments.insert_one(attachment_doc)
+    
+    # Update contract attachments dict
+    current_attachments = contract.get("attachments") or {}
+    current_attachments[attachment_key] = file_id
+    
+    await db.contracts.update_one(
+        {"id": contract_id},
+        {"$set": {"attachments": current_attachments}}
+    )
+    
+    # Check if this is payment receipt - update expense status
+    if attachment_key == "comprovante_pagamento":
+        # Find related expenses and mark as paid
+        await db.expenses.update_many(
+            {"contract_id": contract_id, "payment_status": "pendente"},
+            {"$set": {"payment_status": "pago", "attachment_id": file_id}}
+        )
+    
+    # Get attachment label
+    attachment_label = next(
+        (a["label"] for a in CONTRACT_REQUIRED_ATTACHMENTS.get(template_type, []) if a["key"] == attachment_key),
+        attachment_key
+    )
+    
+    return {
+        "message": f"{attachment_label} anexado com sucesso",
+        "attachment_id": file_id,
+        "attachment_key": attachment_key
+    }
+
 @api_router.get("/attachments/{attachment_id}")
 async def get_attachment(attachment_id: str, current_user: dict = Depends(get_current_user)):
     """Get attachment metadata"""
