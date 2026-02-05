@@ -303,7 +303,51 @@ Construir uma plataforma web de gestão eleitoral e contábil para candidatos br
 ### Próximas Tarefas (P1)
 - [ ] Integração com Resend para envio de e-mail automático
 - [ ] Geração automática de PDF do contrato assinado
-- [ ] Mais layouts de exportação SPCE (despesas, contratos)
+
+### Backlog (P2)
+- [ ] Integração com GOV.BR/ICP-Brasil para assinatura certificada
+- [ ] Importação de extratos bancários
+- [ ] Conciliação bancária automática
+
+---
+
+## Update (2026-02-05): Exportação SPCE ZIP Completa
+
+### Funcionalidades Implementadas
+
+#### Exportação SPCE em formato ZIP
+- Endpoint GET /api/export/spce-zip
+- Estrutura completa com 14 pastas obrigatórias:
+  - RECEITAS, DESPESAS, DEMONSTRATIVOS
+  - EXTRATOS_BANCARIOS, EXTRATO_PRESTACAO
+  - NOTAS_EXPLICATIVAS, REPRESENTANTES
+  - ASSUNCAO_DIVIDAS, SOBRAS_CAMPANHA
+  - AVULSOS_OUTROS, AVULSOS_SPCE, COMERCIALIZACAO
+  - DEVOLUCAO_RECEITAS, SIGILOSO_SPCE
+- Arquivo dados.info com metadados JSON
+- Geração automática de arquivos PDF para receitas e despesas
+- Inclusão de comprovantes anexados nas pastas corretas
+- Demonstrativos gerados automaticamente
+
+#### Integração Resend para E-mail
+- Endpoint POST /api/email/send-signature-request
+- Template HTML para solicitação de assinatura
+- Link de assinatura com token JWT
+- Envio em background (não bloqueia request)
+- **Requer RESEND_API_KEY em .env para funcionar**
+
+### Arquivos Modificados
+- /app/backend/server.py - Endpoint /api/export/spce-zip
+- /app/frontend/src/pages/Relatorios.jsx - Botão "Exportar Pacote ZIP Completo"
+
+### Testes
+- 100% de sucesso em testes de backend (41/41)
+- 100% de sucesso em testes de frontend
+- Arquivo: /app/test_reports/iteration_4.json
+
+### Próximas Tarefas (P1)
+- [ ] Geração automática de PDF do contrato assinado
+- [ ] Configurar RESEND_API_KEY para ativar envio de e-mails
 
 ### Backlog (P2)
 - [ ] Integração com GOV.BR/ICP-Brasil para assinatura certificada
