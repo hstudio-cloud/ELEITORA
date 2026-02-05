@@ -282,6 +282,7 @@ class RevenueCreate(BaseModel):
     date: str
     receipt_number: Optional[str] = None
     notes: Optional[str] = None
+    attachment_id: Optional[str] = None
 
 class RevenueResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -296,6 +297,7 @@ class RevenueResponse(BaseModel):
     notes: Optional[str] = None
     campaign_id: str
     created_at: str
+    attachment_id: Optional[str] = None
 
 class ExpenseCreate(BaseModel):
     description: str
@@ -306,6 +308,7 @@ class ExpenseCreate(BaseModel):
     date: str
     invoice_number: Optional[str] = None
     notes: Optional[str] = None
+    attachment_id: Optional[str] = None
 
 class ExpenseResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
