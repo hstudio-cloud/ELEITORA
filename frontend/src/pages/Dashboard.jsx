@@ -335,6 +335,74 @@ export default function Dashboard() {
                     </div>
                 </div>
 
+                {/* Payment Alerts */}
+                {alerts.total > 0 && (
+                    <Card className="animate-fade-in-up border-accent/50" data-testid="payment-alerts-card">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="font-heading flex items-center gap-2">
+                                    <Bell className="h-5 w-5 text-accent" />
+                                    Alertas de Pagamento
+                                    {alerts.overdue_count > 0 && (
+                                        <Badge variant="destructive" className="ml-2">
+                                            {alerts.overdue_count} atrasado{alerts.overdue_count > 1 ? 's' : ''}
+                                        </Badge>
+                                    )}
+                                </CardTitle>
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => navigate('/pagamentos')}
+                                    className="text-accent"
+                                >
+                                    Ver todos
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {alerts.alerts.slice(0, 5).map((alert, index) => (
+                                    <div 
+                                        key={index}
+                                        className={`flex items-center justify-between p-3 rounded-lg ${
+                                            alert.is_overdue 
+                                                ? 'bg-destructive/10 border border-destructive/30' 
+                                                : alert.days_until_due <= 3 
+                                                    ? 'bg-accent/10 border border-accent/30' 
+                                                    : 'bg-muted/50'
+                                        }`}
+                                        data-testid={`alert-${index}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            {alert.is_overdue ? (
+                                                <AlertTriangle className="h-5 w-5 text-destructive" />
+                                            ) : alert.days_until_due <= 3 ? (
+                                                <AlertCircle className="h-5 w-5 text-accent" />
+                                            ) : (
+                                                <Clock className="h-5 w-5 text-muted-foreground" />
+                                            )}
+                                            <div>
+                                                <p className="font-medium text-sm">{alert.description}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {alert.is_overdue 
+                                                        ? `Vencido há ${Math.abs(alert.days_until_due)} dia${Math.abs(alert.days_until_due) > 1 ? 's' : ''}`
+                                                        : alert.days_until_due === 0 
+                                                            ? 'Vence hoje!'
+                                                            : `Vence em ${alert.days_until_due} dia${alert.days_until_due > 1 ? 's' : ''}`
+                                                    }
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <span className={`font-mono font-bold ${alert.is_overdue ? 'text-destructive' : 'text-accent'}`}>
+                                            {formatCurrency(alert.amount)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* Quick Actions */}
                 <Card className="animate-fade-in-up" data-testid="quick-actions">
                     <CardHeader>
