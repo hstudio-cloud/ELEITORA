@@ -190,4 +190,66 @@ Construir uma plataforma web de gestão eleitoral e contábil para candidatos br
 - [ ] Importação de extratos bancários
 - [ ] Conciliação bancária automática
 - [ ] Mais layouts SPCE (despesas, contratos)
-- [ ] Validação de CPF/CNPJ
+- [x] Validação de CPF/CNPJ
+
+---
+
+## Update (2026-02-05): Filtros por Período, Alertas e Exportação PDF
+
+### Funcionalidades Implementadas
+
+#### Filtros por Período
+- Página de Receitas: filtros de data início e fim
+- Página de Despesas: filtros de data início e fim
+- Botão "Limpar filtros" para resetar
+- Filtros combinam com busca por texto
+
+#### Sistema de Alertas de Pagamento
+- Endpoint GET /api/payments/alerts?days_ahead=7
+- Dashboard exibe alertas de pagamentos próximos ao vencimento
+- Destaque visual para pagamentos atrasados (vermelho)
+- Destaque para pagamentos urgentes (amarelo)
+- Badge com contagem de atrasados
+
+#### Exportação PDF
+- Botão "Exportar PDF" na página de Relatórios
+- Utiliza biblioteca reportlab
+- Gera relatório completo com receitas e despesas
+
+#### Validação de CPF/CNPJ
+- POST /api/validate/cpf?cpf=12345678909
+- POST /api/validate/cnpj?cnpj=11222333000181
+- Validação com dígitos verificadores
+- Retorna CPF/CNPJ formatado
+
+#### Assinatura com Validação Facial
+- Captura de selfie via webcam
+- Armazenamento da imagem para validação
+- Página de assinatura atualizada com interface de câmera
+
+### Correções de Backend
+- Reordenação de rotas para evitar conflito /payments/alerts vs /payments/{id}
+
+### Arquivos Modificados
+- /app/backend/server.py - Reordenação de rotas, endpoints de validação
+- /app/frontend/src/pages/Dashboard.jsx - Seção de alertas
+- /app/frontend/src/pages/Receitas.jsx - Filtros por período
+- /app/frontend/src/pages/Despesas.jsx - Filtros por período
+- /app/frontend/src/pages/Relatorios.jsx - Botão de exportação PDF
+- /app/frontend/src/pages/AssinarContrato.jsx - Validação facial
+
+### Testes
+- 100% de sucesso em testes de backend
+- 100% de sucesso em testes de frontend
+- Arquivo: /app/test_reports/iteration_2.json
+
+### Próximas Tarefas (P1)
+- [ ] Integração com Resend para envio de e-mail automático
+- [ ] Geração automática de PDF do contrato assinado
+- [ ] Mais layouts de exportação SPCE (despesas, contratos)
+- [ ] Importação de extratos bancários
+
+### Backlog (P2)
+- [ ] Integração com GOV.BR/ICP-Brasil para assinatura certificada
+- [ ] Conciliação bancária automática
+- [ ] Upload de anexos em documentos
