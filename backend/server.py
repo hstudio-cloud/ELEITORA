@@ -1665,14 +1665,27 @@ async def generate_tse_report(current_user: dict = Depends(get_current_user)):
     return report
 
 # ============== FILE UPLOAD ROUTES ==============
+ALLOWED_FILE_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "application/pdf": ".pdf"
+}
+
 @api_router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    """Upload a file attachment"""
+    """Upload a file attachment (JPEG, PNG, PDF only)"""
     if not current_user.get("campaign_id"):
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    # Validate file type
+    if file.content_type not in ALLOWED_FILE_TYPES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
+        )
     
     # Check file size
     contents = await file.read()
@@ -1681,7 +1694,7 @@ async def upload_file(
     
     # Generate unique filename
     file_id = str(uuid.uuid4())
-    file_ext = Path(file.filename).suffix if file.filename else '.bin'
+    file_ext = ALLOWED_FILE_TYPES.get(file.content_type, '.bin')
     safe_filename = f"{file_id}{file_ext}"
     file_path = UPLOAD_DIR / safe_filename
     
@@ -1704,6 +1717,208 @@ async def upload_file(
     attachment_doc.pop("_id", None)
     
     return attachment_doc
+
+@api_router.post("/expenses/{expense_id}/attach-receipt")
+async def attach_expense_receipt(
+    expense_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Attach receipt to expense and automatically mark as paid"""
+    expense = await db.expenses.find_one(
+        {"id": expense_id, "campaign_id": current_user.get("campaign_id")}
+    )
+    if not expense:
+        raise HTTPException(status_code=404, detail="Despesa não encontrada")
+    
+    # Validate file type
+    if file.content_type not in ALLOWED_FILE_TYPES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
+        )
+    
+    # Upload file
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
+    
+    file_id = str(uuid.uuid4())
+    file_ext = ALLOWED_FILE_TYPES.get(file.content_type, '.bin')
+    safe_filename = f"{file_id}{file_ext}"
+    file_path = UPLOAD_DIR / safe_filename
+    
+    with open(file_path, 'wb') as f:
+        f.write(contents)
+    
+    attachment_doc = {
+        "id": file_id,
+        "original_name": file.filename,
+        "filename": safe_filename,
+        "content_type": file.content_type,
+        "size": len(contents),
+        "campaign_id": current_user["campaign_id"],
+        "uploaded_by": current_user["id"],
+        "entity_type": "expense",
+        "entity_id": expense_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.attachments.insert_one(attachment_doc)
+    
+    # Update expense with attachment and mark as PAID
+    await db.expenses.update_one(
+        {"id": expense_id},
+        {"$set": {"attachment_id": file_id, "payment_status": "pago"}}
+    )
+    
+    updated_expense = await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+    return {
+        "message": "Comprovante anexado e despesa marcada como paga",
+        "expense": updated_expense,
+        "attachment": {**attachment_doc, "_id": None}
+    }
+
+@api_router.post("/revenues/{revenue_id}/attach-receipt")
+async def attach_revenue_receipt(
+    revenue_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Attach receipt to revenue"""
+    revenue = await db.revenues.find_one(
+        {"id": revenue_id, "campaign_id": current_user.get("campaign_id")}
+    )
+    if not revenue:
+        raise HTTPException(status_code=404, detail="Receita não encontrada")
+    
+    # Validate file type
+    if file.content_type not in ALLOWED_FILE_TYPES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
+        )
+    
+    # Upload file
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
+    
+    file_id = str(uuid.uuid4())
+    file_ext = ALLOWED_FILE_TYPES.get(file.content_type, '.bin')
+    safe_filename = f"{file_id}{file_ext}"
+    file_path = UPLOAD_DIR / safe_filename
+    
+    with open(file_path, 'wb') as f:
+        f.write(contents)
+    
+    attachment_doc = {
+        "id": file_id,
+        "original_name": file.filename,
+        "filename": safe_filename,
+        "content_type": file.content_type,
+        "size": len(contents),
+        "campaign_id": current_user["campaign_id"],
+        "uploaded_by": current_user["id"],
+        "entity_type": "revenue",
+        "entity_id": revenue_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.attachments.insert_one(attachment_doc)
+    
+    # Update revenue with attachment
+    await db.revenues.update_one(
+        {"id": revenue_id},
+        {"$set": {"attachment_id": file_id}}
+    )
+    
+    updated_revenue = await db.revenues.find_one({"id": revenue_id}, {"_id": 0})
+    return {
+        "message": "Comprovante anexado com sucesso",
+        "revenue": updated_revenue
+    }
+
+@api_router.post("/contracts/{contract_id}/attach")
+async def attach_contract_document(
+    contract_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Attach document to contract"""
+    contract = await db.contracts.find_one(
+        {"id": contract_id, "campaign_id": current_user.get("campaign_id")}
+    )
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    # Validate file type
+    if file.content_type not in ALLOWED_FILE_TYPES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
+        )
+    
+    # Upload file
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
+    
+    file_id = str(uuid.uuid4())
+    file_ext = ALLOWED_FILE_TYPES.get(file.content_type, '.bin')
+    safe_filename = f"{file_id}{file_ext}"
+    file_path = UPLOAD_DIR / safe_filename
+    
+    with open(file_path, 'wb') as f:
+        f.write(contents)
+    
+    attachment_doc = {
+        "id": file_id,
+        "original_name": file.filename,
+        "filename": safe_filename,
+        "content_type": file.content_type,
+        "size": len(contents),
+        "campaign_id": current_user["campaign_id"],
+        "uploaded_by": current_user["id"],
+        "entity_type": "contract",
+        "entity_id": contract_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.attachments.insert_one(attachment_doc)
+    
+    # Update contract with attachment
+    await db.contracts.update_one(
+        {"id": contract_id},
+        {"$set": {"attachment_id": file_id}}
+    )
+    
+    updated_contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
+    return {
+        "message": "Documento anexado com sucesso",
+        "contract": updated_contract
+    }
+
+@api_router.get("/contracts/{contract_id}/expenses")
+async def get_contract_expenses(contract_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all expenses linked to a contract"""
+    contract = await db.contracts.find_one(
+        {"id": contract_id, "campaign_id": current_user.get("campaign_id")},
+        {"_id": 0}
+    )
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    expenses = await db.expenses.find(
+        {"contract_id": contract_id, "campaign_id": current_user.get("campaign_id")},
+        {"_id": 0}
+    ).to_list(100)
+    
+    return {
+        "contract_id": contract_id,
+        "contract_title": contract.get("title"),
+        "total_value": contract.get("value"),
+        "expenses": expenses,
+        "total_paid": sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pago"),
+        "total_pending": sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pendente")
+    }
 
 @api_router.get("/attachments/{attachment_id}")
 async def get_attachment(attachment_id: str, current_user: dict = Depends(get_current_user)):
