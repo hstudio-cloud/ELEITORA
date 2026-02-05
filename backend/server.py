@@ -402,6 +402,10 @@ class ContractResponse(BaseModel):
     notes: Optional[str] = None
     campaign_id: str
     created_at: str
+    attachment_id: Optional[str] = None
+    num_parcelas: Optional[int] = 1
+    parcelas_config: Optional[List[dict]] = None
+    gerar_despesas: Optional[bool] = True
     # New fields
     template_type: Optional[str] = None
     locador_nome: Optional[str] = None
