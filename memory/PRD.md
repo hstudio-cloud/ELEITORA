@@ -347,9 +347,71 @@ Construir uma plataforma web de gestão eleitoral e contábil para candidatos br
 
 ### Próximas Tarefas (P1)
 - [ ] Geração automática de PDF do contrato assinado
-- [ ] Configurar RESEND_API_KEY para ativar envio de e-mails
+- [x] Configurar RESEND_API_KEY para ativar envio de e-mails
 
 ### Backlog (P2)
 - [ ] Integração com GOV.BR/ICP-Brasil para assinatura certificada
+- [ ] Importação de extratos bancários
+- [ ] Conciliação bancária automática
+
+---
+
+## Update (2026-02-05): Sistema de Anexos Obrigatórios + Resend
+
+### Funcionalidades Implementadas
+
+#### Sistema de Anexos Obrigatórios por Tipo de Contrato
+Cada tipo de contrato tem documentos específicos obrigatórios:
+
+**Locação de Veículo (com/sem motorista):**
+- Documento do Veículo (CRLV)
+- Documento do Proprietário (RG/CPF)
+- CNH do Motorista/Proprietário
+- Comprovante de Residência
+- Comprovante de Pagamento (opcional)
+
+**Locação de Imóvel:**
+- Documento do Imóvel (Escritura/Contrato)
+- Documento do Proprietário/Locador
+- Comprovante de Residência
+- Comprovante de Pagamento (opcional)
+
+**Bem Móvel / Espaço de Evento:**
+- Documento do Proprietário
+- Comprovante de Residência
+- Documento do Bem/Espaço (se houver)
+- Comprovante de Pagamento (opcional)
+
+#### Endpoints Criados
+- GET /api/contracts/{id}/required-attachments - Lista anexos com status
+- POST /api/contracts/{id}/attachments/{key} - Upload de anexo específico
+- GET /api/contracts/attachment-types - Lista tipos disponíveis
+
+#### Lógica de Pagamento Automático
+Quando o "comprovante_pagamento" é anexado, todas as despesas pendentes do contrato são automaticamente marcadas como "pago".
+
+#### Integração Resend Configurada
+- RESEND_API_KEY configurada em /app/backend/.env
+- Endpoint POST /api/email/send-signature-request funcionando
+- Template HTML para e-mail de solicitação de assinatura
+
+### Frontend Atualizado
+- Dialog de "Anexos Obrigatórios do Contrato" com:
+  - Barra de progresso (X/Y enviados)
+  - Lista de documentos com status (pendente/enviado)
+  - Botões de Upload/Ver/Substituir
+  - Alerta visual para anexos pendentes
+- Botão de anexos na tabela de contratos
+
+### Testes
+- 100% de sucesso em testes de backend (13/13)
+- 100% de sucesso em testes de frontend
+- Arquivo: /app/test_reports/iteration_5.json
+
+### Próximas Tarefas (P1)
+- [ ] Geração automática de PDF do contrato assinado
+
+### Backlog (P2)
+- [ ] Integração com GOV.BR/ICP-Brasil
 - [ ] Importação de extratos bancários
 - [ ] Conciliação bancária automática
