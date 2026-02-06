@@ -520,3 +520,109 @@ Nome da assistente: **Eleitora**
 - [ ] Integração com GOV.BR/ICP-Brasil
 - [ ] Importação de extratos bancários
 - [ ] Conciliação bancária automática
+
+---
+
+## Update (2026-02-06): Portal do Contador + Limites TSE
+
+### Funcionalidades Implementadas
+
+#### Portal do Contador (Ativa Contabilidade)
+Sistema completo de acesso para contadores e advogados:
+
+**Login do Contador:**
+- Acesso via /contador/login
+- Conta admin: diretoria@ativacontabilidade.cnt.br (senha: ativa2024)
+- Token JWT independente do sistema de candidatos
+- Criação automática do admin no primeiro login
+
+**Dashboard do Contador:**
+- Visão consolidada de todas as campanhas
+- KPIs agregados: Total Receitas, Despesas, Saldo
+- Lista de profissionais da equipe
+- Filtros e busca por campanhas
+
+**Gestão de Equipe:**
+- Convite de novos contadores/advogados via email
+- Atribuição de campanhas a profissionais
+- Controle de acesso por campanha
+- Integração com Resend para envio de convites
+
+#### Sistema de Limites de Gastos TSE
+Implementação completa dos limites eleitorais:
+
+**Cálculo Automático:**
+- Baseado na Portaria TSE 593/2024
+- Limites por cargo (Prefeito/Vereador)
+- Faixas por número de eleitores do município
+- Suporte a primeiro e segundo turno
+
+**Faixas de Eleitorado:**
+| Faixa | Eleitores | Limite Prefeito 1T |
+|-------|-----------|-------------------|
+| Micro | 0-10k | R$ 159.850,76 |
+| Pequeno | 10k-50k | R$ 500.000,00 |
+| Médio | 50k-200k | R$ 2.000.000,00 |
+| Grande | 200k-1M | R$ 10.000.000,00 |
+| Metrópole | 1M+ | R$ 67.200.000,00 |
+
+**Card de Limite no Dashboard:**
+- Exibe limite TSE da campanha
+- Mostra total gasto e disponível
+- Barra de progresso com % utilizado
+- Alertas automáticos:
+  - Verde (OK): < 75%
+  - Amarelo (Atenção): 75-90%
+  - Laranja (Crítico): 90-100%
+  - Vermelho (Excedido): > 100%
+
+**Penalidades Informadas:**
+- Multa de 100% do valor excedente
+- Abuso de poder econômico
+- Cassação do registro/diploma
+- Inelegibilidade por 8 anos
+
+#### Endpoints Criados
+- GET /api/tse/spending-limits - Calcula limite por cargo/eleitores
+- GET /api/tse/municipio/{codigo_ibge} - Limites por município
+- GET /api/tse/campaign-status - Status de gastos da campanha atual
+- POST /api/admin/contador/login - Login do contador
+- POST /api/admin/contador/invite - Convite de profissional
+- GET /api/admin/contador/professionals - Lista profissionais
+- GET /api/admin/contador/all-campaigns - Lista todas campanhas
+- POST /api/admin/contador/assign-campaign - Atribui campanha
+- GET /api/contador/my-campaigns - Campanhas do contador logado
+- GET /api/contador/campaign/{id}/details - Detalhes da campanha
+
+#### Arquivos Criados
+- /app/frontend/src/pages/ContadorLogin.jsx - Login do contador
+- /app/frontend/src/pages/ContadorDashboard.jsx - Dashboard do contador
+
+#### Arquivos Modificados
+- /app/backend/server.py - Novos endpoints TSE e Contador
+- /app/frontend/src/App.js - Rotas /contador/*
+- /app/frontend/src/pages/Dashboard.jsx - Card de Limite TSE
+- /app/frontend/src/pages/Login.jsx - Link para portal contador
+
+### Testes
+- 100% de sucesso em testes de backend (18/18)
+- 100% de sucesso em testes de frontend
+- Arquivo: /app/test_reports/iteration_8.json
+
+### Credenciais de Teste
+| Tipo | Email | Senha |
+|------|-------|-------|
+| Candidato | admin@test.com | test123 |
+| Contador Admin | diretoria@ativacontabilidade.cnt.br | ativa2024 |
+
+### Próximas Tarefas (P1)
+- [ ] Integração PIX Banco do Brasil (aguardando credenciais)
+- [ ] Geração automática de PDF do contrato assinado
+
+### Backlog (P2)
+- [ ] Integração com GOV.BR/ICP-Brasil
+- [ ] Importação de extratos bancários (OFX)
+- [ ] Conciliação bancária automática
+- [ ] Role de admin para contadores gerenciarem equipe
+
+---
