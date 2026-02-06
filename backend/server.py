@@ -1326,8 +1326,10 @@ async def sign_as_locador(token: str, data: SignContract):
         }
         
         # Check if both parties signed
+        both_signed = False
         if contract.get("locatario_assinatura_hash"):
             update_data["status"] = "ativo"
+            both_signed = True
         else:
             update_data["status"] = "assinado_locador"
         
@@ -1339,7 +1341,122 @@ async def sign_as_locador(token: str, data: SignContract):
         html = generate_contract_html(updated_contract, campaign)
         await db.contracts.update_one({"id": contract_id}, {"$set": {"contract_html": html}})
         
-        return {"message": "Contrato assinado pelo locador", "status": update_data["status"]}
+        # Generate PDF automatically when both parties sign
+        pdf_generated = False
+        if both_signed:
+            try:
+                pdf_path = await generate_and_store_contract_pdf(contract_id, updated_contract, campaign)
+                if pdf_path:
+                    await db.contracts.update_one(
+                        {"id": contract_id},
+                        {"$set": {"pdf_path": pdf_path, "pdf_generated_at": now}}
+                    )
+                    pdf_generated = True
+            except Exception as e:
+                logging.error(f"Failed to generate contract PDF: {e}")
+        
+        return {
+            "message": "Contrato assinado pelo locador",
+            "status": update_data["status"],
+            "pdf_generated": pdf_generated
+        }
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="Token expirado")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=400, detail="Token inválido")
+
+async def generate_and_store_contract_pdf(contract_id: str, contract: dict, campaign: dict) -> str:
+    """Generate PDF of signed contract and store it"""
+    if not PDF_AVAILABLE:
+        return None
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
+    
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Justify', alignment=TA_JUSTIFY, fontSize=10, leading=14))
+    styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER, fontSize=11))
+    styles.add(ParagraphStyle(name='Title2', alignment=TA_CENTER, fontSize=16, spaceAfter=20, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='Signature', alignment=TA_CENTER, fontSize=9, textColor=colors.darkblue))
+    
+    elements = []
+    
+    # Header with campaign info
+    elements.append(Paragraph(f"<b>CAMPANHA ELEITORAL {campaign.get('election_year', '')}</b>", styles['Center']))
+    elements.append(Paragraph(f"{campaign.get('candidate_name', '')} - {campaign.get('party', '')}", styles['Center']))
+    elements.append(Spacer(1, 20))
+    
+    # Title
+    title = contract.get("title", "CONTRATO DE PRESTAÇÃO DE SERVIÇOS")
+    elements.append(Paragraph(title.upper(), styles['Title2']))
+    elements.append(Spacer(1, 20))
+    
+    # Contract HTML content converted to paragraphs
+    contract_html = contract.get("contract_html", "")
+    if contract_html:
+        import re
+        text = re.sub(r'<br\s*/?>', '\n', contract_html)
+        text = re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r'\n\s*\n', '\n\n', text)
+        
+        for para in text.split('\n\n'):
+            if para.strip():
+                elements.append(Paragraph(para.strip(), styles['Justify']))
+                elements.append(Spacer(1, 8))
+    
+    # Signature section
+    elements.append(Spacer(1, 40))
+    elements.append(Paragraph("<b>===== ASSINATURAS DIGITAIS =====</b>", styles['Center']))
+    elements.append(Spacer(1, 20))
+    
+    # Locatário signature
+    if contract.get("locatario_assinatura_hash"):
+        elements.append(Paragraph("<b>LOCATÁRIO / CONTRATANTE:</b>", styles['Normal']))
+        elements.append(Paragraph(f"Nome: {campaign.get('candidate_name', 'N/A')}", styles['Normal']))
+        elements.append(Paragraph(f"Data da assinatura: {contract.get('locatario_assinatura_data', 'N/A')[:19].replace('T', ' ')}", styles['Normal']))
+        elements.append(Paragraph(f"Hash de validação: {contract.get('locatario_assinatura_hash', '')[:32]}...", styles['Signature']))
+        elements.append(Spacer(1, 20))
+    
+    # Locador signature
+    if contract.get("locador_assinatura_hash"):
+        elements.append(Paragraph("<b>LOCADOR / CONTRATADO:</b>", styles['Normal']))
+        elements.append(Paragraph(f"Nome: {contract.get('locador_nome', 'N/A')}", styles['Normal']))
+        elements.append(Paragraph(f"CPF/CNPJ: {contract.get('locador_cpf', 'N/A')}", styles['Normal']))
+        elements.append(Paragraph(f"Data da assinatura: {contract.get('locador_assinatura_data', 'N/A')[:19].replace('T', ' ')}", styles['Normal']))
+        elements.append(Paragraph(f"Hash de validação: {contract.get('locador_assinatura_hash', '')[:32]}...", styles['Signature']))
+        elements.append(Spacer(1, 20))
+    
+    # Footer with validation info
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph("_" * 60, styles['Center']))
+    elements.append(Paragraph("<i>Documento gerado eletronicamente pelo sistema Eleitora 360</i>", styles['Center']))
+    elements.append(Paragraph(f"<i>ID do Contrato: {contract_id}</i>", styles['Signature']))
+    elements.append(Paragraph(f"<i>Gerado em: {datetime.now(timezone.utc).strftime('%d/%m/%Y às %H:%M:%S')} UTC</i>", styles['Signature']))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    # Store PDF in database
+    pdf_data = buffer.getvalue()
+    pdf_id = str(uuid.uuid4())
+    
+    pdf_doc = {
+        "id": pdf_id,
+        "contract_id": contract_id,
+        "campaign_id": campaign.get("id"),
+        "filename": f"contrato_assinado_{contract_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+        "data": pdf_data,
+        "size": len(pdf_data),
+        "content_type": "application/pdf",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.contract_pdfs.insert_one(pdf_doc)
+    
+    return pdf_id
         
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=400, detail="Token expirado")
