@@ -2996,6 +2996,215 @@ async def list_expenses_filtered(
     expenses = await db.expenses.find(query, {"_id": 0}).to_list(1000)
     return expenses
 
+# ============== AI ASSISTANT ROUTES ==============
+from ai_assistant import assistant, get_tse_rules_summary
+
+class ChatMessage(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    response: str
+    session_id: str
+    alerts: Optional[List[str]] = None
+
+@api_router.post("/ai/chat")
+async def ai_chat(
+    data: ChatMessage,
+    current_user: dict = Depends(get_current_user)
+):
+    """Chat with AI Electoral Assistant"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    # Get campaign data
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
+    
+    # Calculate totals
+    total_revenues = sum(r.get("amount", 0) for r in revenues)
+    total_expenses = sum(e.get("amount", 0) for e in expenses)
+    pending_expenses = sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pendente")
+    pending_count = len([e for e in expenses if e.get("payment_status") == "pendente"])
+    
+    # Count contracts with missing docs
+    contracts_missing_docs = 0
+    for c in contracts:
+        if c.get("template_type") and not c.get("attachments"):
+            contracts_missing_docs += 1
+    
+    # Build campaign context
+    campaign_context = {
+        "campaign_id": campaign_id,
+        "candidate_name": campaign.get("candidate_name", ""),
+        "party": campaign.get("party", ""),
+        "position": campaign.get("position", ""),
+        "city": campaign.get("city", ""),
+        "state": campaign.get("state", ""),
+        "election_year": campaign.get("election_year", 2024),
+        "cnpj": campaign.get("cnpj", ""),
+        "total_revenues": total_revenues,
+        "total_expenses": total_expenses,
+        "balance": total_revenues - total_expenses,
+        "limite_gastos": campaign.get("limite_gastos", 0),
+        "pending_expenses": pending_expenses,
+        "pending_count": pending_count,
+        "contracts_missing_docs": contracts_missing_docs,
+        "total_contracts": len(contracts)
+    }
+    
+    # Get chat history from database
+    session_id = data.session_id or f"chat_{campaign_id}_{current_user['id']}"
+    
+    chat_history_doc = await db.chat_history.find_one({"session_id": session_id})
+    chat_history = chat_history_doc.get("messages", []) if chat_history_doc else []
+    
+    try:
+        # Get AI response
+        response = await assistant.chat(
+            session_id=session_id,
+            message=data.message,
+            campaign_context=campaign_context,
+            chat_history=chat_history
+        )
+        
+        # Save to chat history
+        new_messages = [
+            {"role": "user", "content": data.message, "timestamp": datetime.now(timezone.utc).isoformat()},
+            {"role": "assistant", "content": response, "timestamp": datetime.now(timezone.utc).isoformat()}
+        ]
+        
+        await db.chat_history.update_one(
+            {"session_id": session_id},
+            {
+                "$push": {"messages": {"$each": new_messages}},
+                "$set": {"campaign_id": campaign_id, "user_id": current_user["id"], "updated_at": datetime.now(timezone.utc).isoformat()}
+            },
+            upsert=True
+        )
+        
+        # Generate alerts
+        alerts = []
+        if campaign_context.get("limite_gastos", 0) > 0:
+            percentage = (total_expenses / campaign_context["limite_gastos"]) * 100
+            if percentage >= 90:
+                alerts.append(f"⚠️ Gastos em {percentage:.1f}% do limite!")
+        if pending_count > 0:
+            alerts.append(f"📋 {pending_count} despesa(s) pendente(s)")
+        if contracts_missing_docs > 0:
+            alerts.append(f"📎 {contracts_missing_docs} contrato(s) sem documentação completa")
+        
+        return {
+            "response": response,
+            "session_id": session_id,
+            "alerts": alerts if alerts else None
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao processar mensagem: {str(e)}")
+
+@api_router.get("/ai/chat/history")
+async def get_chat_history(
+    session_id: Optional[str] = None,
+    limit: int = Query(default=50, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get chat history for current user"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        return {"messages": []}
+    
+    query_session = session_id or f"chat_{campaign_id}_{current_user['id']}"
+    
+    chat_doc = await db.chat_history.find_one({"session_id": query_session})
+    if not chat_doc:
+        return {"messages": [], "session_id": query_session}
+    
+    messages = chat_doc.get("messages", [])[-limit:]
+    
+    return {
+        "messages": messages,
+        "session_id": query_session,
+        "total": len(chat_doc.get("messages", []))
+    }
+
+@api_router.delete("/ai/chat/history")
+async def clear_chat_history(
+    session_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Clear chat history"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    query_session = session_id or f"chat_{campaign_id}_{current_user['id']}"
+    
+    await db.chat_history.delete_one({"session_id": query_session})
+    
+    return {"message": "Histórico limpo com sucesso"}
+
+@api_router.post("/ai/analyze-expenses")
+async def ai_analyze_expenses(current_user: dict = Depends(get_current_user)):
+    """Get AI analysis of campaign expenses"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    if not expenses:
+        return {"analysis": "Não há despesas registradas para analisar."}
+    
+    campaign_context = {
+        "campaign_id": campaign_id,
+        "candidate_name": campaign.get("candidate_name", ""),
+        "limite_gastos": campaign.get("limite_gastos", 0)
+    }
+    
+    try:
+        analysis = await assistant.analyze_expenses(expenses, campaign_context)
+        return {"analysis": analysis}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro na análise: {str(e)}")
+
+@api_router.post("/ai/check-compliance")
+async def ai_check_compliance(current_user: dict = Depends(get_current_user)):
+    """Check campaign compliance with electoral rules"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
+    revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    campaign_context = {
+        "campaign_id": campaign_id,
+        "candidate_name": campaign.get("candidate_name", ""),
+        "party": campaign.get("party", ""),
+        "total_revenues": sum(r.get("amount", 0) for r in revenues),
+        "total_expenses": sum(e.get("amount", 0) for e in expenses),
+        "limite_gastos": campaign.get("limite_gastos", 0)
+    }
+    
+    try:
+        compliance = await assistant.check_compliance(campaign_context, contracts)
+        return {"compliance_report": compliance}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro na verificação: {str(e)}")
+
+@api_router.get("/ai/tse-rules")
+async def get_tse_rules():
+    """Get summary of current TSE electoral rules"""
+    rules = await get_tse_rules_summary()
+    return {"rules": rules}
+
 # ============== HEALTH CHECK ==============
 @api_router.get("/")
 async def root():
