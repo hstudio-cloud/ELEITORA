@@ -14,6 +14,7 @@ import Pagamentos from "./pages/Pagamentos";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
 import AssinarContrato from "./pages/AssinarContrato";
+import Assistente from "./pages/Assistente";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
