@@ -626,6 +626,28 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token inválido")
 
+async def get_current_user_or_contador(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get current user - accepts both regular user and contador tokens"""
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        
+        # First try to find as regular user
+        user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0})
+        if user:
+            return user
+        
+        # If not found, try to find as professional/contador
+        professional = await db.professionals.find_one({"id": payload["user_id"]}, {"_id": 0, "password_hash": 0})
+        if professional:
+            return professional
+        
+        raise HTTPException(status_code=401, detail="Usuário não encontrado")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expirado")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
 # ============== CONTRACT TEMPLATE GENERATORS ==============
 def format_currency(value):
     """Format value as Brazilian currency"""
