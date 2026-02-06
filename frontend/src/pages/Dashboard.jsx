@@ -223,6 +223,81 @@ export default function Dashboard() {
                     </Card>
                 </div>
 
+                {/* TSE Spending Limit Alert */}
+                {tseStatus && (
+                    <Card className={`animate-fade-in-up ${
+                        tseStatus.status === 'excedido' ? 'border-destructive bg-destructive/5' :
+                        tseStatus.status === 'critico' ? 'border-accent bg-accent/5' :
+                        tseStatus.status === 'atencao' ? 'border-yellow-500 bg-yellow-500/5' :
+                        'border-secondary bg-secondary/5'
+                    }`} data-testid="tse-limit-card">
+                        <CardContent className="p-6">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <AlertTriangle className={`h-5 w-5 ${
+                                            tseStatus.status === 'excedido' ? 'text-destructive' :
+                                            tseStatus.status === 'critico' ? 'text-accent' :
+                                            tseStatus.status === 'atencao' ? 'text-yellow-500' :
+                                            'text-secondary'
+                                        }`} />
+                                        <h3 className="font-heading text-lg font-semibold">Limite de Gastos TSE</h3>
+                                        <Badge variant={
+                                            tseStatus.status === 'excedido' ? 'destructive' :
+                                            tseStatus.status === 'critico' ? 'default' :
+                                            tseStatus.status === 'atencao' ? 'outline' :
+                                            'secondary'
+                                        }>
+                                            {tseStatus.status === 'excedido' ? 'EXCEDIDO' :
+                                             tseStatus.status === 'critico' ? 'CRÍTICO' :
+                                             tseStatus.status === 'atencao' ? 'ATENÇÃO' : 'OK'}
+                                        </Badge>
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Limite TSE</p>
+                                            <p className="font-semibold">{tseStatus.spending?.limite_formatado}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Total Gasto</p>
+                                            <p className="font-semibold text-destructive">{tseStatus.spending?.total_gasto_formatado}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Disponível</p>
+                                            <p className={`font-semibold ${tseStatus.spending?.saldo_disponivel >= 0 ? 'text-secondary' : 'text-destructive'}`}>
+                                                {tseStatus.spending?.saldo_formatado}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Utilizado</p>
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={`h-full transition-all ${
+                                                            tseStatus.spending?.percentual_utilizado >= 100 ? 'bg-destructive' :
+                                                            tseStatus.spending?.percentual_utilizado >= 90 ? 'bg-accent' :
+                                                            tseStatus.spending?.percentual_utilizado >= 75 ? 'bg-yellow-500' :
+                                                            'bg-secondary'
+                                                        }`}
+                                                        style={{ width: `${Math.min(tseStatus.spending?.percentual_utilizado || 0, 100)}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-sm font-medium">{tseStatus.spending?.percentual_utilizado}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {tseStatus.alerts?.length > 0 && (
+                                        <div className="mt-4 p-3 rounded-lg bg-background/50 border">
+                                            <p className="text-sm">{tseStatus.alerts[0].message}</p>
+                                            <p className="text-xs text-muted-foreground mt-1">{tseStatus.alerts[0].detail}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* Charts */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Monthly Flow Chart */}
