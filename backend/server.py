@@ -4195,7 +4195,7 @@ async def admin_list_professionals(current_user: dict = Depends(get_current_user
     return {"professionals": professionals}
 
 @api_router.get("/admin/contador/all-campaigns")
-async def admin_list_all_campaigns(current_user: dict = Depends(get_current_user)):
+async def admin_list_all_campaigns(current_user: dict = Depends(get_current_user_or_contador)):
     """Admin lists all campaigns in the system"""
     professional = await db.professionals.find_one({"id": current_user.get("id")})
     
