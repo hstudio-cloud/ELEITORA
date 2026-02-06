@@ -43,6 +43,7 @@ export default function Dashboard() {
     const [campaign, setCampaign] = useState(null);
     const [loading, setLoading] = useState(true);
     const [alerts, setAlerts] = useState({ alerts: [], total: 0, overdue_count: 0, due_today: 0 });
+    const [tseStatus, setTseStatus] = useState(null);
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -52,14 +53,16 @@ export default function Dashboard() {
 
     const fetchData = async () => {
         try {
-            const [statsRes, campaignRes, alertsRes] = await Promise.all([
+            const [statsRes, campaignRes, alertsRes, tseRes] = await Promise.all([
                 axios.get(`${API}/dashboard/stats`),
                 axios.get(`${API}/campaigns/my`),
-                axios.get(`${API}/payments/alerts?days_ahead=7`).catch(() => ({ data: { alerts: [], total: 0 } }))
+                axios.get(`${API}/payments/alerts?days_ahead=7`).catch(() => ({ data: { alerts: [], total: 0 } })),
+                axios.get(`${API}/tse/campaign-status`).catch(() => ({ data: null }))
             ]);
             setStats(statsRes.data);
             setCampaign(campaignRes.data);
             setAlerts(alertsRes.data);
+            setTseStatus(tseRes.data);
         } catch (error) {
             toast.error('Erro ao carregar dados');
         } finally {
