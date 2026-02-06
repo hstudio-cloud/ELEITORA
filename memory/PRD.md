@@ -415,3 +415,56 @@ Quando o "comprovante_pagamento" é anexado, todas as despesas pendentes do cont
 - [ ] Integração com GOV.BR/ICP-Brasil
 - [ ] Importação de extratos bancários
 - [ ] Conciliação bancária automática
+
+---
+
+## Update (2026-02-06): Assistente IA Eleitoral com GPT-5.2
+
+### Funcionalidades Implementadas
+
+#### Assistente IA Eleitoral
+Chatbot inteligente integrado com GPT-5.2 via Emergent LLM Key que:
+- Analisa dados da campanha em tempo real (receitas, despesas, contratos)
+- Alerta sobre limites de gastos e prazos
+- Verifica conformidade com regras do TSE
+- Sugere otimizações de gastos
+- Responde dúvidas sobre legislação eleitoral
+
+#### Endpoints Criados
+- POST /api/ai/chat - Chat com o assistente (com contexto da campanha)
+- GET /api/ai/chat/history - Histórico de conversas
+- DELETE /api/ai/chat/history - Limpar histórico
+- POST /api/ai/analyze-expenses - Análise detalhada de despesas
+- POST /api/ai/check-compliance - Verificação de conformidade
+- GET /api/ai/tse-rules - Regras do TSE
+
+#### Arquivos Criados
+- /app/backend/ai_assistant.py - Classe ElectoralAssistant com integração GPT-5.2
+- /app/frontend/src/pages/Assistente.jsx - Interface de chat
+
+#### Interface do Frontend
+- Página de chat com histórico de mensagens
+- Ações rápidas: Resumo financeiro, Verificar conformidade, Analisar despesas, Documentos pendentes
+- Menu lateral com destaque "Novo" para o Assistente IA
+- Alertas em tempo real sobre pendências
+
+#### Capacidades do Assistente
+- Resumo financeiro personalizado (total receitas, despesas, saldo)
+- Verificação de conformidade com Lei 9.504/97 e Resoluções TSE
+- Análise de despesas por categoria
+- Alerta sobre documentos pendentes em contratos
+- Orientações sobre limites de gastos por cargo
+
+### Testes
+- 100% de sucesso em testes de backend (18/18)
+- 100% de sucesso em testes de frontend
+- Arquivo: /app/test_reports/iteration_6.json
+
+### Próximas Tarefas (P1)
+- [ ] Geração automática de PDF do contrato assinado
+- [ ] Integração com web scraping do TSE para normas atualizadas
+
+### Backlog (P2)
+- [ ] Integração com GOV.BR/ICP-Brasil
+- [ ] Importação de extratos bancários
+- [ ] Conciliação bancária automática
