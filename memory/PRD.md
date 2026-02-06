@@ -461,8 +461,60 @@ Chatbot inteligente integrado com GPT-5.2 via Emergent LLM Key que:
 - Arquivo: /app/test_reports/iteration_6.json
 
 ### Próximas Tarefas (P1)
-- [ ] Geração automática de PDF do contrato assinado
+- [x] Geração automática de PDF do contrato assinado
 - [ ] Integração com web scraping do TSE para normas atualizadas
+
+### Backlog (P2)
+- [ ] Integração com GOV.BR/ICP-Brasil
+- [ ] Importação de extratos bancários
+- [ ] Conciliação bancária automática
+
+---
+
+## Update (2026-02-06): Assistente de Voz "Eleitora"
+
+### Funcionalidades Implementadas
+
+#### Assistente de Voz com OpenAI Whisper e TTS
+Nome da assistente: **Eleitora**
+- Speech-to-Text via OpenAI Whisper
+- Text-to-Speech via OpenAI TTS (voz "nova")
+- Execução de comandos por voz
+- Resposta com áudio sintetizado
+
+#### Comandos de Voz Suportados
+- **Consultas:** "Qual é meu saldo?", "Minhas despesas", "Contratos pendentes"
+- **Ações:** "Adicionar despesa de 500 reais em publicidade"
+- **Navegação:** "Ir para despesas", "Mostrar relatórios"
+- **Compliance:** "Verificar conformidade", "Meus alertas"
+- **Fallback:** Perguntas complexas vão para a IA do GPT-5.2
+
+#### Endpoints Criados
+- POST /api/voice/command - Pipeline completo (transcrição → comando → ação → resposta TTS)
+- POST /api/voice/transcribe - Apenas transcrição de áudio
+- POST /api/voice/speak - Apenas síntese de voz
+- GET /api/voice/greeting - Saudação da Eleitora
+
+#### Arquivos Criados
+- /app/backend/voice_assistant.py - Classe VoiceAssistant
+- /app/frontend/src/pages/Assistente.jsx - Interface com gravação de voz
+
+#### Interface do Frontend
+- Botão grande "Falar" para gravação
+- Indicador "Eleitora falando..." durante reprodução
+- Toggle Voz Ativa/Desativada
+- Exemplos de comandos de voz
+- Integração com chat de texto
+
+### Testes
+- 100% de sucesso em testes de backend (11/11)
+- 100% de sucesso em testes de frontend
+- Arquivo: /app/test_reports/iteration_7.json
+
+### Próximas Tarefas (P1)
+- [ ] Aba Contador/Advogado com sistema de autorização
+- [ ] Integração com Ativa Contabilidade
+- [ ] Integração bancária (Banco do Brasil)
 
 ### Backlog (P2)
 - [ ] Integração com GOV.BR/ICP-Brasil
