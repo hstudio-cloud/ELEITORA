@@ -2841,6 +2841,45 @@ async def generate_contract_pdf(contract_id: str, current_user: dict = Depends(g
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
+@api_router.get("/contracts/{contract_id}/download-signed-pdf")
+async def download_signed_contract_pdf(contract_id: str, current_user: dict = Depends(get_current_user)):
+    """Download the PDF of a signed contract"""
+    contract = await db.contracts.find_one(
+        {"id": contract_id, "campaign_id": current_user.get("campaign_id")},
+        {"_id": 0}
+    )
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    
+    # Check if contract has a stored PDF
+    pdf_id = contract.get("pdf_path")
+    if not pdf_id:
+        # Check if contract is fully signed
+        if not (contract.get("locatario_assinatura_hash") and contract.get("locador_assinatura_hash")):
+            raise HTTPException(status_code=400, detail="Contrato não está completamente assinado")
+        
+        # Generate PDF now
+        campaign = await db.campaigns.find_one({"id": contract["campaign_id"]}, {"_id": 0})
+        pdf_id = await generate_and_store_contract_pdf(contract_id, contract, campaign)
+        if pdf_id:
+            await db.contracts.update_one(
+                {"id": contract_id},
+                {"$set": {"pdf_path": pdf_id, "pdf_generated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+    
+    # Get PDF from database
+    pdf_doc = await db.contract_pdfs.find_one({"id": pdf_id})
+    if not pdf_doc:
+        raise HTTPException(status_code=404, detail="PDF não encontrado")
+    
+    buffer = BytesIO(pdf_doc["data"])
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={pdf_doc.get('filename', 'contrato.pdf')}"}
+    )
+
 # ============== EMAIL ROUTES ==============
 async def send_email_async(to_email: str, subject: str, html_content: str):
     """Send email using Resend"""
