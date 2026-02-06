@@ -4180,7 +4180,7 @@ async def admin_invite_professional(
     }
 
 @api_router.get("/admin/contador/professionals")
-async def admin_list_professionals(current_user: dict = Depends(get_current_user)):
+async def admin_list_professionals(current_user: dict = Depends(get_current_user_or_contador)):
     """Admin lists all professionals"""
     professional = await db.professionals.find_one({"id": current_user.get("id")})
     
