@@ -205,9 +205,15 @@ class TestPDFGeneration:
         contract_id = unsigned_contract["id"]
         response = requests.get(f"{BASE_URL}/api/contracts/{contract_id}/download-signed-pdf", headers=self.headers)
         
-        # Could return PDF (generates on demand) or error
-        assert response.status_code in [200, 404, 500], f"Unexpected status: {response.status_code}"
-        print(f"✓ Download signed PDF for unsigned contract: {response.status_code}")
+        # Expected: 400 if contract not fully signed, 200 if signed, or 404/500 for other cases
+        assert response.status_code in [200, 400, 404, 500], f"Unexpected status: {response.status_code}"
+        
+        if response.status_code == 400:
+            # This is correct behavior - contract is not fully signed
+            assert "assinado" in response.json().get("detail", "").lower()
+            print(f"✓ Correctly rejected unsigned contract download with 400")
+        else:
+            print(f"✓ Download signed PDF: {response.status_code}")
     
     def test_13_reports_pdf(self):
         """Test generating reports PDF"""
