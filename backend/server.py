@@ -508,6 +508,79 @@ class PaymentResponse(BaseModel):
     campaign_id: str
     created_at: str
 
+# ============== PROFESSIONAL MODELS ==============
+class ProfessionalType(str, Enum):
+    CONTADOR = "contador"
+    ADVOGADO = "advogado"
+
+class ProfessionalCreate(BaseModel):
+    type: ProfessionalType
+    name: str
+    email: str
+    phone: Optional[str] = None
+    # Contador fields
+    crc: Optional[str] = None  # Registro no CRC
+    crc_state: Optional[str] = None
+    # Advogado fields
+    oab: Optional[str] = None  # Número OAB
+    oab_state: Optional[str] = None
+    # Common fields
+    cpf: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    notes: Optional[str] = None
+    # Account access
+    has_system_access: bool = False
+    password: Optional[str] = None
+
+class ProfessionalResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    type: ProfessionalType
+    name: str
+    email: str
+    phone: Optional[str] = None
+    crc: Optional[str] = None
+    crc_state: Optional[str] = None
+    oab: Optional[str] = None
+    oab_state: Optional[str] = None
+    cpf: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    notes: Optional[str] = None
+    has_system_access: bool = False
+    is_active: bool = True
+    campaigns: Optional[List[str]] = None  # List of campaign IDs this professional has access to
+    created_at: str
+
+# ============== PIX MODELS ==============
+class PixPaymentCreate(BaseModel):
+    expense_id: str
+    pix_key: str
+    pix_key_type: str  # cpf, cnpj, email, phone, random
+    beneficiary_name: str
+    amount: float
+    description: Optional[str] = None
+    scheduled_date: Optional[str] = None  # For scheduled payments
+
+class PixPaymentResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    expense_id: str
+    pix_key: str
+    pix_key_type: str
+    beneficiary_name: str
+    amount: float
+    description: Optional[str] = None
+    scheduled_date: Optional[str] = None
+    status: str  # pending, scheduled, completed, failed
+    transaction_id: Optional[str] = None
+    campaign_id: str
+    created_at: str
+
+
 class DashboardStats(BaseModel):
     total_revenues: float
     total_expenses: float
