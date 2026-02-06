@@ -108,6 +108,11 @@ function AppRoutes() {
                     <Configuracoes />
                 </ProtectedRoute>
             } />
+            <Route path="/assistente" element={
+                <ProtectedRoute>
+                    <Assistente />
+                </ProtectedRoute>
+            } />
             
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
