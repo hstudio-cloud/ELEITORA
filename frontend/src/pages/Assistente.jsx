@@ -430,7 +430,7 @@ export default function Assistente() {
                                 {lastTranscription && (
                                     <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
                                         <span className="font-medium">Último comando:</span>
-                                        <br />"{lastTranscription}"
+                                        <br />&quot;{lastTranscription}&quot;
                                     </div>
                                 )}
                             </CardContent>
@@ -474,7 +474,7 @@ export default function Assistente() {
                                     {voiceExamples.map((example, i) => (
                                         <li key={i} className="flex items-start gap-2">
                                             <span className="text-accent">•</span>
-                                            "{example}"
+                                            &quot;{example}&quot;
                                         </li>
                                     ))}
                                 </ul>
@@ -510,7 +510,7 @@ export default function Assistente() {
                                         Sua assistente de campanha com voz
                                     </p>
                                     <p className="text-xs text-muted-foreground/70 mt-2">
-                                        Clique em "Falar" ou digite sua pergunta
+                                        Clique em &quot;Falar&quot; ou digite sua pergunta
                                     </p>
                                 </div>
                             ) : (
@@ -589,7 +589,7 @@ export default function Assistente() {
                                 </Button>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
-                                Enter para enviar • Clique em "Falar" para usar comando de voz
+                                Enter para enviar • Clique em &quot;Falar&quot; para usar comando de voz
                             </p>
                         </div>
                     </Card>
