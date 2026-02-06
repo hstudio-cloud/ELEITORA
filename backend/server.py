@@ -4102,7 +4102,7 @@ async def admin_contador_login(credentials: ContadorLogin):
 @api_router.post("/admin/contador/invite")
 async def admin_invite_professional(
     data: AdminInviteCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_contador)
 ):
     """Admin contador invites new professional (only admin can do this)"""
     # Verify if current user is admin
