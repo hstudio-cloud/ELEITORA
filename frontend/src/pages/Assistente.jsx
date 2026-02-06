@@ -5,12 +5,15 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { 
     Bot, Send, Loader2, Trash2, AlertTriangle, 
     FileText, BarChart3, Shield, Sparkles, MessageSquare,
-    ChevronRight, RefreshCw
+    ChevronRight, RefreshCw, Mic, MicOff, Volume2, VolumeX,
+    Radio, Waves, StopCircle
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -23,7 +26,17 @@ const quickActions = [
     { label: 'Documentos pendentes', prompt: 'Quais documentos estão pendentes nos meus contratos?', icon: AlertTriangle },
 ];
 
+// Voice commands examples
+const voiceExamples = [
+    "Eleitora, qual é meu saldo?",
+    "Adicionar despesa de 500 reais em publicidade",
+    "Mostrar contratos pendentes",
+    "Verificar conformidade",
+    "Ir para despesas"
+];
+
 export default function Assistente() {
+    const navigate = useNavigate();
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
     const [loading, setLoading] = useState(false);
@@ -32,13 +45,22 @@ export default function Assistente() {
     const [sessionId, setSessionId] = useState(null);
     const scrollRef = useRef(null);
     const inputRef = useRef(null);
+    
+    // Voice state
+    const [isRecording, setIsRecording] = useState(false);
+    const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+    const [isSpeaking, setIsSpeaking] = useState(false);
+    const [voiceEnabled, setVoiceEnabled] = useState(true);
+    const [lastTranscription, setLastTranscription] = useState('');
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+    const audioRef = useRef(null);
 
     useEffect(() => {
         fetchChatHistory();
     }, []);
 
     useEffect(() => {
-        // Auto scroll to bottom
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
@@ -60,7 +82,6 @@ export default function Assistente() {
         const text = messageText || inputMessage.trim();
         if (!text) return;
 
-        // Add user message immediately
         const userMessage = {
             role: 'user',
             content: text,
@@ -76,7 +97,6 @@ export default function Assistente() {
                 session_id: sessionId
             });
 
-            // Add assistant response
             const assistantMessage = {
                 role: 'assistant',
                 content: response.data.response,
@@ -90,9 +110,13 @@ export default function Assistente() {
             if (response.data.session_id) {
                 setSessionId(response.data.session_id);
             }
+            
+            // Speak response if voice is enabled
+            if (voiceEnabled) {
+                speakText(response.data.response);
+            }
         } catch (error) {
             toast.error(error.response?.data?.detail || 'Erro ao enviar mensagem');
-            // Remove user message on error
             setMessages(prev => prev.slice(0, -1));
         } finally {
             setLoading(false);
@@ -119,8 +143,162 @@ export default function Assistente() {
         }
     };
 
+    // ============== Voice Functions ==============
+    
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                stream.getTracks().forEach(track => track.stop());
+                await processVoiceCommand(audioBlob);
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+            toast.info('🎤 Gravando... Fale seu comando');
+        } catch (error) {
+            toast.error('Erro ao acessar microfone. Verifique as permissões.');
+            console.error('Microphone error:', error);
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
+
+    const processVoiceCommand = async (audioBlob) => {
+        setIsProcessingVoice(true);
+        
+        try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'command.webm');
+
+            const response = await axios.post(`${API}/voice/command`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            const { transcribed_text, response_text, audio_response, action, action_data, success } = response.data;
+
+            setLastTranscription(transcribed_text);
+
+            // Add to chat history
+            if (transcribed_text) {
+                const userMessage = {
+                    role: 'user',
+                    content: `🎤 ${transcribed_text}`,
+                    timestamp: new Date().toISOString(),
+                    isVoice: true
+                };
+                setMessages(prev => [...prev, userMessage]);
+            }
+
+            if (response_text) {
+                const assistantMessage = {
+                    role: 'assistant',
+                    content: response_text,
+                    timestamp: new Date().toISOString(),
+                    isVoice: true
+                };
+                setMessages(prev => [...prev, assistantMessage]);
+            }
+
+            // Play audio response
+            if (audio_response && voiceEnabled) {
+                playAudioResponse(audio_response);
+            }
+
+            // Execute action if any
+            if (action && action_data) {
+                handleVoiceAction(action, action_data);
+            }
+
+            if (!success) {
+                toast.error('Não consegui entender o comando');
+            }
+        } catch (error) {
+            toast.error('Erro ao processar comando de voz');
+            console.error('Voice command error:', error);
+        } finally {
+            setIsProcessingVoice(false);
+        }
+    };
+
+    const handleVoiceAction = (action, data) => {
+        switch (action) {
+            case 'navigate':
+                toast.success(`Navegando para ${data.route}`);
+                setTimeout(() => navigate(data.route), 1500);
+                break;
+            case 'expense_added':
+                toast.success(`Despesa de R$ ${data.amount} adicionada!`);
+                break;
+            case 'revenue_added':
+                toast.success(`Receita de R$ ${data.amount} adicionada!`);
+                break;
+            default:
+                break;
+        }
+    };
+
+    const playAudioResponse = (base64Audio) => {
+        try {
+            setIsSpeaking(true);
+            const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+            audioRef.current = audio;
+            
+            audio.onended = () => {
+                setIsSpeaking(false);
+            };
+            
+            audio.onerror = () => {
+                setIsSpeaking(false);
+                console.error('Error playing audio');
+            };
+            
+            audio.play();
+        } catch (error) {
+            setIsSpeaking(false);
+            console.error('Error playing audio:', error);
+        }
+    };
+
+    const stopSpeaking = () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            setIsSpeaking(false);
+        }
+    };
+
+    const speakText = async (text) => {
+        try {
+            setIsSpeaking(true);
+            const response = await axios.post(`${API}/voice/speak?text=${encodeURIComponent(text.substring(0, 500))}`);
+            
+            if (response.data.audio) {
+                playAudioResponse(response.data.audio);
+            }
+        } catch (error) {
+            setIsSpeaking(false);
+            console.error('TTS error:', error);
+        }
+    };
+
     const formatMessage = (content) => {
-        // Convert markdown-like formatting to HTML
         return content
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\n/g, '<br/>')
@@ -137,21 +315,24 @@ export default function Assistente() {
                             <div className="p-2 bg-gradient-to-br from-accent to-secondary rounded-lg">
                                 <Bot className="h-6 w-6 text-white" />
                             </div>
-                            Assistente IA Eleitoral
+                            Eleitora
+                            <Badge variant="outline" className="ml-2 text-accent border-accent/50">
+                                Assistente IA com Voz
+                            </Badge>
                         </h1>
                         <p className="text-muted-foreground mt-1">
-                            Tire dúvidas sobre sua campanha e receba orientações sobre conformidade
+                            Converse por texto ou use comandos de voz
                         </p>
                     </div>
                     <div className="flex gap-2">
                         <Button 
-                            variant="outline" 
+                            variant={voiceEnabled ? "default" : "outline"}
                             size="sm" 
-                            onClick={fetchChatHistory}
+                            onClick={() => setVoiceEnabled(!voiceEnabled)}
                             className="gap-2"
                         >
-                            <RefreshCw className="h-4 w-4" />
-                            Atualizar
+                            {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                            {voiceEnabled ? 'Voz Ativa' : 'Voz Desativada'}
                         </Button>
                         <Button 
                             variant="outline" 
@@ -180,39 +361,133 @@ export default function Assistente() {
                     </div>
                 )}
 
-                {/* Main Chat Area */}
+                {/* Main Content */}
                 <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-0">
-                    {/* Quick Actions Sidebar */}
-                    <Card className="lg:col-span-1 h-fit">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                <Sparkles className="h-4 w-4 text-accent" />
-                                Ações Rápidas
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                            {quickActions.map((action, i) => (
+                    {/* Sidebar */}
+                    <div className="lg:col-span-1 space-y-4">
+                        {/* Voice Control Card */}
+                        <Card className="border-accent/30 bg-accent/5">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                    <Mic className="h-4 w-4 text-accent" />
+                                    Comando de Voz
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
                                 <Button
-                                    key={i}
-                                    variant="ghost"
-                                    className="w-full justify-start gap-2 h-auto py-3 text-left"
-                                    onClick={() => sendMessage(action.prompt)}
-                                    disabled={loading}
-                                    data-testid={`quick-action-${i}`}
+                                    className={`w-full h-20 text-lg gap-3 ${
+                                        isRecording 
+                                            ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                                            : isProcessingVoice 
+                                                ? 'bg-amber-500'
+                                                : 'bg-accent hover:bg-accent/90'
+                                    }`}
+                                    onClick={isRecording ? stopRecording : startRecording}
+                                    disabled={isProcessingVoice}
+                                    data-testid="voice-record-btn"
                                 >
-                                    <action.icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                                    <span className="text-sm">{action.label}</span>
+                                    {isRecording ? (
+                                        <>
+                                            <StopCircle className="h-6 w-6" />
+                                            Parar
+                                        </>
+                                    ) : isProcessingVoice ? (
+                                        <>
+                                            <Loader2 className="h-6 w-6 animate-spin" />
+                                            Processando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Mic className="h-6 w-6" />
+                                            Falar
+                                        </>
+                                    )}
                                 </Button>
-                            ))}
-                        </CardContent>
-                    </Card>
+                                
+                                {isRecording && (
+                                    <div className="flex items-center justify-center gap-2 text-red-400">
+                                        <Waves className="h-4 w-4 animate-pulse" />
+                                        <span className="text-sm">Ouvindo...</span>
+                                    </div>
+                                )}
+                                
+                                {isSpeaking && (
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-accent">
+                                            <Radio className="h-4 w-4 animate-pulse" />
+                                            <span className="text-sm">Eleitora falando...</span>
+                                        </div>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm"
+                                            onClick={stopSpeaking}
+                                        >
+                                            <VolumeX className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {lastTranscription && (
+                                    <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
+                                        <span className="font-medium">Último comando:</span>
+                                        <br />"{lastTranscription}"
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Quick Actions */}
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-accent" />
+                                    Ações Rápidas
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                {quickActions.map((action, i) => (
+                                    <Button
+                                        key={i}
+                                        variant="ghost"
+                                        className="w-full justify-start gap-2 h-auto py-3 text-left"
+                                        onClick={() => sendMessage(action.prompt)}
+                                        disabled={loading}
+                                        data-testid={`quick-action-${i}`}
+                                    >
+                                        <action.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                                        <span className="text-sm">{action.label}</span>
+                                    </Button>
+                                ))}
+                            </CardContent>
+                        </Card>
+
+                        {/* Voice Examples */}
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                                    Exemplos de Comandos
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ul className="text-xs text-muted-foreground space-y-2">
+                                    {voiceExamples.map((example, i) => (
+                                        <li key={i} className="flex items-start gap-2">
+                                            <span className="text-accent">•</span>
+                                            "{example}"
+                                        </li>
+                                    ))}
+                                </ul>
+                            </CardContent>
+                        </Card>
+                    </div>
 
                     {/* Chat Window */}
                     <Card className="lg:col-span-3 flex flex-col min-h-0">
                         <CardHeader className="pb-3 border-b">
                             <div className="flex items-center gap-2">
                                 <MessageSquare className="h-5 w-5 text-accent" />
-                                <CardTitle className="text-base">Conversa</CardTitle>
+                                <CardTitle className="text-base">Conversa com Eleitora</CardTitle>
                             </div>
                         </CardHeader>
                         
@@ -224,12 +499,18 @@ export default function Assistente() {
                                 </div>
                             ) : messages.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-40 text-center">
-                                    <Bot className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                                    <p className="text-muted-foreground">
-                                        Olá! Sou seu assistente eleitoral.
+                                    <div className="relative">
+                                        <Bot className="h-16 w-16 text-accent/50 mb-4" />
+                                        <Mic className="h-6 w-6 text-accent absolute -right-2 -bottom-2" />
+                                    </div>
+                                    <p className="text-lg font-medium text-foreground">
+                                        Olá! Sou a Eleitora
                                     </p>
-                                    <p className="text-sm text-muted-foreground/70 mt-1">
-                                        Pergunte sobre sua campanha, gastos ou regras do TSE.
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Sua assistente de campanha com voz
+                                    </p>
+                                    <p className="text-xs text-muted-foreground/70 mt-2">
+                                        Clique em "Falar" ou digite sua pergunta
                                     </p>
                                 </div>
                             ) : (
@@ -249,7 +530,8 @@ export default function Assistente() {
                                                 {msg.role === 'assistant' && (
                                                     <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
                                                         <Bot className="h-4 w-4 text-accent" />
-                                                        <span className="text-xs font-medium text-accent">Assistente IA</span>
+                                                        <span className="text-xs font-medium text-accent">Eleitora</span>
+                                                        {msg.isVoice && <Mic className="h-3 w-3 text-accent/70" />}
                                                     </div>
                                                 )}
                                                 <div 
@@ -270,7 +552,7 @@ export default function Assistente() {
                                             <div className="bg-muted rounded-lg p-3">
                                                 <div className="flex items-center gap-2">
                                                     <Loader2 className="h-4 w-4 animate-spin text-accent" />
-                                                    <span className="text-sm text-muted-foreground">Pensando...</span>
+                                                    <span className="text-sm text-muted-foreground">Eleitora pensando...</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -287,14 +569,14 @@ export default function Assistente() {
                                     value={inputMessage}
                                     onChange={(e) => setInputMessage(e.target.value)}
                                     onKeyPress={handleKeyPress}
-                                    placeholder="Digite sua pergunta sobre a campanha..."
-                                    disabled={loading}
+                                    placeholder="Digite sua pergunta ou use o microfone..."
+                                    disabled={loading || isRecording}
                                     className="flex-1"
                                     data-testid="chat-input"
                                 />
                                 <Button 
                                     onClick={() => sendMessage()}
-                                    disabled={loading || !inputMessage.trim()}
+                                    disabled={loading || !inputMessage.trim() || isRecording}
                                     className="gap-2"
                                     data-testid="send-message-btn"
                                 >
@@ -307,7 +589,7 @@ export default function Assistente() {
                                 </Button>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
-                                Pressione Enter para enviar • O assistente tem acesso aos dados da sua campanha
+                                Enter para enviar • Clique em "Falar" para usar comando de voz
                             </p>
                         </div>
                     </Card>
