@@ -49,6 +49,7 @@ export default function ContadorDashboard() {
         setUser(JSON.parse(userData));
         setIsAdmin(adminStatus === 'true');
         loadData(token, adminStatus === 'true');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [navigate]);
 
     const loadData = async (token, admin) => {
