@@ -16,6 +16,10 @@ import Configuracoes from "./pages/Configuracoes";
 import AssinarContrato from "./pages/AssinarContrato";
 import Assistente from "./pages/Assistente";
 
+// Contador Portal Pages
+import ContadorLogin from "./pages/ContadorLogin";
+import ContadorDashboard from "./pages/ContadorDashboard";
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
     const { user, loading } = useAuth();
