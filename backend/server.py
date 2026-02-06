@@ -3567,6 +3567,290 @@ async def voice_greeting(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro: {str(e)}")
 
+# ============== PROFESSIONAL (CONTADOR/ADVOGADO) ROUTES ==============
+@api_router.post("/professionals", response_model=ProfessionalResponse)
+async def create_professional(data: ProfessionalCreate, current_user: dict = Depends(get_current_user)):
+    """Create a new professional (contador or advogado)"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    # Check if professional with same email already exists
+    existing = await db.professionals.find_one({"email": data.email})
+    if existing:
+        # Add campaign to existing professional's list
+        if campaign_id not in (existing.get("campaigns") or []):
+            await db.professionals.update_one(
+                {"id": existing["id"]},
+                {"$push": {"campaigns": campaign_id}}
+            )
+        existing["campaigns"] = existing.get("campaigns", []) + [campaign_id]
+        existing.pop("_id", None)
+        existing.pop("password_hash", None)
+        return existing
+    
+    professional_id = str(uuid.uuid4())
+    professional_doc = {
+        "id": professional_id,
+        **data.model_dump(exclude={"password"}),
+        "campaigns": [campaign_id],
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Hash password if provided
+    if data.password and data.has_system_access:
+        professional_doc["password_hash"] = hashlib.sha256(data.password.encode()).hexdigest()
+    
+    await db.professionals.insert_one(professional_doc)
+    professional_doc.pop("_id", None)
+    professional_doc.pop("password_hash", None)
+    return professional_doc
+
+@api_router.get("/professionals", response_model=List[ProfessionalResponse])
+async def list_professionals(
+    type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """List professionals linked to current campaign"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        return []
+    
+    query = {"campaigns": campaign_id}
+    if type:
+        query["type"] = type
+    
+    professionals = await db.professionals.find(query, {"_id": 0, "password_hash": 0}).to_list(100)
+    return professionals
+
+@api_router.get("/professionals/{professional_id}", response_model=ProfessionalResponse)
+async def get_professional(professional_id: str, current_user: dict = Depends(get_current_user)):
+    """Get professional by ID"""
+    campaign_id = current_user.get("campaign_id")
+    professional = await db.professionals.find_one(
+        {"id": professional_id, "campaigns": campaign_id},
+        {"_id": 0, "password_hash": 0}
+    )
+    if not professional:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    return professional
+
+@api_router.put("/professionals/{professional_id}", response_model=ProfessionalResponse)
+async def update_professional(
+    professional_id: str,
+    data: ProfessionalCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update professional"""
+    campaign_id = current_user.get("campaign_id")
+    professional = await db.professionals.find_one(
+        {"id": professional_id, "campaigns": campaign_id}
+    )
+    if not professional:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    
+    update_data = data.model_dump(exclude={"password"})
+    if data.password and data.has_system_access:
+        update_data["password_hash"] = hashlib.sha256(data.password.encode()).hexdigest()
+    
+    await db.professionals.update_one(
+        {"id": professional_id},
+        {"$set": update_data}
+    )
+    
+    updated = await db.professionals.find_one({"id": professional_id}, {"_id": 0, "password_hash": 0})
+    return updated
+
+@api_router.delete("/professionals/{professional_id}")
+async def remove_professional(professional_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove professional from campaign (not delete)"""
+    campaign_id = current_user.get("campaign_id")
+    
+    result = await db.professionals.update_one(
+        {"id": professional_id},
+        {"$pull": {"campaigns": campaign_id}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    
+    return {"message": "Profissional removido da campanha"}
+
+@api_router.get("/professionals/contador/campaigns")
+async def get_contador_campaigns(current_user: dict = Depends(get_current_user)):
+    """Get all campaigns a contador has access to (for contador portal)"""
+    # This endpoint is for contadores to view their clients' campaigns
+    professional = await db.professionals.find_one(
+        {"email": current_user.get("email"), "type": "contador"},
+        {"_id": 0}
+    )
+    
+    if not professional:
+        return {"campaigns": [], "message": "Você não é um contador cadastrado"}
+    
+    campaign_ids = professional.get("campaigns", [])
+    campaigns = await db.campaigns.find(
+        {"id": {"$in": campaign_ids}},
+        {"_id": 0}
+    ).to_list(100)
+    
+    return {
+        "professional": professional,
+        "campaigns": campaigns
+    }
+
+# ============== PIX PAYMENT ROUTES ==============
+@api_router.post("/pix/payment")
+async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depends(get_current_user)):
+    """Create a PIX payment (simulated - real integration requires BB API credentials)"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    # Verify expense exists
+    expense = await db.expenses.find_one(
+        {"id": data.expense_id, "campaign_id": campaign_id}
+    )
+    if not expense:
+        raise HTTPException(status_code=404, detail="Despesa não encontrada")
+    
+    pix_id = str(uuid.uuid4())
+    pix_doc = {
+        "id": pix_id,
+        **data.model_dump(),
+        "status": "scheduled" if data.scheduled_date else "pending",
+        "transaction_id": None,
+        "campaign_id": campaign_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.pix_payments.insert_one(pix_doc)
+    pix_doc.pop("_id", None)
+    
+    # NOTE: Real PIX integration would call Banco do Brasil API here
+    # For now, this is a simulation that stores the payment intent
+    
+    return {
+        "message": "Pagamento PIX criado com sucesso",
+        "pix_payment": pix_doc,
+        "note": "Integração real com Banco do Brasil requer credenciais de API. Este é um registro do pagamento."
+    }
+
+@api_router.get("/pix/payments")
+async def list_pix_payments(current_user: dict = Depends(get_current_user)):
+    """List all PIX payments for campaign"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        return []
+    
+    payments = await db.pix_payments.find(
+        {"campaign_id": campaign_id},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    return payments
+
+@api_router.get("/pix/payment/{pix_id}")
+async def get_pix_payment(pix_id: str, current_user: dict = Depends(get_current_user)):
+    """Get PIX payment by ID"""
+    campaign_id = current_user.get("campaign_id")
+    payment = await db.pix_payments.find_one(
+        {"id": pix_id, "campaign_id": campaign_id},
+        {"_id": 0}
+    )
+    if not payment:
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
+    return payment
+
+@api_router.post("/pix/simulate-execution/{pix_id}")
+async def simulate_pix_execution(pix_id: str, current_user: dict = Depends(get_current_user)):
+    """Simulate PIX execution (for testing - real execution requires BB API)"""
+    campaign_id = current_user.get("campaign_id")
+    
+    payment = await db.pix_payments.find_one(
+        {"id": pix_id, "campaign_id": campaign_id}
+    )
+    if not payment:
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
+    
+    # Simulate transaction
+    transaction_id = f"E{uuid.uuid4().hex[:20].upper()}"
+    
+    await db.pix_payments.update_one(
+        {"id": pix_id},
+        {
+            "$set": {
+                "status": "completed",
+                "transaction_id": transaction_id,
+                "executed_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    # Update expense status
+    await db.expenses.update_one(
+        {"id": payment.get("expense_id")},
+        {"$set": {"payment_status": "pago", "pix_transaction_id": transaction_id}}
+    )
+    
+    return {
+        "message": "PIX executado com sucesso (simulação)",
+        "transaction_id": transaction_id,
+        "status": "completed"
+    }
+
+@api_router.get("/pix/bank-info")
+async def get_bank_info():
+    """Get Banco do Brasil integration info"""
+    return {
+        "bank": "Banco do Brasil",
+        "integration_status": "ready_for_configuration",
+        "required_credentials": [
+            "client_id",
+            "client_secret", 
+            "developer_application_key"
+        ],
+        "api_docs": "https://developers.bb.com.br",
+        "features": [
+            "PIX Cobrança",
+            "PIX Pagamento",
+            "PIX Automático",
+            "Consulta de Saldo",
+            "Extrato"
+        ],
+        "note": "Para ativar a integração real, configure as credenciais do Banco do Brasil no ambiente."
+    }
+
+# ============== ATIVA CONTABILIDADE INTEGRATION ==============
+@api_router.get("/ativa-contabilidade/info")
+async def get_ativa_info():
+    """Get Ativa Contabilidade partner info"""
+    return {
+        "partner": "Ativa Contabilidade",
+        "website": "https://ativacontabilidade.cnt.br",
+        "description": "Contabilidade digital completa para sua empresa",
+        "services": [
+            "Área Contábil",
+            "Obrigações Trabalhistas",
+            "Assessoria Empresarial",
+            "Departamento Fiscal",
+            "Prestação de Contas Eleitorais"
+        ],
+        "coverage": [
+            "Assú", "Pendências", "Paraú", "Afonso Bezerra", 
+            "Ipanguaçu", "São Rafael", "Serra do Mel", "Upanema",
+            "Carnaubais", "Triunfo Potiguar", "Itajá", "Mossoró",
+            "São Paulo", "Todo o Rio Grande do Norte"
+        ],
+        "contact": {
+            "website": "https://ativacontabilidade.cnt.br",
+            "action": "falar com o especialista"
+        },
+        "integration_status": "partner",
+        "logo_url": "https://ativacontabilidade.cnt.br/assets/imgs/h1.png"
+    }
+
 # ============== HEALTH CHECK ==============
 @api_router.get("/")
 async def root():
