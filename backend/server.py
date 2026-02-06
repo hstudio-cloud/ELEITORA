@@ -1291,8 +1291,10 @@ async def sign_as_locatario(contract_id: str, data: SignContract, current_user: 
     }
     
     # Check if both parties signed
+    both_signed = False
     if contract.get("locador_assinatura_hash"):
         update_data["status"] = "ativo"
+        both_signed = True
     else:
         update_data["status"] = "assinado_locatario"
     
@@ -1304,7 +1306,25 @@ async def sign_as_locatario(contract_id: str, data: SignContract, current_user: 
     html = generate_contract_html(updated_contract, campaign)
     await db.contracts.update_one({"id": contract_id}, {"$set": {"contract_html": html}})
     
-    return {"message": "Contrato assinado pelo locatário", "status": update_data["status"]}
+    # Generate PDF automatically when both parties sign
+    pdf_generated = False
+    if both_signed:
+        try:
+            pdf_path = await generate_and_store_contract_pdf(contract_id, updated_contract, campaign)
+            if pdf_path:
+                await db.contracts.update_one(
+                    {"id": contract_id},
+                    {"$set": {"pdf_path": pdf_path, "pdf_generated_at": now}}
+                )
+                pdf_generated = True
+        except Exception as e:
+            logging.error(f"Failed to generate contract PDF: {e}")
+    
+    return {
+        "message": "Contrato assinado pelo locatário",
+        "status": update_data["status"],
+        "pdf_generated": pdf_generated
+    }
 
 @api_router.post("/contracts/sign-locador/{token}")
 async def sign_as_locador(token: str, data: SignContract):
