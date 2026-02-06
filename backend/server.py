@@ -286,6 +286,9 @@ class CampaignResponse(BaseModel):
     election_year: int
     owner_id: str
     created_at: str
+    # TSE Spending Limits
+    eleitores: Optional[int] = None
+    codigo_ibge: Optional[str] = None
     # SPCE Fields
     cnpj: Optional[str] = None
     numero_candidato: Optional[str] = None
