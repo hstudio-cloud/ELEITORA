@@ -4320,7 +4320,7 @@ async def contador_get_my_campaigns(current_user: dict = Depends(get_current_use
     }
 
 @api_router.get("/contador/campaign/{campaign_id}/details")
-async def contador_get_campaign_details(campaign_id: str, current_user: dict = Depends(get_current_user)):
+async def contador_get_campaign_details(campaign_id: str, current_user: dict = Depends(get_current_user_or_contador)):
     """Contador gets detailed info of a specific campaign they have access to"""
     professional = await db.professionals.find_one({"id": current_user.get("id")})
     
