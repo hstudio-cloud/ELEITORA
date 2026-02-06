@@ -692,14 +692,14 @@ export default function Pagamentos() {
                                                         <div className="space-y-2 md:col-span-2">
                                                             <Label>Vincular a Despesa (opcional)</Label>
                                                             <Select
-                                                                value={pixFormData.expense_id}
-                                                                onValueChange={(value) => handlePixChange('expense_id', value)}
+                                                                value={pixFormData.expense_id || "none"}
+                                                                onValueChange={(value) => handlePixChange('expense_id', value === "none" ? "" : value)}
                                                             >
                                                                 <SelectTrigger data-testid="pix-expense-select">
                                                                     <SelectValue placeholder="Selecione uma despesa pendente..." />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    <SelectItem value="">Nenhuma</SelectItem>
+                                                                    <SelectItem value="none">Nenhuma</SelectItem>
                                                                     {expenses.map(expense => (
                                                                         <SelectItem key={expense.id} value={expense.id}>
                                                                             {expense.description} - {formatCurrency(expense.amount)}
