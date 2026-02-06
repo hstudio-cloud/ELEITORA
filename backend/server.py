@@ -563,10 +563,11 @@ class ProfessionalResponse(BaseModel):
 
 # ============== PIX MODELS ==============
 class PixPaymentCreate(BaseModel):
-    expense_id: str
+    expense_id: Optional[str] = None  # Optional: link to expense
     pix_key: str
     pix_key_type: str  # cpf, cnpj, email, phone, random
-    beneficiary_name: str
+    recipient_name: str  # Name of recipient
+    recipient_cpf_cnpj: Optional[str] = None
     amount: float
     description: Optional[str] = None
     scheduled_date: Optional[str] = None  # For scheduled payments
@@ -574,14 +575,15 @@ class PixPaymentCreate(BaseModel):
 class PixPaymentResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    expense_id: str
+    expense_id: Optional[str] = None
     pix_key: str
     pix_key_type: str
-    beneficiary_name: str
+    recipient_name: str
+    recipient_cpf_cnpj: Optional[str] = None
     amount: float
     description: Optional[str] = None
     scheduled_date: Optional[str] = None
-    status: str  # pending, scheduled, completed, failed
+    status: str  # agendado, processando, executado, falhou, cancelado
     transaction_id: Optional[str] = None
     campaign_id: str
     created_at: str
