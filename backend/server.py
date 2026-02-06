@@ -1477,11 +1477,6 @@ async def generate_and_store_contract_pdf(contract_id: str, contract: dict, camp
     await db.contract_pdfs.insert_one(pdf_doc)
     
     return pdf_id
-        
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=400, detail="Token expirado")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=400, detail="Token inválido")
 
 @api_router.get("/contracts/verify/{token}")
 async def verify_signature_token(token: str):
