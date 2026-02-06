@@ -242,6 +242,9 @@ class CampaignCreate(BaseModel):
     city: str
     state: str
     election_year: int
+    # TSE Spending Limits
+    eleitores: Optional[int] = None  # Número de eleitores do município (para cálculo do limite TSE)
+    codigo_ibge: Optional[str] = None  # Código IBGE do município
     # SPCE Required Fields
     cnpj: Optional[str] = None  # CNPJ da campanha
     numero_candidato: Optional[str] = None  # Número do candidato
