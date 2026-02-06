@@ -101,7 +101,7 @@ export default function Login() {
                                 </Button>
                             </form>
 
-                            <div className="mt-6 text-center">
+                            <div className="mt-6 text-center space-y-2">
                                 <p className="text-sm text-muted-foreground">
                                     Não tem uma conta?{' '}
                                     <Link
@@ -110,6 +110,15 @@ export default function Login() {
                                         data-testid="register-link"
                                     >
                                         Cadastre-se
+                                    </Link>
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                    <Link
+                                        to="/contador/login"
+                                        className="text-emerald-500 hover:underline font-medium"
+                                        data-testid="contador-login-link"
+                                    >
+                                        Acesso para Contadores
                                     </Link>
                                 </p>
                             </div>
