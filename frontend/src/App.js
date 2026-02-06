@@ -73,6 +73,10 @@ function AppRoutes() {
                 </PublicRoute>
             } />
             
+            {/* Contador Portal Routes (Public Login, Protected Dashboard) */}
+            <Route path="/contador/login" element={<ContadorLogin />} />
+            <Route path="/contador/dashboard" element={<ContadorDashboard />} />
+            
             {/* Digital Signature Route (public - accessed via token) */}
             <Route path="/assinar/:token" element={<AssinarContrato />} />
             
