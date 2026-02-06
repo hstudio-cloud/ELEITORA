@@ -626,3 +626,66 @@ Implementação completa dos limites eleitorais:
 - [ ] Role de admin para contadores gerenciarem equipe
 
 ---
+
+---
+
+## Update (2026-02-06): Interface PIX + PDF de Contratos
+
+### Funcionalidades Implementadas
+
+#### Interface PIX Completa na Aba de Pagamentos
+- **Duas Tabs:** "Pagamentos" (tradicional) e "PIX" 
+- **Cards de Resumo:**
+  - PIX Agendados (azul)
+  - PIX Executados (verde)  
+  - Total de PIX
+- **Formulário "Novo PIX":**
+  - Nome do Destinatário
+  - CPF/CNPJ do Destinatário
+  - Tipo de Chave PIX (CPF, CNPJ, Email, Telefone, Aleatória)
+  - Chave PIX
+  - Valor (R$)
+  - Data de Agendamento
+  - Descrição
+  - Vincular a Despesa (opcional)
+- **Tabela de PIX:**
+  - Lista todos os pagamentos PIX
+  - Status: Agendado, Processando, Executado, Falhou, Cancelado
+  - Botão para simular execução
+  - Modal de detalhes
+
+#### API PIX Endpoints
+- POST /api/pix/payment - Criar pagamento PIX
+- GET /api/pix/payments - Listar pagamentos
+- GET /api/pix/payment/{id} - Buscar PIX específico
+- POST /api/pix/simulate-execution/{id} - Simular execução
+- GET /api/pix/bank-info - Info do Banco do Brasil
+
+**Nota:** Integração é SIMULADA. Credenciais do BB necessárias para operação real.
+
+#### Geração Automática de PDF do Contrato
+- PDF gerado automaticamente quando ambas as partes assinam
+- Inclui:
+  - Cabeçalho da campanha
+  - Título do contrato
+  - Conteúdo completo
+  - Seção de assinaturas digitais com hashes
+  - Rodapé com ID e timestamp
+
+#### API PDF Endpoints
+- GET /api/contracts/{id}/pdf - Gerar PDF do contrato
+- GET /api/contracts/{id}/download-signed-pdf - Download PDF assinado
+
+### Testes
+- Backend: 100% (22/22 testes)
+- Frontend: 100%
+- Arquivo: /app/test_reports/iteration_9.json
+
+### Arquivos Modificados
+- /app/frontend/src/pages/Pagamentos.jsx - Interface PIX completa
+- /app/backend/server.py - APIs PIX e PDF automático
+
+### Bug Corrigido
+- SelectItem com valor vazio no dropdown de despesas (Pagamentos.jsx linha 702)
+
+---
