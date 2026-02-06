@@ -3822,6 +3822,530 @@ async def get_bank_info():
         "note": "Para ativar a integração real, configure as credenciais do Banco do Brasil no ambiente."
     }
 
+# ============== TSE SPENDING LIMITS ==============
+# Limites de gastos eleitorais do TSE - Portaria nº 593/2024
+# Valores base para municípios de diferentes portes (eleições 2024)
+
+TSE_SPENDING_LIMITS = {
+    # Faixas de eleitorado com limites base (valores em R$)
+    # Fonte: TSE Portaria 593/2024, atualizado pelo IPCA
+    "prefeito": {
+        "micro": {"min_eleitores": 0, "max_eleitores": 10000, "primeiro_turno": 159850.76, "segundo_turno": 63940.30},
+        "pequeno": {"min_eleitores": 10001, "max_eleitores": 50000, "primeiro_turno": 500000.00, "segundo_turno": 200000.00},
+        "medio": {"min_eleitores": 50001, "max_eleitores": 200000, "primeiro_turno": 2000000.00, "segundo_turno": 800000.00},
+        "grande": {"min_eleitores": 200001, "max_eleitores": 1000000, "primeiro_turno": 10000000.00, "segundo_turno": 4000000.00},
+        "metropole": {"min_eleitores": 1000001, "max_eleitores": float('inf'), "primeiro_turno": 67200000.00, "segundo_turno": 26880000.00}
+    },
+    "vereador": {
+        "micro": {"min_eleitores": 0, "max_eleitores": 10000, "limite": 15985.08},
+        "pequeno": {"min_eleitores": 10001, "max_eleitores": 50000, "limite": 50000.00},
+        "medio": {"min_eleitores": 50001, "max_eleitores": 200000, "limite": 200000.00},
+        "grande": {"min_eleitores": 200001, "max_eleitores": 1000000, "limite": 1000000.00},
+        "metropole": {"min_eleitores": 1000001, "max_eleitores": float('inf'), "limite": 4770000.00}
+    }
+}
+
+# Dados de alguns municípios conhecidos (para demonstração)
+MUNICIPIOS_TSE = {
+    "5200050": {"nome": "Anhanguera", "uf": "GO", "eleitores": 800, "prefeito_1t": 159850.76, "vereador": 15985.08},
+    "5101102": {"nome": "Araguainha", "uf": "MT", "eleitores": 950, "prefeito_1t": 159850.76, "vereador": 15985.08},
+    "3505302": {"nome": "Borá", "uf": "SP", "eleitores": 850, "prefeito_1t": 159850.76, "vereador": 15985.08},
+    "3550308": {"nome": "São Paulo", "uf": "SP", "eleitores": 9500000, "prefeito_1t": 67200000.00, "prefeito_2t": 26880000.00, "vereador": 4770000.00},
+    "2611606": {"nome": "Recife", "uf": "PE", "eleitores": 1200000, "prefeito_1t": 9776138.29, "prefeito_2t": 3910455.32, "vereador": 1313263.10},
+    "4106902": {"nome": "Curitiba", "uf": "PR", "eleitores": 1400000, "prefeito_1t": 14161044.67, "vereador": 689037.15},
+    "2408102": {"nome": "Mossoró", "uf": "RN", "eleitores": 220000, "prefeito_1t": 3500000.00, "vereador": 350000.00},
+    "2400505": {"nome": "Assú", "uf": "RN", "eleitores": 45000, "prefeito_1t": 450000.00, "vereador": 45000.00},
+}
+
+def calculate_spending_limit(cargo: str, eleitores: int, segundo_turno: bool = False) -> float:
+    """Calculate TSE spending limit based on position and number of voters"""
+    if cargo.lower() == "prefeito":
+        limits = TSE_SPENDING_LIMITS["prefeito"]
+        for faixa, dados in limits.items():
+            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
+                return dados["segundo_turno"] if segundo_turno else dados["primeiro_turno"]
+    elif cargo.lower() == "vereador":
+        limits = TSE_SPENDING_LIMITS["vereador"]
+        for faixa, dados in limits.items():
+            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
+                return dados["limite"]
+    return 0.0
+
+@api_router.get("/tse/spending-limits")
+async def get_spending_limits(
+    cargo: str = Query(..., description="Cargo: prefeito ou vereador"),
+    eleitores: int = Query(..., description="Número de eleitores do município"),
+    segundo_turno: bool = Query(False, description="Se é segundo turno")
+):
+    """Calculate TSE spending limit for a position"""
+    limit = calculate_spending_limit(cargo, eleitores, segundo_turno)
+    
+    # Find which bracket applies
+    faixa = "desconhecida"
+    if cargo.lower() == "prefeito":
+        for f, dados in TSE_SPENDING_LIMITS["prefeito"].items():
+            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
+                faixa = f
+                break
+    elif cargo.lower() == "vereador":
+        for f, dados in TSE_SPENDING_LIMITS["vereador"].items():
+            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
+                faixa = f
+                break
+    
+    return {
+        "cargo": cargo,
+        "eleitores": eleitores,
+        "segundo_turno": segundo_turno,
+        "limite_gastos": limit,
+        "limite_formatado": format_currency(limit),
+        "faixa_municipio": faixa,
+        "fonte": "TSE Portaria 593/2024",
+        "nota": "Limite baseado nas eleições 2024, atualizado pelo IPCA"
+    }
+
+@api_router.get("/tse/municipio/{codigo_ibge}")
+async def get_municipio_limits(codigo_ibge: str):
+    """Get spending limits for a specific municipality by IBGE code"""
+    municipio = MUNICIPIOS_TSE.get(codigo_ibge)
+    if not municipio:
+        raise HTTPException(status_code=404, detail="Município não encontrado na base")
+    
+    return {
+        "codigo_ibge": codigo_ibge,
+        "municipio": municipio["nome"],
+        "uf": municipio["uf"],
+        "eleitores": municipio["eleitores"],
+        "limites": {
+            "prefeito_primeiro_turno": municipio.get("prefeito_1t", 0),
+            "prefeito_segundo_turno": municipio.get("prefeito_2t", municipio.get("prefeito_1t", 0) * 0.4),
+            "vereador": municipio.get("vereador", 0)
+        },
+        "fonte": "TSE Portaria 593/2024"
+    }
+
+@api_router.get("/tse/campaign-status")
+async def get_campaign_spending_status(current_user: dict = Depends(get_current_user)):
+    """Get current campaign spending status vs TSE limits"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+    
+    # Calculate total expenses
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(10000)
+    total_spent = sum(e.get("amount", 0) for e in expenses)
+    
+    # Get the position and estimate voters (default for small city)
+    position = campaign.get("position", "vereador").lower()
+    eleitores = campaign.get("eleitores", 50000)  # Default estimate
+    
+    # Calculate limit
+    limit = calculate_spending_limit(position, eleitores)
+    
+    # Check status
+    percentage_used = (total_spent / limit * 100) if limit > 0 else 0
+    remaining = limit - total_spent
+    
+    status = "ok"
+    if percentage_used >= 100:
+        status = "excedido"
+    elif percentage_used >= 90:
+        status = "critico"
+    elif percentage_used >= 75:
+        status = "atencao"
+    
+    alerts = []
+    if status == "excedido":
+        alerts.append({
+            "type": "error",
+            "message": f"ATENÇÃO: Limite de gastos excedido em {format_currency(abs(remaining))}!",
+            "detail": "O candidato pode ser multado em 100% do valor excedente e enquadrado por abuso de poder econômico."
+        })
+    elif status == "critico":
+        alerts.append({
+            "type": "warning",
+            "message": f"CRÍTICO: {percentage_used:.1f}% do limite já utilizado!",
+            "detail": f"Restam apenas {format_currency(remaining)} para gastar."
+        })
+    elif status == "atencao":
+        alerts.append({
+            "type": "info",
+            "message": f"ATENÇÃO: {percentage_used:.1f}% do limite já utilizado.",
+            "detail": f"Restam {format_currency(remaining)} disponíveis."
+        })
+    
+    return {
+        "campaign": {
+            "name": campaign.get("candidate_name"),
+            "position": position,
+            "city": campaign.get("city"),
+            "state": campaign.get("state")
+        },
+        "spending": {
+            "total_gasto": total_spent,
+            "total_gasto_formatado": format_currency(total_spent),
+            "limite_tse": limit,
+            "limite_formatado": format_currency(limit),
+            "saldo_disponivel": remaining,
+            "saldo_formatado": format_currency(remaining),
+            "percentual_utilizado": round(percentage_used, 2)
+        },
+        "status": status,
+        "alerts": alerts,
+        "penalidades": {
+            "multa": "100% do valor excedente",
+            "crime": "Abuso de poder econômico",
+            "consequencias": ["Cassação do registro/diploma", "Inelegibilidade por 8 anos"]
+        }
+    }
+
+# ============== ADMIN CONTADOR (ATIVA CONTABILIDADE) ==============
+ADMIN_CONTADOR_EMAIL = "diretoria@ativacontabilidade.cnt.br"
+
+class AdminInviteCreate(BaseModel):
+    email: EmailStr
+    name: str
+    type: ProfessionalType = ProfessionalType.CONTADOR
+    crc: Optional[str] = None
+    crc_state: Optional[str] = None
+    oab: Optional[str] = None
+    oab_state: Optional[str] = None
+
+class ContadorLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+@api_router.post("/admin/contador/login")
+async def admin_contador_login(credentials: ContadorLogin):
+    """Login for contador/advogado portal"""
+    # Check if it's the admin account
+    is_admin = credentials.email.lower() == ADMIN_CONTADOR_EMAIL.lower()
+    
+    # Find professional in database
+    professional = await db.professionals.find_one({"email": credentials.email.lower()})
+    
+    if not professional:
+        if is_admin:
+            # Create admin account on first login attempt
+            admin_doc = {
+                "id": str(uuid.uuid4()),
+                "email": ADMIN_CONTADOR_EMAIL,
+                "name": "Diretoria Ativa Contabilidade",
+                "type": "contador",
+                "is_admin": True,
+                "is_active": True,
+                "has_system_access": True,
+                "password_hash": hash_password("ativa2024"),  # Default password
+                "campaigns": [],
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.professionals.insert_one(admin_doc)
+            professional = admin_doc
+        else:
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
+    
+    # Verify password
+    if not professional.get("password_hash"):
+        raise HTTPException(status_code=401, detail="Conta não possui senha configurada. Entre em contato com o administrador.")
+    
+    if not verify_password(credentials.password, professional["password_hash"]):
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+    
+    # Create token
+    token = create_token(
+        professional["id"], 
+        professional["email"], 
+        "admin_contador" if professional.get("is_admin") else "contador"
+    )
+    
+    professional.pop("password_hash", None)
+    professional.pop("_id", None)
+    
+    return {
+        "token": token,
+        "professional": professional,
+        "is_admin": professional.get("is_admin", False)
+    }
+
+@api_router.post("/admin/contador/invite")
+async def admin_invite_professional(
+    data: AdminInviteCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Admin contador invites new professional (only admin can do this)"""
+    # Verify if current user is admin
+    professional = await db.professionals.find_one({"id": current_user.get("id")})
+    
+    if not professional or not professional.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Apenas o administrador pode enviar convites")
+    
+    # Check if professional already exists
+    existing = await db.professionals.find_one({"email": data.email.lower()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Já existe um profissional com este email")
+    
+    # Generate temporary password
+    temp_password = str(uuid.uuid4())[:8]
+    
+    # Create professional
+    prof_id = str(uuid.uuid4())
+    prof_doc = {
+        "id": prof_id,
+        "email": data.email.lower(),
+        "name": data.name,
+        "type": data.type.value,
+        "crc": data.crc,
+        "crc_state": data.crc_state,
+        "oab": data.oab,
+        "oab_state": data.oab_state,
+        "is_active": True,
+        "is_admin": False,
+        "has_system_access": True,
+        "password_hash": hash_password(temp_password),
+        "campaigns": [],
+        "invited_by": current_user.get("id"),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.professionals.insert_one(prof_doc)
+    
+    # Send invitation email if Resend is configured
+    email_sent = False
+    if RESEND_AVAILABLE and RESEND_API_KEY:
+        try:
+            resend.emails.send({
+                "from": SENDER_EMAIL,
+                "to": [data.email],
+                "subject": "Convite - Portal Eleitora 360",
+                "html": f"""
+                <h2>Bem-vindo ao Eleitora 360!</h2>
+                <p>Olá {data.name},</p>
+                <p>Você foi convidado(a) para fazer parte do Portal de Contadores do Eleitora 360.</p>
+                <p><strong>Suas credenciais de acesso:</strong></p>
+                <ul>
+                    <li>Email: {data.email}</li>
+                    <li>Senha temporária: <code>{temp_password}</code></li>
+                </ul>
+                <p>Acesse: <a href="{APP_URL}/contador/login">{APP_URL}/contador/login</a></p>
+                <p>Por favor, altere sua senha no primeiro acesso.</p>
+                <br>
+                <p>Atenciosamente,<br>Equipe Ativa Contabilidade</p>
+                """
+            })
+            email_sent = True
+        except Exception as e:
+            logging.error(f"Failed to send invitation email: {e}")
+    
+    prof_doc.pop("password_hash", None)
+    prof_doc.pop("_id", None)
+    
+    return {
+        "message": "Profissional convidado com sucesso",
+        "professional": prof_doc,
+        "temp_password": temp_password if not email_sent else None,
+        "email_sent": email_sent,
+        "note": "Senha temporária enviada por email" if email_sent else "Email não enviado. Informe a senha temporária manualmente."
+    }
+
+@api_router.get("/admin/contador/professionals")
+async def admin_list_professionals(current_user: dict = Depends(get_current_user)):
+    """Admin lists all professionals"""
+    professional = await db.professionals.find_one({"id": current_user.get("id")})
+    
+    if not professional or not professional.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador")
+    
+    professionals = await db.professionals.find(
+        {},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(1000)
+    
+    return {"professionals": professionals}
+
+@api_router.get("/admin/contador/all-campaigns")
+async def admin_list_all_campaigns(current_user: dict = Depends(get_current_user)):
+    """Admin lists all campaigns in the system"""
+    professional = await db.professionals.find_one({"id": current_user.get("id")})
+    
+    if not professional or not professional.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador")
+    
+    campaigns = await db.campaigns.find({}, {"_id": 0}).to_list(1000)
+    
+    # Add spending info for each campaign
+    for campaign in campaigns:
+        expenses = await db.expenses.find({"campaign_id": campaign["id"]}, {"_id": 0}).to_list(10000)
+        revenues = await db.revenues.find({"campaign_id": campaign["id"]}, {"_id": 0}).to_list(10000)
+        
+        total_expenses = sum(e.get("amount", 0) for e in expenses)
+        total_revenues = sum(r.get("amount", 0) for r in revenues)
+        
+        campaign["financeiro"] = {
+            "total_receitas": total_revenues,
+            "total_despesas": total_expenses,
+            "saldo": total_revenues - total_expenses
+        }
+    
+    return {"campaigns": campaigns}
+
+@api_router.post("/admin/contador/assign-campaign")
+async def admin_assign_campaign_to_professional(
+    professional_id: str = Query(...),
+    campaign_id: str = Query(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Admin assigns a campaign to a professional"""
+    admin = await db.professionals.find_one({"id": current_user.get("id")})
+    
+    if not admin or not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador")
+    
+    # Verify professional exists
+    professional = await db.professionals.find_one({"id": professional_id})
+    if not professional:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    
+    # Verify campaign exists
+    campaign = await db.campaigns.find_one({"id": campaign_id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+    
+    # Add campaign to professional's list
+    await db.professionals.update_one(
+        {"id": professional_id},
+        {"$addToSet": {"campaigns": campaign_id}}
+    )
+    
+    return {
+        "message": f"Campanha atribuída a {professional['name']}",
+        "professional": professional["name"],
+        "campaign": campaign["candidate_name"]
+    }
+
+@api_router.post("/contador/change-password")
+async def contador_change_password(
+    current_password: str,
+    new_password: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Contador changes their password"""
+    professional = await db.professionals.find_one({"id": current_user.get("id")})
+    
+    if not professional:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    
+    # Verify current password
+    if not verify_password(current_password, professional.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Senha atual incorreta")
+    
+    # Update password
+    await db.professionals.update_one(
+        {"id": current_user.get("id")},
+        {"$set": {"password_hash": hash_password(new_password)}}
+    )
+    
+    return {"message": "Senha alterada com sucesso"}
+
+@api_router.get("/contador/my-campaigns")
+async def contador_get_my_campaigns(current_user: dict = Depends(get_current_user)):
+    """Contador gets their assigned campaigns"""
+    professional = await db.professionals.find_one({"id": current_user.get("id")}, {"_id": 0})
+    
+    if not professional:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    
+    campaign_ids = professional.get("campaigns", [])
+    campaigns = await db.campaigns.find(
+        {"id": {"$in": campaign_ids}},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Add financial summary for each campaign
+    for campaign in campaigns:
+        expenses = await db.expenses.find({"campaign_id": campaign["id"]}, {"_id": 0}).to_list(10000)
+        revenues = await db.revenues.find({"campaign_id": campaign["id"]}, {"_id": 0}).to_list(10000)
+        
+        total_expenses = sum(e.get("amount", 0) for e in expenses)
+        total_revenues = sum(r.get("amount", 0) for r in revenues)
+        pending_expenses = sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pendente")
+        
+        campaign["resumo_financeiro"] = {
+            "total_receitas": total_revenues,
+            "total_despesas": total_expenses,
+            "despesas_pendentes": pending_expenses,
+            "saldo": total_revenues - total_expenses
+        }
+    
+    return {
+        "professional": {
+            "id": professional["id"],
+            "name": professional["name"],
+            "email": professional["email"],
+            "type": professional["type"],
+            "is_admin": professional.get("is_admin", False)
+        },
+        "campaigns": campaigns
+    }
+
+@api_router.get("/contador/campaign/{campaign_id}/details")
+async def contador_get_campaign_details(campaign_id: str, current_user: dict = Depends(get_current_user)):
+    """Contador gets detailed info of a specific campaign they have access to"""
+    professional = await db.professionals.find_one({"id": current_user.get("id")})
+    
+    if not professional:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    
+    # Check access
+    is_admin = professional.get("is_admin", False)
+    has_access = campaign_id in professional.get("campaigns", [])
+    
+    if not is_admin and not has_access:
+        raise HTTPException(status_code=403, detail="Você não tem acesso a esta campanha")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+    
+    # Get all financial data
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(10000)
+    revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(10000)
+    contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    # Calculate TSE limit status
+    position = campaign.get("position", "vereador").lower()
+    eleitores = campaign.get("eleitores", 50000)
+    limit = calculate_spending_limit(position, eleitores)
+    total_expenses = sum(e.get("amount", 0) for e in expenses)
+    
+    return {
+        "campaign": campaign,
+        "financeiro": {
+            "receitas": revenues,
+            "despesas": expenses,
+            "contratos": contracts,
+            "totais": {
+                "total_receitas": sum(r.get("amount", 0) for r in revenues),
+                "total_despesas": total_expenses,
+                "despesas_pendentes": sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pendente"),
+                "despesas_pagas": sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pago"),
+                "contratos_ativos": len([c for c in contracts if c.get("status") == "ativo"])
+            }
+        },
+        "limite_tse": {
+            "limite": limit,
+            "limite_formatado": format_currency(limit),
+            "gasto": total_expenses,
+            "gasto_formatado": format_currency(total_expenses),
+            "disponivel": limit - total_expenses,
+            "disponivel_formatado": format_currency(limit - total_expenses),
+            "percentual_usado": round((total_expenses / limit * 100) if limit > 0 else 0, 2)
+        }
+    }
+
 # ============== ATIVA CONTABILIDADE INTEGRATION ==============
 @api_router.get("/ativa-contabilidade/info")
 async def get_ativa_info():
@@ -3845,7 +4369,8 @@ async def get_ativa_info():
         ],
         "contact": {
             "website": "https://ativacontabilidade.cnt.br",
-            "action": "falar com o especialista"
+            "action": "falar com o especialista",
+            "admin_email": ADMIN_CONTADOR_EMAIL
         },
         "integration_status": "partner",
         "logo_url": "https://ativacontabilidade.cnt.br/assets/imgs/h1.png"
