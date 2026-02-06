@@ -3738,18 +3738,26 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    # Verify expense exists
-    expense = await db.expenses.find_one(
-        {"id": data.expense_id, "campaign_id": campaign_id}
-    )
-    if not expense:
-        raise HTTPException(status_code=404, detail="Despesa não encontrada")
+    # Verify expense exists if provided
+    if data.expense_id:
+        expense = await db.expenses.find_one(
+            {"id": data.expense_id, "campaign_id": campaign_id}
+        )
+        if not expense:
+            raise HTTPException(status_code=404, detail="Despesa não encontrada")
     
     pix_id = str(uuid.uuid4())
     pix_doc = {
         "id": pix_id,
-        **data.model_dump(),
-        "status": "scheduled" if data.scheduled_date else "pending",
+        "pix_key": data.pix_key,
+        "pix_key_type": data.pix_key_type,
+        "recipient_name": data.recipient_name,
+        "recipient_cpf_cnpj": data.recipient_cpf_cnpj,
+        "amount": data.amount,
+        "description": data.description,
+        "scheduled_date": data.scheduled_date,
+        "expense_id": data.expense_id,
+        "status": "agendado" if data.scheduled_date else "processando",
         "transaction_id": None,
         "campaign_id": campaign_id,
         "created_at": datetime.now(timezone.utc).isoformat()
@@ -3762,9 +3770,9 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
     # For now, this is a simulation that stores the payment intent
     
     return {
-        "message": "Pagamento PIX criado com sucesso",
+        "message": "Pagamento PIX agendado com sucesso",
         "pix_payment": pix_doc,
-        "note": "Integração real com Banco do Brasil requer credenciais de API. Este é um registro do pagamento."
+        "note": "Integração Simulada - Configure credenciais do Banco do Brasil para pagamentos reais"
     }
 
 @api_router.get("/pix/payments")
