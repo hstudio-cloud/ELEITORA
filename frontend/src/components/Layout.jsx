@@ -110,12 +110,17 @@ export const Layout = ({ children }) => {
                                     className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-150 group ${
                                         isActive
                                             ? 'bg-primary text-primary-foreground'
-                                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                            : item.highlight 
+                                                ? 'text-accent hover:bg-accent/10 hover:text-accent border border-accent/30'
+                                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                     }`}
                                     data-testid={`nav-${item.path.slice(1)}`}
                                 >
-                                    <Icon className="h-5 w-5" />
+                                    <Icon className={`h-5 w-5 ${item.highlight && !isActive ? 'text-accent' : ''}`} />
                                     <span className="font-medium">{item.label}</span>
+                                    {item.highlight && !isActive && (
+                                        <span className="ml-auto text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full">Novo</span>
+                                    )}
                                     {isActive && (
                                         <ChevronRight className="h-4 w-4 ml-auto" />
                                     )}
