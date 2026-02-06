@@ -3092,6 +3092,422 @@ async def export_spce_despesas(current_user: dict = Depends(get_current_user)):
         "format": "SPCE-DESPESAS-CSV"
     }
 
+# ============== SPCE LAYOUT - DESPAGTOS (Despesas de Gastos) ==============
+# Layout oficial conforme Resolução TSE 23.607/2019
+SPCE_DESPESA_CATEGORIAS = {
+    "propaganda": {"codigo": "101", "descricao": "Despesas com Propaganda"},
+    "pessoal": {"codigo": "102", "descricao": "Despesas com Pessoal"},
+    "transporte": {"codigo": "103", "descricao": "Despesas de Transporte"},
+    "material": {"codigo": "104", "descricao": "Despesas com Material de Expediente"},
+    "alimentacao": {"codigo": "105", "descricao": "Despesas com Alimentação"},
+    "combustivel": {"codigo": "106", "descricao": "Despesas com Combustível e Lubrificantes"},
+    "locacao_veiculo": {"codigo": "107", "descricao": "Locação/Cessão de Veículos"},
+    "locacao_imovel": {"codigo": "108", "descricao": "Locação/Cessão de Imóveis"},
+    "eventos": {"codigo": "109", "descricao": "Despesas com Eventos"},
+    "servicos_terceiros": {"codigo": "110", "descricao": "Serviços Prestados por Terceiros"},
+    "agua_luz_telefone": {"codigo": "111", "descricao": "Água, Luz, Telefone e Internet"},
+    "taxa_bancaria": {"codigo": "112", "descricao": "Taxas e Tarifas Bancárias"},
+    "producao_audiovisual": {"codigo": "113", "descricao": "Produção de Programas de Rádio/TV/Vídeo"},
+    "impulsionamento": {"codigo": "114", "descricao": "Impulsionamento de Conteúdos"},
+    "outros": {"codigo": "199", "descricao": "Outras Despesas"}
+}
+
+@api_router.get("/export/spce-despagtos")
+async def export_spce_despagtos(current_user: dict = Depends(get_current_user)):
+    """Export expenses in SPCE DESPAGTOS layout format"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    cnpj = (campaign.get("cnpj") or "").replace(".", "").replace("/", "").replace("-", "")
+    if not cnpj or len(cnpj) != 14:
+        raise HTTPException(status_code=400, detail="CNPJ da campanha inválido ou não configurado")
+    
+    # Generate DESPAGTOS format
+    # Header: versao|tipo_registro|cnpj_campanha|uf|ano_eleicao
+    lines = []
+    header = f"100|H|{cnpj}|{campaign.get('state', '')}|{campaign.get('election_year', 2024)}"
+    lines.append(header)
+    
+    # Detail records: versao|tipo|sequencia|data|cpf_cnpj_fornecedor|nome_fornecedor|valor|categoria|descricao|doc_fiscal
+    for i, exp in enumerate(expenses, 1):
+        supplier_doc = (exp.get("supplier_cpf_cnpj") or "").replace(".", "").replace("-", "").replace("/", "")
+        date_fmt = exp.get("date", "").replace("-", "")  # YYYYMMDD to DDMMYYYY
+        if len(date_fmt) == 8:
+            date_fmt = date_fmt[6:8] + date_fmt[4:6] + date_fmt[0:4]
+        
+        # Get category code
+        cat = exp.get("category", "outros").lower().replace(" ", "_")
+        cat_info = SPCE_DESPESA_CATEGORIAS.get(cat, SPCE_DESPESA_CATEGORIAS["outros"])
+        
+        # Format amount with 2 decimals, comma separator
+        amount = f"{exp.get('amount', 0):.2f}".replace(".", ",")
+        
+        detail = f"100|D|{i:05d}|{date_fmt}|{supplier_doc}|{exp.get('supplier_name', '')}|{amount}|{cat_info['codigo']}|{exp.get('description', '')}|{exp.get('invoice_number', '')}"
+        lines.append(detail)
+    
+    # Trailer: versao|tipo|total_registros|valor_total
+    total = sum(e.get("amount", 0) for e in expenses)
+    trailer = f"100|T|{len(expenses):05d}|{total:.2f}".replace(".", ",")
+    lines.append(trailer)
+    
+    now = datetime.now(timezone.utc)
+    filename = f"DESPAGTOS_{cnpj}_{now.strftime('%Y%m%d%H%M%S')}.txt"
+    
+    return {
+        "filename": filename,
+        "content": "\n".join(lines),
+        "total_registros": len(expenses),
+        "valor_total": total,
+        "valor_total_formatado": f"R$ {total:,.2f}",
+        "format": "SPCE-DESPAGTOS",
+        "categorias_utilizadas": list(set(
+            SPCE_DESPESA_CATEGORIAS.get(e.get("category", "outros").lower().replace(" ", "_"), SPCE_DESPESA_CATEGORIAS["outros"])["descricao"]
+            for e in expenses
+        ))
+    }
+
+# ============== SPCE LAYOUT - CONTRATOS ==============
+SPCE_CONTRATO_TIPOS = {
+    "veiculo_com_motorista": {"codigo": "01", "descricao": "Locação de Veículo com Motorista"},
+    "veiculo_sem_motorista": {"codigo": "02", "descricao": "Locação de Veículo sem Motorista"},
+    "imovel_comite": {"codigo": "03", "descricao": "Locação de Imóvel para Comitê"},
+    "imovel_evento": {"codigo": "04", "descricao": "Locação de Imóvel para Evento"},
+    "servico_grafico": {"codigo": "05", "descricao": "Serviços Gráficos"},
+    "servico_publicidade": {"codigo": "06", "descricao": "Serviços de Publicidade"},
+    "servico_pesquisa": {"codigo": "07", "descricao": "Serviços de Pesquisa"},
+    "servico_juridico": {"codigo": "08", "descricao": "Serviços Jurídicos"},
+    "servico_contabil": {"codigo": "09", "descricao": "Serviços Contábeis"},
+    "servico_ti": {"codigo": "10", "descricao": "Serviços de TI"},
+    "producao_audiovisual": {"codigo": "11", "descricao": "Produção Audiovisual"},
+    "impulsionamento": {"codigo": "12", "descricao": "Impulsionamento de Conteúdos"},
+    "outros": {"codigo": "99", "descricao": "Outros Contratos"}
+}
+
+@api_router.get("/export/spce-contratos")
+async def export_spce_contratos(current_user: dict = Depends(get_current_user)):
+    """Export contracts in SPCE format"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    cnpj = (campaign.get("cnpj") or "").replace(".", "").replace("/", "").replace("-", "")
+    if not cnpj or len(cnpj) != 14:
+        raise HTTPException(status_code=400, detail="CNPJ da campanha inválido ou não configurado")
+    
+    # Generate CONTRATOS format
+    lines = []
+    
+    # Header
+    header = f"100|H|{cnpj}|{campaign.get('state', '')}|{campaign.get('election_year', 2024)}|CONTRATOS"
+    lines.append(header)
+    
+    # Detail records
+    for i, contract in enumerate(contracts, 1):
+        locador_doc = (contract.get("locador_cpf") or contract.get("contractor_cpf_cnpj") or "").replace(".", "").replace("-", "").replace("/", "")
+        
+        # Format dates
+        start_date = contract.get("start_date", "").replace("-", "")
+        end_date = contract.get("end_date", "").replace("-", "")
+        if len(start_date) == 8:
+            start_date = start_date[6:8] + start_date[4:6] + start_date[0:4]
+        if len(end_date) == 8:
+            end_date = end_date[6:8] + end_date[4:6] + end_date[0:4]
+        
+        # Get contract type
+        template = contract.get("template_type", "outros")
+        tipo_info = SPCE_CONTRATO_TIPOS.get(template, SPCE_CONTRATO_TIPOS["outros"])
+        
+        # Format amount
+        amount = f"{contract.get('value', 0):.2f}".replace(".", ",")
+        
+        # Status: A=Ativo, E=Encerrado, C=Cancelado, R=Rascunho
+        status_map = {"ativo": "A", "encerrado": "E", "cancelado": "C", "rascunho": "R"}
+        status = status_map.get(contract.get("status", "rascunho"), "R")
+        
+        # Signature status
+        assinado_locador = "S" if contract.get("locador_assinatura_hash") else "N"
+        assinado_locatario = "S" if contract.get("locatario_assinatura_hash") else "N"
+        
+        detail = "|".join([
+            "100",
+            "C",
+            f"{i:05d}",
+            tipo_info["codigo"],
+            start_date,
+            end_date,
+            locador_doc,
+            contract.get("locador_nome", contract.get("contractor_name", "")),
+            amount,
+            status,
+            assinado_locador,
+            assinado_locatario,
+            contract.get("title", ""),
+            str(contract.get("num_parcelas", 1))
+        ])
+        lines.append(detail)
+    
+    # Trailer
+    total_valor = sum(c.get("value", 0) for c in contracts)
+    contratos_ativos = len([c for c in contracts if c.get("status") == "ativo"])
+    trailer = f"100|T|{len(contracts):05d}|{total_valor:.2f}|{contratos_ativos:05d}".replace(".", ",")
+    lines.append(trailer)
+    
+    now = datetime.now(timezone.utc)
+    filename = f"CONTRATOS_{cnpj}_{now.strftime('%Y%m%d%H%M%S')}.txt"
+    
+    return {
+        "filename": filename,
+        "content": "\n".join(lines),
+        "total_contratos": len(contracts),
+        "contratos_ativos": contratos_ativos,
+        "valor_total": total_valor,
+        "valor_total_formatado": f"R$ {total_valor:,.2f}",
+        "format": "SPCE-CONTRATOS",
+        "tipos_utilizados": list(set(
+            SPCE_CONTRATO_TIPOS.get(c.get("template_type", "outros"), SPCE_CONTRATO_TIPOS["outros"])["descricao"]
+            for c in contracts
+        ))
+    }
+
+@api_router.get("/export/spce-despesas-pdf")
+async def export_spce_despesas_pdf(current_user: dict = Depends(get_current_user)):
+    """Export expenses as PDF in SPCE-compliant format"""
+    if not PDF_AVAILABLE:
+        raise HTTPException(status_code=500, detail="PDF generation not available")
+    
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=1.5*cm, rightMargin=1.5*cm)
+    
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Title2', alignment=TA_CENTER, fontSize=14, spaceAfter=20, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='Subtitle', alignment=TA_CENTER, fontSize=10, textColor=colors.grey))
+    
+    elements = []
+    
+    # Header
+    elements.append(Paragraph("RELATÓRIO DE DESPESAS ELEITORAIS", styles['Title2']))
+    elements.append(Paragraph(f"Campanha: {campaign.get('candidate_name', '')} - {campaign.get('party', '')}", styles['Normal']))
+    elements.append(Paragraph(f"CNPJ: {campaign.get('cnpj', 'Não informado')}", styles['Normal']))
+    elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}", styles['Subtitle']))
+    elements.append(Spacer(1, 20))
+    
+    # Summary
+    total = sum(e.get("amount", 0) for e in expenses)
+    pagas = sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pago")
+    pendentes = sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pendente")
+    
+    summary_data = [
+        ["RESUMO FINANCEIRO", ""],
+        ["Total de Despesas:", f"R$ {total:,.2f}"],
+        ["Despesas Pagas:", f"R$ {pagas:,.2f}"],
+        ["Despesas Pendentes:", f"R$ {pendentes:,.2f}"],
+        ["Quantidade de Registros:", str(len(expenses))]
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[200, 150])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a365d')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 20))
+    
+    # Expenses Table
+    elements.append(Paragraph("<b>DETALHAMENTO DAS DESPESAS</b>", styles['Normal']))
+    elements.append(Spacer(1, 10))
+    
+    if expenses:
+        # Sort by date
+        expenses_sorted = sorted(expenses, key=lambda x: x.get("date", ""))
+        
+        exp_data = [["Data", "Descrição", "Fornecedor", "Valor", "Status"]]
+        for exp in expenses_sorted:
+            date_str = exp.get("date", "")
+            if date_str:
+                try:
+                    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                    date_str = date_obj.strftime("%d/%m/%Y")
+                except:
+                    pass
+            
+            status = "Pago" if exp.get("payment_status") == "pago" else "Pendente"
+            exp_data.append([
+                date_str,
+                exp.get("description", "")[:40],
+                exp.get("supplier_name", "")[:25],
+                f"R$ {exp.get('amount', 0):,.2f}",
+                status
+            ])
+        
+        exp_table = Table(exp_data, colWidths=[60, 150, 120, 80, 50])
+        exp_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d3748')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+            ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
+            ('ALIGN', (4, 0), (4, -1), 'CENTER'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7fafc')]),
+        ]))
+        elements.append(exp_table)
+    
+    # Footer
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph("_" * 80, styles['Normal']))
+    elements.append(Paragraph("<i>Documento gerado pelo sistema Eleitora 360 - Formato compatível SPCE/TSE</i>", styles['Subtitle']))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"despesas_spce_{campaign.get('cnpj', 'sem_cnpj').replace('.', '').replace('/', '').replace('-', '')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@api_router.get("/export/spce-contratos-pdf")
+async def export_spce_contratos_pdf(current_user: dict = Depends(get_current_user)):
+    """Export contracts as PDF in SPCE-compliant format"""
+    if not PDF_AVAILABLE:
+        raise HTTPException(status_code=500, detail="PDF generation not available")
+    
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=1.5*cm, rightMargin=1.5*cm)
+    
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Title2', alignment=TA_CENTER, fontSize=14, spaceAfter=20, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='Subtitle', alignment=TA_CENTER, fontSize=10, textColor=colors.grey))
+    
+    elements = []
+    
+    # Header
+    elements.append(Paragraph("RELATÓRIO DE CONTRATOS ELEITORAIS", styles['Title2']))
+    elements.append(Paragraph(f"Campanha: {campaign.get('candidate_name', '')} - {campaign.get('party', '')}", styles['Normal']))
+    elements.append(Paragraph(f"CNPJ: {campaign.get('cnpj', 'Não informado')}", styles['Normal']))
+    elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}", styles['Subtitle']))
+    elements.append(Spacer(1, 20))
+    
+    # Summary
+    total = sum(c.get("value", 0) for c in contracts)
+    ativos = len([c for c in contracts if c.get("status") == "ativo"])
+    assinados = len([c for c in contracts if c.get("locador_assinatura_hash") and c.get("locatario_assinatura_hash")])
+    
+    summary_data = [
+        ["RESUMO DE CONTRATOS", ""],
+        ["Valor Total:", f"R$ {total:,.2f}"],
+        ["Contratos Ativos:", str(ativos)],
+        ["Contratos Assinados:", str(assinados)],
+        ["Total de Contratos:", str(len(contracts))]
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[200, 150])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a365d')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 20))
+    
+    # Contracts Table
+    elements.append(Paragraph("<b>DETALHAMENTO DOS CONTRATOS</b>", styles['Normal']))
+    elements.append(Spacer(1, 10))
+    
+    if contracts:
+        contract_data = [["Título", "Contratado", "Período", "Valor", "Status"]]
+        for c in contracts:
+            start = c.get("start_date", "")
+            end = c.get("end_date", "")
+            try:
+                if start:
+                    start = datetime.strptime(start, "%Y-%m-%d").strftime("%d/%m/%y")
+                if end:
+                    end = datetime.strptime(end, "%Y-%m-%d").strftime("%d/%m/%y")
+            except:
+                pass
+            
+            status_labels = {"ativo": "Ativo", "rascunho": "Rascunho", "encerrado": "Encerrado", "cancelado": "Cancelado"}
+            status = status_labels.get(c.get("status", "rascunho"), c.get("status", ""))
+            
+            contract_data.append([
+                c.get("title", "")[:35],
+                c.get("locador_nome", c.get("contractor_name", ""))[:25],
+                f"{start} a {end}",
+                f"R$ {c.get('value', 0):,.2f}",
+                status
+            ])
+        
+        contract_table = Table(contract_data, colWidths=[140, 120, 80, 70, 50])
+        contract_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d3748')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+            ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
+            ('ALIGN', (4, 0), (4, -1), 'CENTER'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7fafc')]),
+        ]))
+        elements.append(contract_table)
+    
+    # Footer
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph("_" * 80, styles['Normal']))
+    elements.append(Paragraph("<i>Documento gerado pelo sistema Eleitora 360 - Formato compatível SPCE/TSE</i>", styles['Subtitle']))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"contratos_spce_{campaign.get('cnpj', 'sem_cnpj').replace('.', '').replace('/', '').replace('-', '')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@api_router.get("/export/spce-categorias")
+async def get_spce_categorias():
+    """Get available SPCE categories for expenses and contracts"""
+    return {
+        "despesas": SPCE_DESPESA_CATEGORIAS,
+        "contratos": SPCE_CONTRATO_TIPOS,
+        "nota": "Categorias conforme Resolução TSE 23.607/2019"
+    }
+
 # ============== BANK STATEMENT IMPORT ==============
 class BankStatementEntry(BaseModel):
     date: str
