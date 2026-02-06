@@ -4224,7 +4224,7 @@ async def admin_list_all_campaigns(current_user: dict = Depends(get_current_user
 async def admin_assign_campaign_to_professional(
     professional_id: str = Query(...),
     campaign_id: str = Query(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_contador)
 ):
     """Admin assigns a campaign to a professional"""
     admin = await db.professionals.find_one({"id": current_user.get("id")})
