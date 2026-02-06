@@ -4258,7 +4258,7 @@ async def admin_assign_campaign_to_professional(
 async def contador_change_password(
     current_password: str,
     new_password: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_contador)
 ):
     """Contador changes their password"""
     professional = await db.professionals.find_one({"id": current_user.get("id")})
@@ -4279,7 +4279,7 @@ async def contador_change_password(
     return {"message": "Senha alterada com sucesso"}
 
 @api_router.get("/contador/my-campaigns")
-async def contador_get_my_campaigns(current_user: dict = Depends(get_current_user)):
+async def contador_get_my_campaigns(current_user: dict = Depends(get_current_user_or_contador)):
     """Contador gets their assigned campaigns"""
     professional = await db.professionals.find_one({"id": current_user.get("id")}, {"_id": 0})
     
