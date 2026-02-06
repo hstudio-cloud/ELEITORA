@@ -3812,6 +3812,10 @@ async def simulate_pix_execution(pix_id: str, current_user: dict = Depends(get_c
     if not payment:
         raise HTTPException(status_code=404, detail="Pagamento não encontrado")
     
+    # Check if already executed
+    if payment.get("status") == "executado":
+        raise HTTPException(status_code=400, detail="PIX já foi executado")
+    
     # Simulate transaction
     transaction_id = f"E{uuid.uuid4().hex[:20].upper()}"
     
@@ -3819,23 +3823,24 @@ async def simulate_pix_execution(pix_id: str, current_user: dict = Depends(get_c
         {"id": pix_id},
         {
             "$set": {
-                "status": "completed",
+                "status": "executado",
                 "transaction_id": transaction_id,
                 "executed_at": datetime.now(timezone.utc).isoformat()
             }
         }
     )
     
-    # Update expense status
-    await db.expenses.update_one(
-        {"id": payment.get("expense_id")},
-        {"$set": {"payment_status": "pago", "pix_transaction_id": transaction_id}}
-    )
+    # Update expense status if linked
+    if payment.get("expense_id"):
+        await db.expenses.update_one(
+            {"id": payment.get("expense_id")},
+            {"$set": {"payment_status": "pago", "pix_transaction_id": transaction_id}}
+        )
     
     return {
         "message": "PIX executado com sucesso (simulação)",
         "transaction_id": transaction_id,
-        "status": "completed"
+        "status": "executado"
     }
 
 @api_router.get("/pix/bank-info")
