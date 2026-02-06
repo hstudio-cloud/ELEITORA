@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 class ContractSystemTester:
-    def __init__(self, base_url="https://gestao-campanha.preview.emergentagent.com/api"):
+    def __init__(self, base_url="https://portal-contador.preview.emergentagent.com/api"):
         self.base_url = base_url
         self.token = None
         self.user_id = None
@@ -374,7 +374,7 @@ def main():
         print(f"\n🔗 Signature Token for Frontend Testing:")
         print(f"   {tester.signature_token}")
         print(f"\n🔗 Signature URL:")
-        print(f"   https://gestao-campanha.preview.emergentagent.com/assinar/{tester.signature_token}")
+        print(f"   https://portal-contador.preview.emergentagent.com/assinar/{tester.signature_token}")
     
     # Print final results
     print("\n" + "=" * 60)

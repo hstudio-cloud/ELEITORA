@@ -8,7 +8,7 @@ import os
 import io
 import base64
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://gestao-campanha.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://portal-contador.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_EMAIL = "alan.garcia@teste.com"
