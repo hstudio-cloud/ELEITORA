@@ -714,14 +714,28 @@ export default function Pagamentos() {
                                                     </div>
                                                 </div>
 
-                                                {/* Warning */}
-                                                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                                                {/* Integration Status */}
+                                                <div className={`p-4 rounded-lg border ${
+                                                    bankInfo?.integration_available 
+                                                        ? 'bg-emerald-500/10 border-emerald-500/30' 
+                                                        : 'bg-yellow-500/10 border-yellow-500/30'
+                                                }`}>
                                                     <div className="flex items-start gap-3">
-                                                        <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                                                        {bankInfo?.integration_available ? (
+                                                            <CheckCircle className="h-5 w-5 text-emerald-500 mt-0.5" />
+                                                        ) : (
+                                                            <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                                                        )}
                                                         <div className="text-sm">
-                                                            <p className="font-medium text-yellow-500">Integração Simulada</p>
+                                                            <p className={`font-medium ${bankInfo?.integration_available ? 'text-emerald-500' : 'text-yellow-500'}`}>
+                                                                {bankInfo?.integration_available 
+                                                                    ? `Integração Ativa (${bankInfo?.environment || 'homologação'})` 
+                                                                    : 'Integração Simulada'}
+                                                            </p>
                                                             <p className="text-muted-foreground mt-1">
-                                                                Esta é uma simulação. Para pagamentos reais, configure as credenciais da API do Banco do Brasil nas configurações.
+                                                                {bankInfo?.integration_available 
+                                                                    ? 'Conectado à API do Banco do Brasil. Os pagamentos serão processados em ambiente de ' + (bankInfo?.environment || 'homologação') + '.'
+                                                                    : 'Esta é uma simulação. Para pagamentos reais, configure as credenciais da API do Banco do Brasil.'}
                                                             </p>
                                                         </div>
                                                     </div>

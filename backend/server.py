@@ -13,6 +13,7 @@ import re
 import json
 import zipfile
 import io
+import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, validator
 from typing import List, Optional
@@ -62,10 +63,252 @@ APP_URL = os.environ.get('APP_URL', 'https://portal-contador.preview.emergentage
 if RESEND_AVAILABLE and RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
+# Banco do Brasil PIX API Config
+BB_APP_KEY = os.environ.get('BB_APP_KEY', '')
+BB_CLIENT_ID = os.environ.get('BB_CLIENT_ID', '')
+BB_CLIENT_SECRET = os.environ.get('BB_CLIENT_SECRET', '')
+BB_ENVIRONMENT = os.environ.get('BB_ENVIRONMENT', 'homologacao')
+
+# BB API URLs based on environment
+if BB_ENVIRONMENT == 'producao':
+    BB_OAUTH_URL = "https://oauth.bb.com.br/oauth/token"
+    BB_API_URL = "https://api.bb.com.br/pix/v2"
+else:
+    BB_OAUTH_URL = "https://oauth.hm.bb.com.br/oauth/token"
+    BB_API_URL = "https://api.hm.bb.com.br/pix/v2"
+
+BB_PIX_AVAILABLE = bool(BB_APP_KEY and BB_CLIENT_ID and BB_CLIENT_SECRET)
+
 # File upload config
 UPLOAD_DIR = ROOT_DIR / 'uploads'
 UPLOAD_DIR.mkdir(exist_ok=True)
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+# ============== BANCO DO BRASIL PIX INTEGRATION ==============
+class BancoDoBrasilPIX:
+    """Classe para integração com a API PIX do Banco do Brasil"""
+    
+    def __init__(self):
+        self.app_key = BB_APP_KEY
+        self.client_id = BB_CLIENT_ID
+        self.client_secret = BB_CLIENT_SECRET
+        self.oauth_url = BB_OAUTH_URL
+        self.api_url = BB_API_URL
+        self.access_token = None
+        self.token_expires_at = None
+        
+    async def get_access_token(self) -> str:
+        """Obtém token de acesso OAuth2"""
+        # Check if token is still valid
+        if self.access_token and self.token_expires_at:
+            if datetime.now(timezone.utc) < self.token_expires_at:
+                return self.access_token
+        
+        # Request new token using Basic Auth
+        credentials = base64.b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
+        
+        headers = {
+            "Authorization": f"Basic {credentials}",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        
+        data = "grant_type=client_credentials&scope=pix.read pix.write cob.read cob.write"
+        
+        async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+            try:
+                response = await client.post(
+                    self.oauth_url,
+                    headers=headers,
+                    content=data
+                )
+                
+                if response.status_code != 200:
+                    error_text = response.text
+                    logging.error(f"BB PIX OAuth Error: {response.status_code} - {error_text}")
+                    # Try alternative auth method
+                    return await self._get_token_alternative(client)
+                
+                token_data = response.json()
+                self.access_token = token_data.get("access_token")
+                expires_in = token_data.get("expires_in", 3600)
+                self.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in - 60)
+                
+                logging.info("BB PIX: Token obtido com sucesso")
+                return self.access_token
+                
+            except httpx.HTTPError as e:
+                logging.error(f"BB PIX: Erro ao obter token: {e}")
+                raise HTTPException(status_code=500, detail=f"Erro de autenticação com Banco do Brasil: {str(e)}")
+    
+    async def _get_token_alternative(self, client: httpx.AsyncClient) -> str:
+        """Tenta método alternativo de autenticação"""
+        # Some BB environments require the app key in the auth flow
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "gw-dev-app-key": self.app_key
+        }
+        
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "scope": "pix.read pix.write cob.read cob.write"
+        }
+        
+        try:
+            response = await client.post(
+                self.oauth_url,
+                headers=headers,
+                data=data
+            )
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                self.access_token = token_data.get("access_token")
+                expires_in = token_data.get("expires_in", 3600)
+                self.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in - 60)
+                logging.info("BB PIX: Token obtido via método alternativo")
+                return self.access_token
+            else:
+                logging.error(f"BB PIX Alt Auth Error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=500, detail="Falha na autenticação com Banco do Brasil")
+        except Exception as e:
+            logging.error(f"BB PIX: Erro no método alternativo: {e}")
+            raise HTTPException(status_code=500, detail=f"Erro de autenticação: {str(e)}")
+    
+    async def create_pix_payment(self, pix_data: dict) -> dict:
+        """Cria um pagamento PIX"""
+        token = await self.get_access_token()
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "gw-dev-app-key": self.app_key
+        }
+        
+        # Generate unique transaction ID (txid)
+        txid = f"ELT{datetime.now().strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:10].upper()}"
+        
+        # Prepare payload according to BB API
+        payload = {
+            "calendario": {
+                "dataDeVencimento": pix_data.get("scheduled_date", datetime.now().strftime("%Y-%m-%d")),
+                "validadeAposVencimento": 30
+            },
+            "devedor": {
+                "cpf" if len(pix_data.get("recipient_cpf_cnpj", "").replace(".", "").replace("-", "").replace("/", "")) == 11 else "cnpj": pix_data.get("recipient_cpf_cnpj", "").replace(".", "").replace("-", "").replace("/", ""),
+                "nome": pix_data.get("recipient_name", "")
+            },
+            "valor": {
+                "original": f"{pix_data.get('amount', 0):.2f}"
+            },
+            "chave": pix_data.get("pix_key", ""),
+            "solicitacaoPagador": pix_data.get("description", "Pagamento via Eleitora 360")[:140]
+        }
+        
+        async with httpx.AsyncClient(verify=False) as client:
+            try:
+                # Create cobrança (billing request)
+                response = await client.put(
+                    f"{self.api_url}/cobv/{txid}",
+                    headers=headers,
+                    json=payload
+                )
+                response.raise_for_status()
+                
+                result = response.json()
+                logging.info(f"BB PIX: Cobrança criada - txid: {txid}")
+                
+                return {
+                    "success": True,
+                    "txid": txid,
+                    "location": result.get("location", ""),
+                    "pixCopiaECola": result.get("pixCopiaECola", ""),
+                    "status": result.get("status", "ATIVA"),
+                    "calendario": result.get("calendario", {}),
+                    "valor": result.get("valor", {}),
+                    "raw_response": result
+                }
+                
+            except httpx.HTTPStatusError as e:
+                error_detail = e.response.text if e.response else str(e)
+                logging.error(f"BB PIX: Erro ao criar cobrança: {error_detail}")
+                return {
+                    "success": False,
+                    "error": error_detail,
+                    "status_code": e.response.status_code if e.response else 500
+                }
+            except Exception as e:
+                logging.error(f"BB PIX: Erro inesperado: {e}")
+                return {
+                    "success": False,
+                    "error": str(e)
+                }
+    
+    async def check_pix_status(self, txid: str) -> dict:
+        """Consulta o status de um PIX"""
+        token = await self.get_access_token()
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "gw-dev-app-key": self.app_key
+        }
+        
+        async with httpx.AsyncClient(verify=False) as client:
+            try:
+                response = await client.get(f"{self.api_url}/cobv/{txid}", headers=headers)
+                response.raise_for_status()
+                
+                result = response.json()
+                return {
+                    "success": True,
+                    "txid": txid,
+                    "status": result.get("status", "UNKNOWN"),
+                    "valor": result.get("valor", {}),
+                    "pix": result.get("pix", []),  # Lista de pagamentos recebidos
+                    "raw_response": result
+                }
+                
+            except httpx.HTTPError as e:
+                return {
+                    "success": False,
+                    "error": str(e)
+                }
+    
+    async def list_pix_received(self, start_date: str, end_date: str) -> dict:
+        """Lista PIX recebidos em um período"""
+        token = await self.get_access_token()
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "gw-dev-app-key": self.app_key
+        }
+        
+        params = {
+            "inicio": f"{start_date}T00:00:00Z",
+            "fim": f"{end_date}T23:59:59Z"
+        }
+        
+        async with httpx.AsyncClient(verify=False) as client:
+            try:
+                response = await client.get(f"{self.api_url}/pix", headers=headers, params=params)
+                response.raise_for_status()
+                
+                result = response.json()
+                return {
+                    "success": True,
+                    "pix": result.get("pix", []),
+                    "parametros": result.get("parametros", {})
+                }
+                
+            except httpx.HTTPError as e:
+                return {
+                    "success": False,
+                    "error": str(e)
+                }
+
+# Initialize BB PIX client
+bb_pix_client = BancoDoBrasilPIX() if BB_PIX_AVAILABLE else None
 
 # Create the main app
 app = FastAPI(title="Eleitora 360 API", version="1.0.0")
@@ -4320,7 +4563,7 @@ async def get_contador_campaigns(current_user: dict = Depends(get_current_user))
 # ============== PIX PAYMENT ROUTES ==============
 @api_router.post("/pix/payment")
 async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depends(get_current_user)):
-    """Create a PIX payment (simulated - real integration requires BB API credentials)"""
+    """Create a PIX payment using Banco do Brasil API"""
     campaign_id = current_user.get("campaign_id")
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
@@ -4334,6 +4577,31 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
             raise HTTPException(status_code=404, detail="Despesa não encontrada")
     
     pix_id = str(uuid.uuid4())
+    bb_response = None
+    txid = None
+    pix_copia_cola = None
+    
+    # Try real BB integration if available
+    if bb_pix_client and BB_PIX_AVAILABLE:
+        try:
+            bb_response = await bb_pix_client.create_pix_payment({
+                "pix_key": data.pix_key,
+                "recipient_name": data.recipient_name,
+                "recipient_cpf_cnpj": data.recipient_cpf_cnpj,
+                "amount": data.amount,
+                "description": data.description,
+                "scheduled_date": data.scheduled_date or datetime.now().strftime("%Y-%m-%d")
+            })
+            
+            if bb_response.get("success"):
+                txid = bb_response.get("txid")
+                pix_copia_cola = bb_response.get("pixCopiaECola")
+                logging.info(f"PIX BB criado com sucesso: {txid}")
+            else:
+                logging.warning(f"PIX BB falhou, usando modo simulado: {bb_response.get('error')}")
+        except Exception as e:
+            logging.error(f"Erro na integração BB PIX: {e}")
+    
     pix_doc = {
         "id": pix_id,
         "pix_key": data.pix_key,
@@ -4345,7 +4613,10 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
         "scheduled_date": data.scheduled_date,
         "expense_id": data.expense_id,
         "status": "agendado" if data.scheduled_date else "processando",
-        "transaction_id": None,
+        "transaction_id": txid,
+        "pix_copia_cola": pix_copia_cola,
+        "bb_response": bb_response if bb_response else None,
+        "integration_mode": "real" if txid else "simulado",
         "campaign_id": campaign_id,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -4353,13 +4624,12 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
     await db.pix_payments.insert_one(pix_doc)
     pix_doc.pop("_id", None)
     
-    # NOTE: Real PIX integration would call Banco do Brasil API here
-    # For now, this is a simulation that stores the payment intent
-    
     return {
-        "message": "Pagamento PIX agendado com sucesso",
+        "message": "Pagamento PIX criado com sucesso",
         "pix_payment": pix_doc,
-        "note": "Integração Simulada - Configure credenciais do Banco do Brasil para pagamentos reais"
+        "integration_mode": "real" if txid else "simulado",
+        "bb_available": BB_PIX_AVAILABLE,
+        "pix_copia_cola": pix_copia_cola
     }
 
 @api_router.get("/pix/payments")
@@ -4435,21 +4705,158 @@ async def get_bank_info():
     """Get Banco do Brasil integration info"""
     return {
         "bank": "Banco do Brasil",
-        "integration_status": "ready_for_configuration",
-        "required_credentials": [
-            "client_id",
-            "client_secret", 
-            "developer_application_key"
-        ],
-        "api_docs": "https://developers.bb.com.br",
+        "integration_available": BB_PIX_AVAILABLE,
+        "environment": BB_ENVIRONMENT if BB_PIX_AVAILABLE else None,
+        "integration_status": "ativo" if BB_PIX_AVAILABLE else "não_configurado",
         "features": [
-            "PIX Cobrança",
+            "PIX Cobrança (cobv)",
             "PIX Pagamento",
-            "PIX Automático",
-            "Consulta de Saldo",
-            "Extrato"
-        ],
-        "note": "Para ativar a integração real, configure as credenciais do Banco do Brasil no ambiente."
+            "Consulta de Status",
+            "Geração de QR Code",
+            "PIX Copia e Cola"
+        ] if BB_PIX_AVAILABLE else [],
+        "api_docs": "https://developers.bb.com.br",
+        "note": "Integração com Banco do Brasil para PIX" if BB_PIX_AVAILABLE else "Configure as credenciais BB_APP_KEY, BB_CLIENT_ID e BB_CLIENT_SECRET no ambiente"
+    }
+
+@api_router.get("/pix/check-status/{pix_id}")
+async def check_pix_status(pix_id: str, current_user: dict = Depends(get_current_user)):
+    """Check PIX payment status from Banco do Brasil"""
+    campaign_id = current_user.get("campaign_id")
+    
+    payment = await db.pix_payments.find_one(
+        {"id": pix_id, "campaign_id": campaign_id}
+    )
+    if not payment:
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
+    
+    txid = payment.get("transaction_id")
+    
+    # If we have a real txid, check with BB
+    if txid and bb_pix_client and BB_PIX_AVAILABLE:
+        try:
+            bb_status = await bb_pix_client.check_pix_status(txid)
+            
+            if bb_status.get("success"):
+                # Update local record
+                new_status = payment.get("status")
+                bb_pix_status = bb_status.get("status", "")
+                
+                if bb_pix_status == "CONCLUIDA":
+                    new_status = "executado"
+                elif bb_pix_status == "REMOVIDA_PELO_USUARIO_RECEBEDOR":
+                    new_status = "cancelado"
+                elif bb_pix_status in ["ATIVA", "CRIADA"]:
+                    new_status = "agendado"
+                
+                # Check if payment was received
+                pix_received = bb_status.get("pix", [])
+                if pix_received:
+                    new_status = "executado"
+                    # Update expense if linked
+                    if payment.get("expense_id"):
+                        await db.expenses.update_one(
+                            {"id": payment.get("expense_id")},
+                            {"$set": {"payment_status": "pago", "pix_transaction_id": txid}}
+                        )
+                
+                await db.pix_payments.update_one(
+                    {"id": pix_id},
+                    {"$set": {
+                        "status": new_status,
+                        "bb_status": bb_pix_status,
+                        "last_checked": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                
+                return {
+                    "pix_id": pix_id,
+                    "txid": txid,
+                    "local_status": new_status,
+                    "bb_status": bb_pix_status,
+                    "pix_received": pix_received,
+                    "bb_response": bb_status
+                }
+            else:
+                return {
+                    "pix_id": pix_id,
+                    "txid": txid,
+                    "local_status": payment.get("status"),
+                    "error": bb_status.get("error"),
+                    "note": "Não foi possível consultar o status no Banco do Brasil"
+                }
+        except Exception as e:
+            logging.error(f"Erro ao verificar status PIX: {e}")
+            return {
+                "pix_id": pix_id,
+                "local_status": payment.get("status"),
+                "error": str(e)
+            }
+    
+    return {
+        "pix_id": pix_id,
+        "local_status": payment.get("status"),
+        "integration_mode": payment.get("integration_mode", "simulado"),
+        "note": "Pagamento em modo simulado - sem consulta real ao BB"
+    }
+
+@api_router.post("/pix/execute/{pix_id}")
+async def execute_pix_payment(pix_id: str, current_user: dict = Depends(get_current_user)):
+    """Execute a scheduled PIX payment"""
+    campaign_id = current_user.get("campaign_id")
+    
+    payment = await db.pix_payments.find_one(
+        {"id": pix_id, "campaign_id": campaign_id}
+    )
+    if not payment:
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
+    
+    if payment.get("status") == "executado":
+        raise HTTPException(status_code=400, detail="PIX já foi executado")
+    
+    txid = payment.get("transaction_id")
+    
+    # If we have real integration, the PIX is already created on BB
+    # We just need to wait for the recipient to pay
+    if txid and BB_PIX_AVAILABLE:
+        # Check current status
+        if bb_pix_client:
+            bb_status = await bb_pix_client.check_pix_status(txid)
+            
+            return {
+                "message": "PIX já está ativo no Banco do Brasil",
+                "txid": txid,
+                "bb_status": bb_status.get("status") if bb_status.get("success") else "unknown",
+                "pix_copia_cola": payment.get("pix_copia_cola"),
+                "note": "O destinatário pode pagar usando o código PIX Copia e Cola ou QR Code"
+            }
+    
+    # Simulate execution for non-integrated payments
+    transaction_id = f"E{uuid.uuid4().hex[:20].upper()}"
+    
+    await db.pix_payments.update_one(
+        {"id": pix_id},
+        {
+            "$set": {
+                "status": "executado",
+                "transaction_id": transaction_id,
+                "executed_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    # Update expense status if linked
+    if payment.get("expense_id"):
+        await db.expenses.update_one(
+            {"id": payment.get("expense_id")},
+            {"$set": {"payment_status": "pago", "pix_transaction_id": transaction_id}}
+        )
+    
+    return {
+        "message": "PIX executado com sucesso",
+        "transaction_id": transaction_id,
+        "status": "executado",
+        "integration_mode": "simulado"
     }
 
 # ============== TSE SPENDING LIMITS ==============
