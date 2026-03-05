@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, categoryLabels } from '../lib/utils';
-import { Plus, Pencil, Trash2, TrendingUp, Search, Filter, X, Upload, Paperclip } from 'lucide-react';
+import { Plus, Pencil, Trash2, TrendingUp, Search, Filter, X, Upload, Paperclip, FileText, Download } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -25,6 +25,40 @@ const revenueCategories = [
     { value: 'outros', label: 'Outros' }
 ];
 
+// SPCE Types
+const tiposReceita = [
+    { value: 'doacao_financeira', label: 'Doação Financeira' },
+    { value: 'doacao_estimavel', label: 'Doação Estimável em Dinheiro' },
+    { value: 'recursos_proprios', label: 'Recursos Próprios' },
+    { value: 'fundo_partidario', label: 'Fundo Partidário' },
+    { value: 'fundo_eleitoral', label: 'Fundo Especial de Campanha' },
+    { value: 'comercializacao', label: 'Comercialização de Bens/Serviços' },
+    { value: 'rendimento_aplicacao', label: 'Rendimento de Aplicação' },
+    { value: 'sobras_campanha', label: 'Sobras de Campanha Anterior' },
+    { value: 'outros', label: 'Outros' }
+];
+
+const tiposDoador = [
+    { value: 'pessoa_fisica', label: 'Pessoa Física' },
+    { value: 'pessoa_juridica', label: 'Pessoa Jurídica' },
+    { value: 'partido', label: 'Partido Político' },
+    { value: 'candidato', label: 'Candidato' },
+    { value: 'comite', label: 'Comitê Financeiro' },
+    { value: 'fundo_partidario', label: 'Fundo Partidário' },
+    { value: 'fundo_eleitoral', label: 'Fundo Eleitoral' }
+];
+
+const formasRecebimento = [
+    { value: 'pix', label: 'PIX' },
+    { value: 'transferencia', label: 'Transferência Bancária' },
+    { value: 'deposito', label: 'Depósito em Conta' },
+    { value: 'cheque', label: 'Cheque' },
+    { value: 'especie', label: 'Espécie (até R$ 1.064,10)' },
+    { value: 'cartao_credito', label: 'Cartão de Crédito' },
+    { value: 'cartao_debito', label: 'Cartão de Débito' },
+    { value: 'estimavel', label: 'Estimável em Dinheiro' }
+];
+
 const emptyForm = {
     description: '',
     amount: '',
@@ -33,7 +67,12 @@ const emptyForm = {
     donor_cpf_cnpj: '',
     date: new Date().toISOString().split('T')[0],
     receipt_number: '',
-    notes: ''
+    notes: '',
+    // SPCE Fields
+    tipo_receita: 'doacao_financeira',
+    tipo_doador: 'pessoa_fisica',
+    forma_recebimento: 'transferencia',
+    donor_titulo_eleitor: ''
 };
 
 export default function Receitas() {
@@ -105,10 +144,33 @@ export default function Receitas() {
             donor_cpf_cnpj: revenue.donor_cpf_cnpj || '',
             date: revenue.date,
             receipt_number: revenue.receipt_number || '',
-            notes: revenue.notes || ''
+            notes: revenue.notes || '',
+            // SPCE Fields
+            tipo_receita: revenue.tipo_receita || 'doacao_financeira',
+            tipo_doador: revenue.tipo_doador || 'pessoa_fisica',
+            forma_recebimento: revenue.forma_recebimento || 'transferencia',
+            donor_titulo_eleitor: revenue.donor_titulo_eleitor || ''
         });
         setEditingId(revenue.id);
         setDialogOpen(true);
+    };
+
+    const handleDownloadRecibo = async (revenueId) => {
+        try {
+            const response = await axios.get(`${API}/revenues/${revenueId}/recibo-pdf`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `recibo_eleitoral_${revenueId}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success('Recibo eleitoral baixado!');
+        } catch (error) {
+            toast.error('Erro ao gerar recibo eleitoral');
+        }
     };
 
     const handleDelete = async (id) => {
@@ -270,6 +332,84 @@ export default function Receitas() {
                                             data-testid="revenue-receipt-input"
                                         />
                                     </div>
+                                    
+                                    {/* SPCE Fields Section */}
+                                    <div className="md:col-span-2 pt-4 border-t">
+                                        <p className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                                            <FileText className="h-4 w-4" />
+                                            Campos SPCE (Prestação de Contas)
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label>Tipo de Receita *</Label>
+                                        <Select
+                                            value={formData.tipo_receita}
+                                            onValueChange={(value) => handleChange('tipo_receita', value)}
+                                        >
+                                            <SelectTrigger data-testid="revenue-tipo-receita-select">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {tiposReceita.map(tipo => (
+                                                    <SelectItem key={tipo.value} value={tipo.value}>
+                                                        {tipo.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label>Tipo de Doador *</Label>
+                                        <Select
+                                            value={formData.tipo_doador}
+                                            onValueChange={(value) => handleChange('tipo_doador', value)}
+                                        >
+                                            <SelectTrigger data-testid="revenue-tipo-doador-select">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {tiposDoador.map(tipo => (
+                                                    <SelectItem key={tipo.value} value={tipo.value}>
+                                                        {tipo.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label>Forma de Recebimento *</Label>
+                                        <Select
+                                            value={formData.forma_recebimento}
+                                            onValueChange={(value) => handleChange('forma_recebimento', value)}
+                                        >
+                                            <SelectTrigger data-testid="revenue-forma-recebimento-select">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {formasRecebimento.map(forma => (
+                                                    <SelectItem key={forma.value} value={forma.value}>
+                                                        {forma.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    {formData.tipo_doador === 'pessoa_fisica' && (
+                                        <div className="space-y-2">
+                                            <Label>Título de Eleitor do Doador</Label>
+                                            <Input
+                                                value={formData.donor_titulo_eleitor}
+                                                onChange={(e) => handleChange('donor_titulo_eleitor', e.target.value)}
+                                                placeholder="0000 0000 0000"
+                                                data-testid="revenue-titulo-eleitor-input"
+                                            />
+                                        </div>
+                                    )}
+                                    
                                     <div className="space-y-2 md:col-span-2">
                                         <Label>Observações</Label>
                                         <Textarea
@@ -454,6 +594,16 @@ export default function Receitas() {
                                                                 <Paperclip className="h-4 w-4" />
                                                             </Button>
                                                         )}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="text-blue-400"
+                                                            title="Baixar Recibo Eleitoral PDF"
+                                                            onClick={() => handleDownloadRecibo(revenue.id)}
+                                                            data-testid={`download-recibo-${revenue.id}`}
+                                                        >
+                                                            <Download className="h-4 w-4" />
+                                                        </Button>
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"

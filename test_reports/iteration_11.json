@@ -1,0 +1,125 @@
+{
+  "summary": "Successfully tested Eleitora 360 SPCE fields in Receitas and Despesas, Conformidade TSE page, and Recibo Eleitoral PDF download. All backend tests (14/14) and frontend tests (23/23) passed. The application correctly implements SPCE compliance fields required for TSE electoral accounting.",
+  "mode": "generate",
+  "baseline_commit": "19cea6e070eaaaf3fdf4aef652e75ec1245857cc",
+  "head_commit": "19cea6e070eaaaf3fdf4aef652e75ec1245857cc",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Conformidade TSE",
+        "issues": ["CNPJ da campanha não configurado - alerts shown as expected, user needs to configure in settings"]
+      }
+    ]
+  },
+  "regression_results": {
+    "total_specs": 5,
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0
+  },
+  "specs_created": [
+    "/app/tests/e2e/auth-navigation.spec.ts",
+    "/app/tests/e2e/receitas-spce.spec.ts",
+    "/app/tests/e2e/despesas-spce.spec.ts",
+    "/app/tests/e2e/conformidade-tse.spec.ts",
+    "/app/tests/e2e/golden-path.spec.ts"
+  ],
+  "specs_updated": [],
+  "quarantined_tests": [],
+  "test_report_links": [
+    "/app/backend/tests/test_spce_fields.py",
+    "/app/test_reports/pytest/pytest_spce_results.xml"
+  ],
+  "action_items": [],
+  "updated_files": [
+    "/app/tests/playwright.config.ts",
+    "/app/tests/fixtures/helpers.ts",
+    "/app/backend/tests/test_spce_fields.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "100% (23/23 tests passed)"
+  },
+  "passed_tests": {
+    "backend": [
+      "TestAuthAndLogin::test_login_success",
+      "TestAuthAndLogin::test_login_invalid_credentials",
+      "TestRevenuesSPCEFields::test_create_revenue_with_spce_fields",
+      "TestRevenuesSPCEFields::test_get_revenues_list",
+      "TestRevenuesSPCEFields::test_create_revenue_different_spce_types",
+      "TestRevenuesSPCEFields::test_update_revenue_spce_fields",
+      "TestExpensesSPCEFields::test_create_expense_with_spce_fields",
+      "TestExpensesSPCEFields::test_get_expenses_list",
+      "TestExpensesSPCEFields::test_create_expense_different_payment_types",
+      "TestExpensesSPCEFields::test_update_expense_spce_fields",
+      "TestReciboEleitoralPDF::test_download_recibo_eleitoral_pdf",
+      "TestConformidadeTSE::test_get_conformidade_tse",
+      "TestConformidadeTSE::test_conformidade_has_resumo",
+      "TestDashboard::test_get_dashboard_stats"
+    ],
+    "frontend": [
+      "Authentication Flow › should display login page",
+      "Authentication Flow › should login successfully with valid credentials",
+      "Authentication Flow › should show error for invalid credentials",
+      "Navigation › should navigate to Receitas page",
+      "Navigation › should navigate to Despesas page",
+      "Navigation › should navigate to Conformidade TSE page",
+      "Navigation › should navigate to Contratos page",
+      "Navigation › should navigate to Pagamentos page",
+      "Receitas SPCE Fields › should display Receitas page with summary card",
+      "Receitas SPCE Fields › should open Nova Receita form with SPCE fields",
+      "Receitas SPCE Fields › should show Título de Eleitor field for Pessoa Física",
+      "Despesas SPCE Fields › should display Despesas page with summary card",
+      "Despesas SPCE Fields › should open Nova Despesa form with SPCE fields",
+      "Despesas SPCE Fields › should change payment type in SPCE fields",
+      "Conformidade TSE Page › should display with progress indicator",
+      "Conformidade TSE Page › should show status badge (Em Andamento)",
+      "Conformidade TSE Page › should display summary statistics counts",
+      "Conformidade TSE Page › should display pending actions section",
+      "Conformidade TSE Page › should display category breakdown section",
+      "Conformidade TSE Page › should have Atualizar and Exportar buttons",
+      "Conformidade TSE Page › should show alerts for missing CNPJ",
+      "Conformidade TSE Page › should show TSE information section",
+      "Conformidade TSE Page › should refresh data when clicking Atualizar",
+      "Golden Path › should create revenue with SPCE fields and download recibo",
+      "Golden Path › should create expense with SPCE fields and verify in list",
+      "Golden Path › should navigate through all main pages"
+    ]
+  },
+  "features_verified": {
+    "spce_receitas": {
+      "status": "WORKING",
+      "fields_tested": ["tipo_receita", "tipo_doador", "forma_recebimento", "donor_titulo_eleitor"]
+    },
+    "spce_despesas": {
+      "status": "WORKING",
+      "fields_tested": ["tipo_pagamento", "numero_documento_fiscal", "data_pagamento"]
+    },
+    "recibo_eleitoral_pdf": {
+      "status": "WORKING",
+      "note": "PDF download endpoint returns valid PDF content"
+    },
+    "conformidade_tse": {
+      "status": "WORKING",
+      "note": "Page shows 62% complete with alerts for missing CNPJ and eleitores configuration"
+    },
+    "authentication_jwt": {
+      "status": "WORKING",
+      "note": "JWT login working with 24h token expiration"
+    }
+  },
+  "mocked_api": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Banco do Brasil PIX - uses simulado mode when OAuth fails (BB credentials configured in homologação)"]
+  },
+  "seed_data_creation": "Test revenues and expenses created during testing were cleaned up after tests",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All SPCE features are working correctly. Backend and frontend tests are in place. BB PIX integration is configured with real credentials in homologação mode but falls back to simulado mode for actual transactions. CNPJ da campanha is not configured in the test campaign - this is expected and shown as an alert in Conformidade TSE page."
+}

@@ -15,7 +15,8 @@ import {
     X,
     ChevronRight,
     Vote,
-    Bot
+    Bot,
+    ClipboardCheck
 } from 'lucide-react';
 
 const navItems = [
@@ -25,7 +26,8 @@ const navItems = [
     { path: '/contratos', label: 'Contratos', icon: FileText },
     { path: '/pagamentos', label: 'Pagamentos', icon: CreditCard },
     { path: '/relatorios', label: 'Relatórios', icon: BarChart3 },
-    { path: '/assistente', label: 'Assistente IA', icon: Bot, highlight: true },
+    { path: '/conformidade', label: 'Conformidade TSE', icon: ClipboardCheck, highlight: true },
+    { path: '/assistente', label: 'Assistente IA', icon: Bot },
     { path: '/configuracoes', label: 'Configurações', icon: Settings },
 ];
 

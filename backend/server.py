@@ -58,7 +58,7 @@ JWT_EXPIRATION_HOURS = 24
 # Email Config
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
-APP_URL = os.environ.get('APP_URL', 'https://portal-contador.preview.emergentagent.com')
+APP_URL = os.environ.get('APP_URL', 'https://brasil-voting.preview.emergentagent.com')
 
 if RESEND_AVAILABLE and RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -561,6 +561,48 @@ class CampaignResponse(BaseModel):
     telefone: Optional[str] = None
     email: Optional[str] = None
 
+# SPCE Revenue Types
+class TipoReceita(str, Enum):
+    DOACAO_FINANCEIRA = "doacao_financeira"
+    DOACAO_ESTIMAVEL = "doacao_estimavel"
+    RECURSOS_PROPRIOS = "recursos_proprios"
+    FUNDO_PARTIDARIO = "fundo_partidario"
+    FUNDO_ELEITORAL = "fundo_eleitoral"
+    COMERCIALIZACAO = "comercializacao"
+    RENDIMENTO_APLICACAO = "rendimento_aplicacao"
+    SOBRAS_CAMPANHA = "sobras_campanha"
+    OUTROS = "outros"
+
+class TipoDoador(str, Enum):
+    PESSOA_FISICA = "pessoa_fisica"
+    PESSOA_JURIDICA = "pessoa_juridica"
+    PARTIDO = "partido"
+    CANDIDATO = "candidato"
+    COMITE = "comite"
+    FUNDO_PARTIDARIO = "fundo_partidario"
+    FUNDO_ELEITORAL = "fundo_eleitoral"
+
+class FormaRecebimento(str, Enum):
+    PIX = "pix"
+    TRANSFERENCIA = "transferencia"
+    DEPOSITO = "deposito"
+    CHEQUE = "cheque"
+    ESPECIE = "especie"
+    CARTAO_CREDITO = "cartao_credito"
+    CARTAO_DEBITO = "cartao_debito"
+    ESTIMAVEL = "estimavel"
+
+# SPCE Payment Types
+class TipoPagamento(str, Enum):
+    PIX = "pix"
+    TRANSFERENCIA = "transferencia"
+    BOLETO = "boleto"
+    CHEQUE = "cheque"
+    ESPECIE = "especie"
+    CARTAO_CREDITO = "cartao_credito"
+    CARTAO_DEBITO = "cartao_debito"
+    DEBITO_AUTOMATICO = "debito_automatico"
+
 class RevenueCreate(BaseModel):
     description: str
     amount: float
@@ -571,6 +613,12 @@ class RevenueCreate(BaseModel):
     receipt_number: Optional[str] = None
     notes: Optional[str] = None
     attachment_id: Optional[str] = None
+    # SPCE Required Fields
+    tipo_receita: Optional[TipoReceita] = TipoReceita.DOACAO_FINANCEIRA
+    tipo_doador: Optional[TipoDoador] = TipoDoador.PESSOA_FISICA
+    forma_recebimento: Optional[FormaRecebimento] = FormaRecebimento.TRANSFERENCIA
+    recibo_eleitoral: Optional[str] = None  # Número do recibo eleitoral (auto-gerado)
+    donor_titulo_eleitor: Optional[str] = None  # Título de eleitor do doador PF
 
 class RevenueResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -586,6 +634,12 @@ class RevenueResponse(BaseModel):
     campaign_id: str
     created_at: str
     attachment_id: Optional[str] = None
+    # SPCE Fields
+    tipo_receita: Optional[str] = None
+    tipo_doador: Optional[str] = None
+    forma_recebimento: Optional[str] = None
+    recibo_eleitoral: Optional[str] = None
+    donor_titulo_eleitor: Optional[str] = None
 
 class ExpenseCreate(BaseModel):
     description: str
@@ -599,6 +653,12 @@ class ExpenseCreate(BaseModel):
     attachment_id: Optional[str] = None
     payment_status: Optional[str] = "pendente"  # pendente, pago
     contract_id: Optional[str] = None  # Link to contract if auto-generated
+    # SPCE Required Fields
+    tipo_pagamento: Optional[TipoPagamento] = None
+    numero_parcela: Optional[int] = None
+    total_parcelas: Optional[int] = None
+    numero_documento_fiscal: Optional[str] = None
+    data_pagamento: Optional[str] = None
 
 class ExpenseResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -616,6 +676,12 @@ class ExpenseResponse(BaseModel):
     attachment_id: Optional[str] = None
     payment_status: Optional[str] = "pendente"
     contract_id: Optional[str] = None
+    # SPCE Fields
+    tipo_pagamento: Optional[str] = None
+    numero_parcela: Optional[int] = None
+    total_parcelas: Optional[int] = None
+    numero_documento_fiscal: Optional[str] = None
+    data_pagamento: Optional[str] = None
 
 class ContractCreate(BaseModel):
     title: str
@@ -1250,15 +1316,39 @@ async def update_campaign(campaign_id: str, data: CampaignCreate, current_user: 
     return updated
 
 # ============== REVENUE ROUTES ==============
+async def generate_recibo_eleitoral(campaign_id: str) -> str:
+    """Generate sequential electoral receipt number"""
+    # Get campaign info for the prefix
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    if not campaign:
+        return None
+    
+    # Count existing revenues to generate sequence
+    count = await db.revenues.count_documents({"campaign_id": campaign_id})
+    sequence = count + 1
+    
+    # Format: UF-ANO-NUMCANDIDATO-SEQUENCIA
+    uf = campaign.get("state", "XX")
+    ano = campaign.get("election_year", datetime.now().year)
+    num_cand = campaign.get("numero_candidato", "00000")
+    
+    return f"{uf}{ano}{num_cand}{sequence:05d}"
+
 @api_router.post("/revenues", response_model=RevenueResponse)
 async def create_revenue(data: RevenueCreate, current_user: dict = Depends(get_current_user)):
     if not current_user.get("campaign_id"):
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
     revenue_id = str(uuid.uuid4())
+    revenue_data = data.model_dump()
+    
+    # Auto-generate recibo eleitoral if not provided
+    if not revenue_data.get("recibo_eleitoral"):
+        revenue_data["recibo_eleitoral"] = await generate_recibo_eleitoral(current_user["campaign_id"])
+    
     revenue_doc = {
         "id": revenue_id,
-        **data.model_dump(),
+        **revenue_data,
         "campaign_id": current_user["campaign_id"],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -1296,6 +1386,134 @@ async def delete_revenue(revenue_id: str, current_user: dict = Depends(get_curre
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Receita não encontrada")
     return {"message": "Receita excluída"}
+
+@api_router.get("/revenues/{revenue_id}/recibo-pdf")
+async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_current_user)):
+    """Generate electoral receipt PDF"""
+    if not PDF_AVAILABLE:
+        raise HTTPException(status_code=500, detail="PDF generation not available")
+    
+    revenue = await db.revenues.find_one(
+        {"id": revenue_id, "campaign_id": current_user.get("campaign_id")},
+        {"_id": 0}
+    )
+    if not revenue:
+        raise HTTPException(status_code=404, detail="Receita não encontrada")
+    
+    campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
+    
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER, fontSize=12))
+    styles.add(ParagraphStyle(name='Title2', alignment=TA_CENTER, fontSize=16, spaceAfter=20, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='RightAlign', alignment=2, fontSize=10))  # 2 = TA_RIGHT
+    
+    elements = []
+    
+    # Header
+    elements.append(Paragraph("RECIBO ELEITORAL", styles['Title2']))
+    elements.append(Paragraph(f"<b>Nº {revenue.get('recibo_eleitoral', 'N/A')}</b>", styles['Center']))
+    elements.append(Spacer(1, 30))
+    
+    # Campaign info
+    elements.append(Paragraph(f"<b>CANDIDATO(A):</b> {campaign.get('candidate_name', '')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>CARGO:</b> {campaign.get('position', '')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>PARTIDO:</b> {campaign.get('party', '')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>CNPJ DA CAMPANHA:</b> {campaign.get('cnpj', 'Não informado')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>CIDADE/UF:</b> {campaign.get('city', '')}/{campaign.get('state', '')}", styles['Normal']))
+    elements.append(Spacer(1, 20))
+    
+    # Donation info
+    elements.append(Paragraph("_" * 70, styles['Normal']))
+    elements.append(Spacer(1, 10))
+    elements.append(Paragraph("<b>DADOS DA DOAÇÃO</b>", styles['Center']))
+    elements.append(Spacer(1, 10))
+    
+    tipo_receita_labels = {
+        "doacao_financeira": "Doação Financeira",
+        "doacao_estimavel": "Doação Estimável em Dinheiro",
+        "recursos_proprios": "Recursos Próprios",
+        "fundo_partidario": "Fundo Partidário",
+        "fundo_eleitoral": "Fundo Especial de Financiamento de Campanha",
+        "comercializacao": "Comercialização de Bens/Serviços",
+        "rendimento_aplicacao": "Rendimento de Aplicação",
+        "sobras_campanha": "Sobras de Campanha Anterior",
+        "outros": "Outros"
+    }
+    
+    forma_labels = {
+        "pix": "PIX",
+        "transferencia": "Transferência Bancária",
+        "deposito": "Depósito em Conta",
+        "cheque": "Cheque",
+        "especie": "Espécie",
+        "cartao_credito": "Cartão de Crédito",
+        "cartao_debito": "Cartão de Débito",
+        "estimavel": "Estimável em Dinheiro"
+    }
+    
+    elements.append(Paragraph(f"<b>Tipo de Receita:</b> {tipo_receita_labels.get(revenue.get('tipo_receita'), revenue.get('tipo_receita', 'Não informado'))}", styles['Normal']))
+    elements.append(Paragraph(f"<b>Forma de Recebimento:</b> {forma_labels.get(revenue.get('forma_recebimento'), revenue.get('forma_recebimento', 'Não informado'))}", styles['Normal']))
+    elements.append(Paragraph(f"<b>Data:</b> {revenue.get('date', '')}", styles['Normal']))
+    elements.append(Spacer(1, 10))
+    
+    # Amount
+    amount = revenue.get('amount', 0)
+    elements.append(Paragraph(f"<b>VALOR: R$ {amount:,.2f}</b>", styles['Title2']))
+    elements.append(Spacer(1, 20))
+    
+    # Donor info
+    elements.append(Paragraph("_" * 70, styles['Normal']))
+    elements.append(Spacer(1, 10))
+    elements.append(Paragraph("<b>DADOS DO DOADOR</b>", styles['Center']))
+    elements.append(Spacer(1, 10))
+    
+    tipo_doador_labels = {
+        "pessoa_fisica": "Pessoa Física",
+        "pessoa_juridica": "Pessoa Jurídica",
+        "partido": "Partido Político",
+        "candidato": "Candidato",
+        "comite": "Comitê Financeiro",
+        "fundo_partidario": "Fundo Partidário",
+        "fundo_eleitoral": "Fundo Eleitoral"
+    }
+    
+    elements.append(Paragraph(f"<b>Nome:</b> {revenue.get('donor_name', 'Não informado')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>CPF/CNPJ:</b> {revenue.get('donor_cpf_cnpj', 'Não informado')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>Tipo de Doador:</b> {tipo_doador_labels.get(revenue.get('tipo_doador'), revenue.get('tipo_doador', 'Não informado'))}", styles['Normal']))
+    if revenue.get('donor_titulo_eleitor'):
+        elements.append(Paragraph(f"<b>Título de Eleitor:</b> {revenue.get('donor_titulo_eleitor')}", styles['Normal']))
+    elements.append(Spacer(1, 10))
+    elements.append(Paragraph(f"<b>Descrição:</b> {revenue.get('description', '')}", styles['Normal']))
+    elements.append(Spacer(1, 30))
+    
+    # Footer
+    elements.append(Paragraph("_" * 70, styles['Normal']))
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph(f"{campaign.get('city', '')}, {datetime.now().strftime('%d de %B de %Y')}", styles['RightAlign']))
+    elements.append(Spacer(1, 40))
+    elements.append(Paragraph("_" * 40, styles['Center']))
+    elements.append(Paragraph(f"{campaign.get('candidate_name', '')}", styles['Center']))
+    elements.append(Paragraph("Assinatura do Candidato", styles['Center']))
+    elements.append(Spacer(1, 30))
+    
+    # Legal notice
+    elements.append(Paragraph("<i>Este recibo foi emitido em conformidade com a Resolução TSE nº 23.607/2019</i>", styles['Center']))
+    elements.append(Paragraph(f"<i>Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}</i>", styles['Center']))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"recibo_eleitoral_{revenue.get('recibo_eleitoral', revenue_id)}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 # ============== EXPENSE ROUTES ==============
 @api_router.post("/expenses", response_model=ExpenseResponse)
@@ -2134,6 +2352,258 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         expenses_by_category=expenses_by_cat,
         monthly_flow=monthly_flow
     )
+
+@api_router.get("/dashboard/conformidade-tse")
+async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
+    """Dashboard de conformidade TSE - verifica completude dos dados para prestação de contas"""
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        return {
+            "status": "sem_campanha",
+            "message": "Configure uma campanha primeiro",
+            "completude_geral": 0,
+            "itens": []
+        }
+    
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+    
+    itens = []
+    total_peso = 0
+    peso_completo = 0
+    
+    # 1. DADOS DA CAMPANHA (peso 20)
+    dados_campanha = []
+    campos_campanha = [
+        ("candidate_name", "Nome do Candidato"),
+        ("party", "Partido"),
+        ("position", "Cargo"),
+        ("city", "Cidade"),
+        ("state", "Estado"),
+        ("election_year", "Ano da Eleição"),
+        ("cnpj", "CNPJ da Campanha"),
+        ("numero_candidato", "Número do Candidato"),
+        ("cpf_candidato", "CPF do Candidato"),
+        ("eleitores", "Número de Eleitores")
+    ]
+    
+    for campo, label in campos_campanha:
+        valor = campaign.get(campo)
+        if valor:
+            dados_campanha.append({"campo": label, "status": "ok", "valor": str(valor)[:50]})
+        else:
+            dados_campanha.append({"campo": label, "status": "pendente", "valor": None})
+    
+    completos_campanha = len([d for d in dados_campanha if d["status"] == "ok"])
+    total_campanha = len(dados_campanha)
+    perc_campanha = (completos_campanha / total_campanha * 100) if total_campanha > 0 else 0
+    
+    itens.append({
+        "categoria": "Dados da Campanha",
+        "peso": 20,
+        "completude": round(perc_campanha, 1),
+        "completos": completos_campanha,
+        "total": total_campanha,
+        "detalhes": dados_campanha,
+        "prioridade": "alta" if perc_campanha < 80 else "baixa"
+    })
+    total_peso += 20
+    peso_completo += (perc_campanha / 100) * 20
+    
+    # 2. RECEITAS (peso 25)
+    receitas_completas = 0
+    receitas_pendentes = []
+    
+    for r in revenues:
+        campos_obrigatorios = ["description", "amount", "date", "donor_name", "donor_cpf_cnpj", "tipo_receita", "forma_recebimento", "recibo_eleitoral"]
+        campos_faltando = [c for c in campos_obrigatorios if not r.get(c)]
+        
+        if not campos_faltando:
+            receitas_completas += 1
+        else:
+            receitas_pendentes.append({
+                "id": r.get("id"),
+                "descricao": r.get("description", "Sem descrição")[:30],
+                "campos_faltando": campos_faltando
+            })
+    
+    perc_receitas = (receitas_completas / len(revenues) * 100) if revenues else 100
+    
+    itens.append({
+        "categoria": "Receitas",
+        "peso": 25,
+        "completude": round(perc_receitas, 1),
+        "completos": receitas_completas,
+        "total": len(revenues),
+        "pendentes": receitas_pendentes[:5],  # Mostrar apenas 5 primeiros
+        "prioridade": "alta" if perc_receitas < 80 else "baixa"
+    })
+    total_peso += 25
+    peso_completo += (perc_receitas / 100) * 25
+    
+    # 3. DESPESAS (peso 25)
+    despesas_completas = 0
+    despesas_pendentes = []
+    
+    for e in expenses:
+        campos_obrigatorios = ["description", "amount", "date", "supplier_name", "supplier_cpf_cnpj", "category"]
+        campos_faltando = [c for c in campos_obrigatorios if not e.get(c)]
+        
+        if not campos_faltando:
+            despesas_completas += 1
+        else:
+            despesas_pendentes.append({
+                "id": e.get("id"),
+                "descricao": e.get("description", "Sem descrição")[:30],
+                "campos_faltando": campos_faltando
+            })
+    
+    perc_despesas = (despesas_completas / len(expenses) * 100) if expenses else 100
+    
+    itens.append({
+        "categoria": "Despesas",
+        "peso": 25,
+        "completude": round(perc_despesas, 1),
+        "completos": despesas_completas,
+        "total": len(expenses),
+        "pendentes": despesas_pendentes[:5],
+        "prioridade": "alta" if perc_despesas < 80 else "baixa"
+    })
+    total_peso += 25
+    peso_completo += (perc_despesas / 100) * 25
+    
+    # 4. CONTRATOS (peso 15)
+    contratos_completos = 0
+    contratos_pendentes = []
+    
+    for c in contracts:
+        problemas = []
+        if c.get("status") != "ativo":
+            problemas.append("status_invalido")
+        if not c.get("locador_assinatura_hash"):
+            problemas.append("falta_assinatura_locador")
+        if not c.get("locatario_assinatura_hash"):
+            problemas.append("falta_assinatura_locatario")
+        if not c.get("locador_cpf"):
+            problemas.append("falta_cpf_locador")
+        
+        if not problemas:
+            contratos_completos += 1
+        else:
+            contratos_pendentes.append({
+                "id": c.get("id"),
+                "titulo": c.get("title", "Sem título")[:30],
+                "problemas": problemas
+            })
+    
+    perc_contratos = (contratos_completos / len(contracts) * 100) if contracts else 100
+    
+    itens.append({
+        "categoria": "Contratos",
+        "peso": 15,
+        "completude": round(perc_contratos, 1),
+        "completos": contratos_completos,
+        "total": len(contracts),
+        "pendentes": contratos_pendentes[:5],
+        "prioridade": "media" if perc_contratos < 80 else "baixa"
+    })
+    total_peso += 15
+    peso_completo += (perc_contratos / 100) * 15
+    
+    # 5. DOCUMENTOS/ANEXOS (peso 15)
+    total_docs = 0
+    docs_com_anexo = 0
+    
+    # Check receitas with attachments
+    for r in revenues:
+        total_docs += 1
+        if r.get("attachment_id"):
+            docs_com_anexo += 1
+    
+    # Check despesas with attachments
+    for e in expenses:
+        total_docs += 1
+        if e.get("attachment_id"):
+            docs_com_anexo += 1
+    
+    perc_docs = (docs_com_anexo / total_docs * 100) if total_docs > 0 else 100
+    
+    itens.append({
+        "categoria": "Documentos Comprobatórios",
+        "peso": 15,
+        "completude": round(perc_docs, 1),
+        "completos": docs_com_anexo,
+        "total": total_docs,
+        "prioridade": "media" if perc_docs < 50 else "baixa"
+    })
+    total_peso += 15
+    peso_completo += (perc_docs / 100) * 15
+    
+    # Calcular completude geral
+    completude_geral = (peso_completo / total_peso * 100) if total_peso > 0 else 0
+    
+    # Status geral
+    if completude_geral >= 90:
+        status = "pronto"
+        message = "Sua prestação de contas está praticamente completa!"
+    elif completude_geral >= 70:
+        status = "quase_pronto"
+        message = "Alguns ajustes são necessários antes de enviar."
+    elif completude_geral >= 50:
+        status = "em_andamento"
+        message = "Ainda há campos importantes pendentes de preenchimento."
+    else:
+        status = "incompleto"
+        message = "Muitos dados obrigatórios estão faltando."
+    
+    # Alertas e sugestões
+    alertas = []
+    if not campaign.get("cnpj"):
+        alertas.append({
+            "tipo": "erro",
+            "mensagem": "CNPJ da campanha não configurado - obrigatório para exportação SPCE",
+            "acao": "Vá em Configurações e preencha o CNPJ"
+        })
+    
+    if not campaign.get("eleitores"):
+        alertas.append({
+            "tipo": "aviso",
+            "mensagem": "Número de eleitores não configurado - necessário para cálculo de limite TSE",
+            "acao": "Vá em Configurações e informe o número de eleitores do município"
+        })
+    
+    receitas_sem_recibo = len([r for r in revenues if not r.get("recibo_eleitoral")])
+    if receitas_sem_recibo > 0:
+        alertas.append({
+            "tipo": "aviso",
+            "mensagem": f"{receitas_sem_recibo} receita(s) sem número de recibo eleitoral",
+            "acao": "Edite as receitas e gere os recibos eleitorais"
+        })
+    
+    despesas_sem_comprovante = len([e for e in expenses if not e.get("attachment_id")])
+    if despesas_sem_comprovante > 0:
+        alertas.append({
+            "tipo": "info",
+            "mensagem": f"{despesas_sem_comprovante} despesa(s) sem comprovante anexado",
+            "acao": "Anexe os comprovantes de pagamento"
+        })
+    
+    return {
+        "status": status,
+        "message": message,
+        "completude_geral": round(completude_geral, 1),
+        "itens": itens,
+        "alertas": alertas,
+        "resumo": {
+            "total_receitas": len(revenues),
+            "total_despesas": len(expenses),
+            "total_contratos": len(contracts),
+            "valor_receitas": sum(r.get("amount", 0) for r in revenues),
+            "valor_despesas": sum(e.get("amount", 0) for e in expenses)
+        }
+    }
 
 # ============== REPORTS ROUTES ==============
 @api_router.get("/reports/tse")

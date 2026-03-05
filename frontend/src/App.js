@@ -20,6 +20,9 @@ import Assistente from "./pages/Assistente";
 import ContadorLogin from "./pages/ContadorLogin";
 import ContadorDashboard from "./pages/ContadorDashboard";
 
+// Conformidade TSE
+import ConformidadeTSE from "./pages/ConformidadeTSE";
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
     const { user, loading } = useAuth();
@@ -119,6 +122,11 @@ function AppRoutes() {
             <Route path="/assistente" element={
                 <ProtectedRoute>
                     <Assistente />
+                </ProtectedRoute>
+            } />
+            <Route path="/conformidade" element={
+                <ProtectedRoute>
+                    <ConformidadeTSE />
                 </ProtectedRoute>
             } />
             

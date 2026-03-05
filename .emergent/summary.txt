@@ -5,182 +5,170 @@ PRODUCT REQUIREMENTS:
 - **Core Financial Management:** CRUD operations for revenues, expenses, and contracts.
 - **Compliance & Reporting:**
     - Generation of reports in PDF, JSON, and CSV.
-    - Export of financial data in the official SPCE (Sistema de Prestação de Contas Eleitorais) format, specifically as a ZIP archive with a defined internal structure (, , , , etc.).
+    - Export of financial data in the official SPCE (Sistema de Prestação de Contas Eleitorais) format, specifically as a ZIP archive.
+    - A dedicated dashboard to monitor TSE compliance rules, such as spending limits and donation sources.
 - **Document Management:**
     - Ability to attach files (proof of payment, contracts, etc.) to financial records.
-    - File type validation (JPEG, PNG, PDF).
-    - A system for mandatory documents based on contract type (e.g., car rental requires vehicle registration, driver's license, etc.).
+    - System for mandatory documents based on contract type.
 - **Workflow Automation:**
-    - Automatic creation of expense entries (installments) when a contract is created.
-    - Automatic update of an expense's status from pendente (pending) to pago (paid) when a proof of payment is uploaded.
-- **AI-Powered Assistant (Eleitora):**
-    - An interactive AI assistant to help candidates manage their finances, check for compliance with TSE rules, and identify pending tasks.
-    - The assistant should have access to the campaign's real-time data.
-    - It must support voice commands (speech-to-text and text-to-speech) for hands-free operation.
+    - Automatic creation of expense entries from contracts.
+    - Automatic update of an expense's status to paid when a proof of payment is uploaded.
+    - Automatic generation of Recibo Eleitoral (Electoral Receipt) PDFs for revenues.
+- **AI-Powered Assistant (Eleitora):** An interactive AI assistant with voice command support.
 - **User & Access Management:**
-    - A dedicated portal for accountants and lawyers, allowing them to access and manage their designated candidates' accounts.
+    - A dedicated portal for accountants and lawyers, including a master admin account () to manage other professionals and view all associated campaigns.
 - **Integrations:**
-    - Email integration (using Resend) to send notifications, such as contract signature links.
-    - Banking integration (specifically with Banco do Brasil) to schedule PIX payments directly from the application.
-    - A branded portal or integration with Ativa Contabilidade.
+    - Email integration (Resend) for notifications.
+    - Banking integration (Banco do Brasil) to schedule PIX payments.
+    - A branded portal for Ativa Contabilidade.
 
 **User's preferred language**: Portuguese (Português). The next agent MUST respond in Portuguese.
 
 **what currently exists?**
-The application is substantially developed with a FastAPI backend and a React frontend.
-- **Backend:** Features include JWT authentication, full CRUD for revenues, expenses, and contracts, a complex SPCE ZIP export endpoint, endpoints for managing mandatory contract attachments, an AI assistant () powered by OpenAI, and voice command processing endpoints (, ). The Resend API key is configured.
-- **Frontend:** A responsive UI with a dashboard showing KPIs and alerts, pages for managing revenues, expenses, and contracts with filtering and search. It includes modals for managing contract installments and mandatory attachments. A full-featured AI chat interface for Eleitora is implemented, including a voice interaction mode with a microphone button and audio feedback.
+A full-stack application with a FastAPI backend and React frontend.
+- **Backend:** JWT authentication for both regular users and professionals. Full CRUD for campaigns, revenues, expenses, and contracts. An AI assistant with voice capabilities. Endpoints for SPCE ZIP export, mandatory document handling, PIX payments (with real BB integration), and TSE compliance checks (spending limits, compliance dashboard).
+- **Frontend:** A responsive UI with a dashboard for candidates (including a TSE spending limit card) and a separate, fully functional dashboard for accountants. Pages for managing all financial entities. A new page for Conformidade TSE exists. The PIX integration has a dedicated UI tab under Pagamentos. The system for mandatory contract attachments and expense proof uploads is fully functional.
 
 **Last working item**:
-- **Last item agent was working:** Implementing the backend infrastructure for the Accountant/Lawyer Portal and the Banco do Brasil PIX Integration. The agent had just created the Pydantic models (, ) and the empty FastAPI router files (, ). The agent's last action was to view  to prepare for adding these new routers to the application.
+- **Last item agent was working:** The agent was implementing SPCE compliance improvements. It had just added new SPCE-related fields (, , etc.) to the  frontend page and the corresponding form modal. It also added a button to download the Recibo Eleitoral PDF for each revenue item. The last action was viewing the frontend logs to ensure the changes compiled correctly before taking a screenshot.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** both
+- **Which testing method agent to use?** frontend testing agent
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-There are no known bugs or pending issues. The agent was in the middle of new feature development.
+-   **Issue 1: Recurring Session Expiration (P1)**
+    -   **Description:** Throughout the session, the agent noted that the user session expired very quickly, forcing re-logins. While the testing agent passed all tests (likely by re-authenticating for each test), the underlying cause of the short token lifespan was not investigated or fixed. This impacts user experience.
+    -   **Attempted fixes:** None directly. The agent worked around it by re-logging in or using the testing agent.
+    -   **Next debug checklist:**
+        1.  Check  to see the  value. It might be set too low.
+        2.  Verify the token handling logic in the frontend  () to ensure it's not being prematurely cleared.
+    -   **Why fix this issue and what will be achieved with the fix?** To provide a stable user experience without forcing users to log in repeatedly during a single session.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** both
 
 **In progress Task List**:
-- **Task 1: Implement Accountant/Lawyer Portal and PIX Integration (P0)**
-    - **Where to resume:**
-        1.  Implement the API logic within the newly created files:  and . This includes endpoints for creating professionals, associating them with campaigns, and handling PIX payment requests.
-        2.  Import and include the new routers (, ) in the main FastAPI app in .
-        3.  Develop the corresponding frontend components: a new Contador/Advogado page, forms for inviting/managing professionals, and UI elements for the PIX payment flow.
-    - **What will be achieved with this?** This will complete the user's request to allow accountants/lawyers to access candidate data and to integrate bank payment functionalities.
-    - **Status:** IN PROGRESS
-    - **Should Test frontend/backend/both after fix?** both
-    - **Blocked on something:** None.
+-   **Task 1: Complete SPCE Frontend Implementation (P0)**
+    -   **Where to resume:**
+        1.  The agent was working on . The new fields and download button were added. The next step is to take a screenshot to verify the UI.
+        2.  Test the functionality: create/edit a revenue with the new fields and download the generated PDF receipt.
+        3.  Repeat the process for , adding the corresponding SPCE fields.
+    -   **What will be achieved with this?** The UI for revenues and expenses will be fully aligned with the SPCE data model, allowing users to input all necessary compliance information.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** both
+    -   **Blocked on something:** None.
 
 **Upcoming and Future Tasks**
-- **Upcoming Tasks (P1):**
-    - **Integration with Ativa Contabilidade:** Create a branded portal or special view for accountants from Ativa Contabilidade. This is part of the Aba Contador/Advogado feature set.
-    - **Generate PDF of signed contract:** Automatically generate and attach a PDF of the contract after it has been fully signed.
-    - **Expand SPCE layouts:** Add export functionality for more SPCE layouts, specifically for expenses and contracts as mentioned in an earlier user message.
-
-- **Future Tasks (P2):**
-    - **Accountant Admin Role:** Implement a higher-level admin role for accountants to manage their own staff and candidate assignments.
-    - **Integration with GOV.BR/ICP-Brasil:** Integrate with the official Brazilian digital identity platform for more secure signatures.
-    - **Import Bank Statements:** Allow users to import bank statements (e.g., OFX files) to auto-populate revenues and expenses.
+- **Upcoming Tasks:**
+    - **P1: Complete Expanded SPCE Layouts:** The backend logic was added to  to generate more detailed  and  files. The frontend in  needs to be updated with UI controls to trigger these new, more specific exports.
+    - **P1: Integration with Ativa Contabilidade:** Create a branded portal or special view for accountants from Ativa Contabilidade. This is a sub-task of the Accountant Portal feature.
+- **Future Tasks:**
+    - **P2: Accountant Admin Role:** Implement a higher-level admin role for accountants to manage their own staff and candidate assignments.
+    - **P2: Integration with GOV.BR/ICP-Brasil:** Integrate with the official Brazilian digital identity platform for more secure signatures.
+    - **P2: Import Bank Statements:** Allow users to import bank statements (e.g., OFX files) to auto-populate revenues and expenses.
 
 **Completed work in this session**
-- **Core Features Implemented:**
-    - PDF Export functionality on the Reports page.
-    - Date range filters on Revenue and Expense lists.
-    - Dashboard alerts for overdue payments.
-- **Workflow & Automation:**
-    - Attachment upload for revenues and expenses to serve as proof of payment.
-    - Automatic status update of expenses to paid upon proof upload.
-    - Contract installments that auto-generate corresponding expense records.
-- **Compliance (SPCE):**
-    - Complete SPCE ZIP export feature, creating a structured archive with , , , and  files.
-- **Mandatory Documents:**
-    - System to define and track mandatory document uploads based on the contract type (e.g., Locação de Veículo).
-- **AI Assistant (Eleitora):**
-    - Fully functional AI chat interface with backend integration using OpenAI.
-    - Voice command system using Whisper for Speech-to-Text and a TTS engine for audio responses, enabling hands-free interaction.
-- **Integrations & Fixes:**
-    - Resend API key successfully integrated for sending emails.
-    - Fixed a critical routing bug where  was being incorrectly handled.
-    - Corrected a frontend bug where the generate expenses checkbox for contracts was not being sent correctly.
-- **Testing:**
-    - Successfully tested the application using real candidate data scraped from the TSE website.
+- **Accountant/Lawyer Portal:** Fully implemented, including a separate login (), a dedicated dashboard for the admin accountant (), and the ability to view and manage all campaigns. Tested and verified.
+- **TSE Spending Limits:** Implemented backend logic to calculate spending limits and a frontend card on the candidate's dashboard to display the limit, amount spent, and progress. Tested and verified.
+- **Banco do Brasil PIX Integration:** Configured with real user-provided credentials for the  (testing) environment. Implemented backend logic to authenticate with the BB API and create/check PIX payments. The frontend  page was enhanced with a full UI for managing PIX transactions. The system gracefully falls back to a simulated mode if the real API fails. Tested and verified.
+- **Automatic PDF for Signed Contracts:** Implemented logic to automatically generate, store, and email a professional-looking PDF of a contract once all parties have signed. Added a download endpoint. Tested and verified.
+- **SPCE Compliance Overhaul (Backend):** Added new SPCE-specific fields to  and  models. Created a Recibo Eleitoral PDF generation endpoint for revenues. Created a new TSE Compliance dashboard endpoint.
+- **Verification of Existing Features:** Confirmed that the mandatory attachment system for contracts and the proof-of-payment upload for expenses were fully functional.
+- **Comprehensive Testing:** Used the testing agent multiple times to validate major features like the Accountant Portal, TSE Limits, PIX integration, and Contract Attachments, achieving 100% pass rates.
 
 **Earlier issues found/mentioned but not fixed**
-None. All identified issues during the session were addressed and resolved.
+- The recurring session expiration issue mentioned in **All Pending/In progress Issue list** is the only one.
 
 **Known issue recurrence from previous fork**
-None.
+- None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend:** Python 3, FastAPI, Pydantic for data validation.
-- **Frontend:** React, Vite, JavaScript (JSX), Tailwind CSS for styling.
-- **AI/ML:** OpenAI GPT-4/5 for conversational AI, OpenAI Whisper for Speech-to-Text, a TTS service for Text-to-Speech.
-- **Database:** Implicitly using a simple, likely file-based database like SQLite, managed via Python data structures in memory for some operations.
-- **Libraries:**  (PDF generation),  (email), standard Python libraries for ZIP file handling.
+- **Backend:** Python 3, FastAPI, Pydantic.
+- **Frontend:** React, Vite, JavaScript (JSX), Tailwind CSS.
+- **Database:** In-memory objects acting as a database (persisted via ).
+- **Libraries:** , ,  (for BB integration).
 
 **key DB schema**
-- : {id, email, hashed_password}
-- : {id, candidate_name, party, cnpj, election_year, user_id}
-- : {id, description, amount, date, donor_name, donor_cpf_cnpj, campaign_id, attachment_id}
-- : {id, description, amount, date, status ('pendente', 'pago'), supplier_name, supplier_cpf_cnpj, campaign_id, attachment_id, contract_id}
-- : {id, description, amount, start_date, end_date, template_type, installments, generate_expenses, campaign_id, attachments: List[Attachment]}
-- : {id, file_path, attachment_type, entity_id, entity_type}
-- : {id, name, email, role ('contador', 'advogado'), crc_oab_number} (being implemented)
+- : {..., : str, : str, : str} (new fields added)
+- : {..., : str, : str} (new fields added)
+- : {..., : str, : str, : str, : int} (new fields added)
+- : {id, name, email, hashed_password, role, is_admin}
+- : {id, amount, beneficiary_name, beneficiary_key, status, created_at, execution_date}
 
 **changes in tech stack**
-No significant changes were made to the core tech stack during this session.
+- Added  to  for making synchronous/asynchronous HTTP requests to the Banco do Brasil API.
 
 **All files of reference**
-- : The main FastAPI application file, orchestrating all API routers.
-- : Contains the complex logic for generating the SPCE ZIP archive.
-- , : Contain the backend logic for the Eleitora AI assistant and its voice capabilities.
-- : The complete frontend implementation of the AI assistant, including the voice UI.
-- : Contains the UI for managing contracts, installments, and mandatory attachments.
-- : Contains all necessary credentials, including  and the Emergent LLM Key.
-- , : New files created for the accountant/lawyer feature (in progress).
-- , : New files created for the PIX integration feature (in progress).
+- : Contains the full implementation of the Banco do Brasil PIX integration logic.
+- : Contains the backend logic for the Accountant Portal, including login and data fetching.
+- : Updated with endpoints for electoral receipt generation.
+- : Updated with new, more detailed SPCE export layouts.
+- : Updated to include all new routers and the TSE compliance endpoint.
+- : The main UI for the logged-in accountant.
+- : The UI for the PIX integration.
+- : The file currently being modified for SPCE fields.
+- : Updated with Banco do Brasil API credentials.
 
 **Areas that need refactoring**:
-- The frontend code in pages like  and  has grown quite large. The modals and specific UI sections (like attachment lists or chat bubbles) could be extracted into smaller, reusable components to improve maintainability.
-- The  file is becoming a long list of router inclusions. Adopting an app factory pattern could organize the application setup more cleanly.
+-  has become very large and complex with the addition of PDF generation, signature logic, and email sending. This logic could be moved to dedicated service modules.
+- The frontend pages (, , ) share similar logic for modals, tables, and data fetching that could be abstracted into reusable hooks and components.
 
 **key api endpoints**
-- : User authentication and token generation.
-- : Generates the complete SPCE financial report as a ZIP file.
-- : Manages mandatory attachments for contracts.
-- : Attaches proof of payment and updates expense status.
-- : The primary endpoint for interacting with the Eleitora AI assistant.
-- : Endpoint for transcribing user voice commands.
+- : Authenticates an accountant/lawyer.
+- : Gets aggregated data for the accountant portal.
+- : Calculates the TSE spending limit for the current campaign.
+- : Provides a summary of compliance status for a new dashboard.
+- : Full CRUD for PIX payments, using the real BB API.
+- : Downloads the generated Recibo Eleitoral PDF.
+- : Downloads the signed contract PDF.
 
 **Critical Info for New Agent**
-- The user has provided a real API key for Resend: , which is stored in the  file.
-- All AI features (chat, voice transcription, voice synthesis) rely on the **Emergent LLM Key**.
-- The immediate priority is to complete the in-progress task: building out the backend logic and frontend UI for the Accountant/Lawyer portal and the PIX integration.
-- The user is highly focused on features that automate compliance and simplify workflows, such as automatic expense generation and status updates.
+- The Banco do Brasil credentials in  are for the **homologation (testing)** environment. The integration is coded to fall back to a simulated mode if the real API calls fail, which can happen due to OAuth token issues or invalid test data.
+- The recurring session expiration is a high-priority usability issue that needs investigation ( in ).
+- The immediate task is to finish the UI updates for SPCE compliance on the  and  pages.
 
 **documents and test reports created in this job**
-- : A Product Requirements Document that was updated incrementally as new features were completed.
-- : Multiple test reports generated by the testing agent, confirming the functionality of implemented features.
+-  (Updated)
+-  (New)
+- Multiple test reports under 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **Request for Testing with Real Data:** User provided a TSE link to a real candidate's data and asked to test the system with it. (COMPLETED)
-2.  **Request for P1 Tasks + AI Assistant:** User approved moving to P1 tasks and requested an AI assistant that interacts with the user, knows TSE rules, and can adjust app functions based on new election norms. (COMPLETED)
-3.  **Clarification on AI Implementation:** User chose the most advanced AI option: GPT-powered, full data access, TSE knowledge, and proactive suggestions. (COMPLETED)
-4.  **Request for Voice Commands & Other Features:** User requested voice commands for the AI (like Jarvis), an accountant/lawyer tab, integration with , and bank integration for PIX payments. (IN PROGRESS)
-5.  **Clarification on Implementation Order:** User specified the implementation order: 1. Voice commands. 2. Accountant/Lawyer tab. Also provided details on how the accountant access should work. (IN PROGRESS)
-6.  **Confirmation of Voice Assistant Name:** User confirmed the AI's name should be Eleitora. (COMPLETED)
-7.  **Approval of Plan:** User implicitly approved the plan for the three major features (Accountant Tab, Ativa Integration, BB PIX Integration) by saying Vou implementar as três funcionalidades. (IN PROGRESS)
-8.  **Request for SPCE ZIP structure:** User provided an image detailing the internal structure of the SPCE ZIP file and asked for the agent to proceed with the next tasks. (COMPLETED)
-9.  **Provided Resend API Key & Bug Report:** User provided the Resend API key () and reported a bug that expenses were not being generated from contracts. Also requested the feature for mandatory attachments for different contract types (car rental, property rental). (COMPLETED - Fix and feature implemented)
-10. **continue o processo**: User prompted the agent to continue after it paused during a frontend check. (COMPLETED)
+1.  **d**: User command to proceed with the SPCE improvements plan. (IN PROGRESS)
+2.  **estude a estrutura e veja se esta tudo de acordo com o spce...**: User requested an analysis of the current system against official SPCE requirements and suggestions for improvement. (COMPLETED)
+3.  **User provides BB PIX credentials**: User gave the , , and  for the Banco do Brasil integration. (COMPLETED)
+4.  **CONTINUE**: User prompted the agent to continue implementing the expanded SPCE layouts on the reports page. (SUPERSEDED by PIX integration task, but still pending).
+5.  **Expandir layouts SPCE para despesas e contratos**: User specified the next task. (IN PROGRESS)
+6.  **siga com as proximas tarefas em ordem**: User instructed the agent to proceed with the next planned tasks. (COMPLETED)
+7.  **não consigo fornecer no momento crie a estrutura completa na aba de pagamentos**: User could not provide PIX credentials at that moment and asked the agent to build the full UI/backend structure anyway. (COMPLETED)
+8.  **notei tambem que não foi implementado nos pagamentos e contratos as opções para a documentação...**: User pointed out that the mandatory attachment system seemed to be missing. The agent then investigated and verified that the feature was, in fact, already fully implemented and functional. (COMPLETED)
+9.  **prossiga e verifique o login de teste que não ta acessando**: User reported a login issue at the beginning of the session. (COMPLETED - Agent fixed it)
+10. **User gives final approval on plan**: User confirmed the agent should proceed with the accountant portal (with an admin account), TSE spending limits, and then the rest of the plan. (COMPLETED)
 
 **Project Health Check:**
-- **Broken:** None. The application is in a stable, tested state.
-- **Mocked:** The planned integrations with Ativa Contabilidade and Banco do Brasil are currently just concepts. The backend files for them are placeholders without real logic or API calls to external services.
+- **Broken:** The user session expires too quickly, negatively impacting usability.
+- **Mocked:** The Banco do Brasil PIX integration has a simulated mode as a fallback, which is currently active if the real API authentication fails.
 
 **3rd Party Integrations**
-- **OpenAI GPT (for AI Assistant):** Uses Emergent LLM Key.
-- **OpenAI Whisper (for Speech-to-Text):** Uses Emergent LLM Key.
+- **OpenAI GPT (AI Assistant):** Uses Emergent LLM Key.
+- **OpenAI Whisper (Speech-to-Text):** Uses Emergent LLM Key.
 - **Text-to-Speech Service:** Uses Emergent LLM Key.
-- **Resend (for Emails):** Requires User API Key (provided: ).
-- **Ativa Contabilidade:** Planned integration, will likely be a branding/portal feature, no key needed yet.
-- **Banco do Brasil PIX:** Planned integration, will require User API Key/Credentials.
+- **Resend (Emails):** Uses User API Key (in ).
+- **Banco do Brasil PIX:** Active integration using User API Keys for the  environment (in ).
 
 **Testing status**
 - **Testing agent used after significant changes:** YES
 - **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** None explicitly, but the testing agent ran comprehensive tests.
+- **Test files created:** None.
 - **Known regressions:** None.
 
 **Credentials to test flow:**
-No specific credentials are required. The agent can follow the standard flow:
-1.  Register a new user.
-2.  Create a new campaign.
-3.  Use the application's features (add revenues, contracts, test AI, etc.).
+- **Candidate:**  / 
+- **Accountant Admin:**  / 
 
 **What agent forgot to execute**
-The agent did not forget any tasks but was interrupted mid-way through implementing a major feature set requested by the user (Accountant/Lawyer Portal and PIX Integration). The work is correctly identified as in progress and is the highest priority for the next agent.</analysis>
+- The agent was interrupted while implementing the frontend for the SPCE compliance task on . This needs to be completed and tested.
+- The agent started the Expanded SPCE Layouts task by modifying the backend but never completed the corresponding frontend changes on . This task remains incomplete.</analysis>

@@ -27,6 +27,18 @@ const expenseCategories = [
     { value: 'outros', label: 'Outros' }
 ];
 
+// SPCE Payment Types
+const tiposPagamento = [
+    { value: 'pix', label: 'PIX' },
+    { value: 'transferencia', label: 'Transferência Bancária' },
+    { value: 'boleto', label: 'Boleto Bancário' },
+    { value: 'cheque', label: 'Cheque' },
+    { value: 'especie', label: 'Espécie (até R$ 1.064,10)' },
+    { value: 'cartao_credito', label: 'Cartão de Crédito' },
+    { value: 'cartao_debito', label: 'Cartão de Débito' },
+    { value: 'debito_automatico', label: 'Débito Automático' }
+];
+
 const emptyForm = {
     description: '',
     amount: '',
@@ -35,7 +47,11 @@ const emptyForm = {
     supplier_cpf_cnpj: '',
     date: new Date().toISOString().split('T')[0],
     invoice_number: '',
-    notes: ''
+    notes: '',
+    // SPCE Fields
+    tipo_pagamento: 'transferencia',
+    numero_documento_fiscal: '',
+    data_pagamento: ''
 };
 
 export default function Despesas() {
@@ -107,7 +123,11 @@ export default function Despesas() {
             supplier_cpf_cnpj: expense.supplier_cpf_cnpj || '',
             date: expense.date,
             invoice_number: expense.invoice_number || '',
-            notes: expense.notes || ''
+            notes: expense.notes || '',
+            // SPCE Fields
+            tipo_pagamento: expense.tipo_pagamento || 'transferencia',
+            numero_documento_fiscal: expense.numero_documento_fiscal || '',
+            data_pagamento: expense.data_pagamento || ''
         });
         setEditingId(expense.id);
         setDialogOpen(true);
@@ -272,6 +292,54 @@ export default function Despesas() {
                                             data-testid="expense-invoice-input"
                                         />
                                     </div>
+                                    
+                                    {/* SPCE Fields Section */}
+                                    <div className="md:col-span-2 pt-4 border-t">
+                                        <p className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                                            <FileText className="h-4 w-4" />
+                                            Campos SPCE (Prestação de Contas)
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label>Forma de Pagamento *</Label>
+                                        <Select
+                                            value={formData.tipo_pagamento}
+                                            onValueChange={(value) => handleChange('tipo_pagamento', value)}
+                                        >
+                                            <SelectTrigger data-testid="expense-tipo-pagamento-select">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {tiposPagamento.map(tipo => (
+                                                    <SelectItem key={tipo.value} value={tipo.value}>
+                                                        {tipo.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label>Nº Documento Fiscal (NF)</Label>
+                                        <Input
+                                            value={formData.numero_documento_fiscal}
+                                            onChange={(e) => handleChange('numero_documento_fiscal', e.target.value)}
+                                            placeholder="Ex: NF-12345"
+                                            data-testid="expense-doc-fiscal-input"
+                                        />
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label>Data do Pagamento</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.data_pagamento}
+                                            onChange={(e) => handleChange('data_pagamento', e.target.value)}
+                                            data-testid="expense-data-pagamento-input"
+                                        />
+                                    </div>
+                                    
                                     <div className="space-y-2 md:col-span-2">
                                         <Label>Observações</Label>
                                         <Textarea
