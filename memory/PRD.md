@@ -827,8 +827,80 @@ Frontend atualizado com campos de conformidade SPCE:
 
 ### Backlog (P2)
 - [ ] Integração com GOV.BR/ICP-Brasil
-- [ ] Importação de extratos bancários (OFX)
-- [ ] Conciliação bancária automática
+- [x] Importação de extratos bancários (OFX)
+- [x] Conciliação bancária automática
+- [ ] Portal personalizado Ativa Contabilidade
+
+---
+
+## Update (2026-03-05): Importação OFX, Conciliação Bancária e Validação CPF/CNPJ
+
+### Funcionalidades Implementadas
+
+#### 1. Importação de Extratos Bancários OFX
+Nova página dedicada "Extratos Bancários" em `/extratos`:
+- Upload de arquivos OFX/QFX (Open Financial Exchange)
+- Parser usando biblioteca `ofxparse`
+- Preview das transações importadas
+- Armazenamento de transações no MongoDB
+- Listagem de extratos com totais de crédito/débito
+- Progress bar de conciliação
+
+**Endpoints:**
+- `POST /api/bank-statements/upload` - Upload de arquivo OFX
+- `GET /api/bank-statements` - Lista todos os extratos
+- `GET /api/bank-statements/{id}` - Detalhes do extrato com transações
+- `DELETE /api/bank-statements/{id}` - Excluir extrato
+
+#### 2. Conciliação Bancária Automática
+Sistema de match automático entre transações bancárias e receitas/despesas:
+- **Algoritmo de Match:**
+  - Valor: 40% peso (match exato = 40pts, ±5% = 30pts, ±10% = 15pts)
+  - Data: 30% peso (mesmo dia = 30pts, ±1 dia = 25pts, ±3 dias = 15pts)
+  - Descrição: 30% peso (fuzzy matching por palavras comuns)
+- Threshold de confiança: 70% para auto-match
+- Status de conciliação: pending, reconciled, manual, divergent, ignored
+
+**Endpoints:**
+- `POST /api/bank-statements/{id}/reconcile` - Conciliação automática
+- `POST /api/bank-transactions/{id}/reconcile-manual` - Conciliação manual
+- `POST /api/bank-transactions/{id}/ignore` - Ignorar transação
+- `POST /api/bank-transactions/{id}/create-record` - Criar receita/despesa
+
+#### 3. Validação em Tempo Real de CPF/CNPJ
+Componente reutilizável `CpfCnpjInput`:
+- Formatação automática durante digitação
+- Validação matemática de dígitos verificadores
+- Indicador visual (verde=válido, vermelho=inválido)
+- Suporte a CPF (11 dígitos) e CNPJ (14 dígitos)
+
+**Aplicado em:**
+- Receitas: Campo "CPF/CNPJ do Doador"
+- Despesas: Campo "CPF/CNPJ do Fornecedor"
+
+**Endpoint de validação:**
+- `GET /api/validate/document?cpf_cnpj=...` - Valida e formata documento
+
+### Arquivos Criados/Modificados
+- `/app/frontend/src/pages/ExtratosBancarios.jsx` - Nova página
+- `/app/frontend/src/components/CpfCnpjInput.jsx` - Componente de validação
+- `/app/frontend/src/components/Layout.jsx` - Adicionado link "Extratos Bancários"
+- `/app/frontend/src/App.js` - Adicionada rota `/extratos`
+- `/app/frontend/src/pages/Receitas.jsx` - Integrado CpfCnpjInput
+- `/app/frontend/src/pages/Despesas.jsx` - Integrado CpfCnpjInput
+- `/app/backend/server.py` - Novos endpoints e modelos
+- `/app/backend/requirements.txt` - Adicionado ofxparse
+
+### Testes
+- Backend: 100% (14/14 testes)
+- Frontend: 100% (39/39 testes)
+- Arquivo: /app/test_reports/iteration_12.json
+
+### Próximas Tarefas (P1)
+- [ ] Atualizar Relatorios.jsx com controles UI para exportação SPCE expandida
+
+### Backlog (P2)
+- [ ] Integração com GOV.BR/ICP-Brasil
 - [ ] Portal personalizado Ativa Contabilidade
 
 ---
