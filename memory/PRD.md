@@ -689,3 +689,99 @@ Implementação completa dos limites eleitorais:
 - SelectItem com valor vazio no dropdown de despesas (Pagamentos.jsx linha 702)
 
 ---
+
+---
+
+## Update (2026-02-06): Integração BB PIX Real + Layouts SPCE Expandidos
+
+### Integração Banco do Brasil PIX
+
+#### Configuração
+Credenciais configuradas em `/app/backend/.env`:
+- BB_APP_KEY: Chave do desenvolvedor
+- BB_CLIENT_ID: ID do cliente OAuth
+- BB_CLIENT_SECRET: Secret do cliente OAuth
+- BB_ENVIRONMENT: homologacao
+
+#### Classe BancoDoBrasilPIX
+Implementação completa da integração:
+- **get_access_token()**: Autenticação OAuth2 com fallback
+- **create_pix_payment()**: Criação de cobranças PIX (cobv)
+- **check_pix_status()**: Consulta de status
+- **list_pix_received()**: Lista PIX recebidos
+
+#### Endpoints PIX Atualizados
+- POST /api/pix/payment - Cria PIX (usa BB real quando disponível)
+- GET /api/pix/check-status/{id} - Consulta status no BB
+- POST /api/pix/execute/{id} - Executa PIX agendado
+- GET /api/pix/bank-info - Info da integração (integration_available: true)
+
+#### Funcionalidades
+- Geração de PIX Copia e Cola
+- Geração de QR Code
+- Consulta de status em tempo real
+- Fallback para modo simulado se OAuth falhar
+
+### Layouts SPCE Expandidos
+
+#### SPCE DESPAGTOS (Despesas)
+Formato oficial conforme Resolução TSE 23.607/2019:
+- Header: versao|tipo|cnpj|uf|ano
+- Detail: versao|tipo|seq|data|cpf_cnpj|nome|valor|categoria|descricao|doc_fiscal
+- Trailer: versao|tipo|total_registros|valor_total
+
+**Categorias de Despesas (15 tipos):**
+- 101: Propaganda
+- 102: Pessoal
+- 103: Transporte
+- 104: Material de Expediente
+- 105: Alimentação
+- 106: Combustível
+- 107: Locação de Veículo
+- 108: Locação de Imóvel
+- 109: Eventos
+- 110: Serviços de Terceiros
+- 111: Água/Luz/Telefone
+- 112: Taxas Bancárias
+- 113: Produção Audiovisual
+- 114: Impulsionamento
+- 199: Outras Despesas
+
+#### SPCE CONTRATOS
+- Tipo de contrato com código
+- Status de assinatura (S/N)
+- Período de vigência
+- Valor e parcelas
+
+**Tipos de Contrato (13 tipos):**
+- 01: Locação Veículo c/ Motorista
+- 02: Locação Veículo s/ Motorista
+- 03: Locação Imóvel para Comitê
+- 04: Locação Imóvel para Evento
+- 05: Serviços Gráficos
+- 06: Publicidade
+- 07: Pesquisa
+- 08: Jurídico
+- 09: Contábil
+- 10: TI
+- 11: Produção Audiovisual
+- 12: Impulsionamento
+- 99: Outros
+
+#### Endpoints SPCE
+- GET /api/export/spce-despagtos - Layout DESPAGTOS (TXT)
+- GET /api/export/spce-contratos - Layout CONTRATOS (TXT)
+- GET /api/export/spce-despesas-pdf - Relatório despesas (PDF)
+- GET /api/export/spce-contratos-pdf - Relatório contratos (PDF)
+- GET /api/export/spce-categorias - Lista categorias disponíveis
+
+### Testes
+- Backend: 100% (8/8 testes)
+- Frontend: 100%
+- Arquivo: /app/test_reports/iteration_10.json
+
+### Requisitos para Exportação SPCE
+- **CNPJ da campanha** deve estar configurado
+- Configurar em: Dashboard > Configurações > Dados da Campanha
+
+---
