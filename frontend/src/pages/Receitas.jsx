@@ -13,6 +13,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, categoryLabels } from '../lib/utils';
 import { Plus, Pencil, Trash2, TrendingUp, Search, Filter, X, Upload, Paperclip, FileText, Download } from 'lucide-react';
+import { CpfCnpjInput } from '../components/CpfCnpjInput';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -308,9 +309,9 @@ export default function Receitas() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>CPF/CNPJ do Doador</Label>
-                                        <Input
+                                        <CpfCnpjInput
                                             value={formData.donor_cpf_cnpj}
-                                            onChange={(e) => handleChange('donor_cpf_cnpj', e.target.value)}
+                                            onChange={(value) => handleChange('donor_cpf_cnpj', value)}
                                             data-testid="revenue-donor-cpf-input"
                                         />
                                     </div>

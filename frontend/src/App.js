@@ -23,6 +23,9 @@ import ContadorDashboard from "./pages/ContadorDashboard";
 // Conformidade TSE
 import ConformidadeTSE from "./pages/ConformidadeTSE";
 
+// Extratos Bancários
+import ExtratosBancarios from "./pages/ExtratosBancarios";
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
     const { user, loading } = useAuth();
@@ -127,6 +130,11 @@ function AppRoutes() {
             <Route path="/conformidade" element={
                 <ProtectedRoute>
                     <ConformidadeTSE />
+                </ProtectedRoute>
+            } />
+            <Route path="/extratos" element={
+                <ProtectedRoute>
+                    <ExtratosBancarios />
                 </ProtectedRoute>
             } />
             

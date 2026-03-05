@@ -42,6 +42,13 @@ try:
 except ImportError:
     RESEND_AVAILABLE = False
 
+# OFX Parser for bank statements
+try:
+    from ofxparse import OfxParser
+    OFX_AVAILABLE = True
+except ImportError:
+    OFX_AVAILABLE = False
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -907,6 +914,64 @@ class DashboardStats(BaseModel):
     revenues_by_category: dict
     expenses_by_category: dict
     monthly_flow: List[dict]
+
+# ============== BANK STATEMENT MODELS ==============
+class BankTransactionType(str, Enum):
+    CREDIT = "credit"  # Entrada (receita)
+    DEBIT = "debit"    # Saída (despesa)
+
+class ReconciliationStatus(str, Enum):
+    PENDING = "pending"           # Aguardando conciliação
+    RECONCILED = "reconciled"     # Conciliado automaticamente
+    MANUAL = "manual"             # Conciliado manualmente
+    DIVERGENT = "divergent"       # Divergência encontrada
+    IGNORED = "ignored"           # Ignorado pelo usuário
+
+class BankStatementCreate(BaseModel):
+    bank_name: str
+    account_number: str
+    account_type: Optional[str] = None
+    start_date: str
+    end_date: str
+    currency: str = "BRL"
+
+class BankTransactionResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    statement_id: str
+    transaction_id: str  # ID original do banco
+    date: str
+    amount: float
+    type: BankTransactionType
+    description: str
+    memo: Optional[str] = None
+    payee: Optional[str] = None
+    check_number: Optional[str] = None
+    # Reconciliation fields
+    reconciliation_status: ReconciliationStatus = ReconciliationStatus.PENDING
+    reconciled_with_id: Optional[str] = None  # ID da receita ou despesa
+    reconciled_with_type: Optional[str] = None  # "revenue" ou "expense"
+    reconciled_at: Optional[str] = None
+    match_confidence: Optional[float] = None  # 0-100% de confiança do match
+    campaign_id: str
+    created_at: str
+
+class BankStatementResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    bank_name: str
+    account_number: str
+    account_type: Optional[str] = None
+    start_date: str
+    end_date: str
+    currency: str
+    total_credits: float
+    total_debits: float
+    transaction_count: int
+    reconciled_count: int
+    pending_count: int
+    campaign_id: str
+    created_at: str
 
 # ============== AUTH HELPERS ==============
 def hash_password(password: str) -> str:
@@ -5892,7 +5957,518 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
-# Include router
+# Bank statement and validation endpoints defined below
+
+# ============== BANK STATEMENT ENDPOINTS ==============
+
+@api_router.post("/bank-statements/upload")
+async def upload_bank_statement(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload and parse OFX bank statement file"""
+    if not OFX_AVAILABLE:
+        raise HTTPException(status_code=500, detail="Parser OFX não disponível")
+    
+    # Validate file extension
+    if not file.filename.lower().endswith(('.ofx', '.qfx')):
+        raise HTTPException(status_code=400, detail="Formato de arquivo inválido. Use arquivos .ofx ou .qfx")
+    
+    try:
+        content = await file.read()
+        ofx = OfxParser.parse(BytesIO(content))
+        
+        # Get campaign
+        campaign = await db.campaigns.find_one({"owner_id": current_user["id"]}, {"_id": 0})
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campanha não encontrada")
+        
+        # Process account info
+        account = ofx.account
+        statement_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Parse transactions
+        transactions = []
+        total_credits = 0
+        total_debits = 0
+        
+        for txn in account.statement.transactions:
+            txn_type = BankTransactionType.CREDIT if txn.amount > 0 else BankTransactionType.DEBIT
+            amount = abs(float(txn.amount))
+            
+            if txn_type == BankTransactionType.CREDIT:
+                total_credits += amount
+            else:
+                total_debits += amount
+            
+            transaction = {
+                "id": str(uuid.uuid4()),
+                "statement_id": statement_id,
+                "transaction_id": txn.id or str(uuid.uuid4()),
+                "date": txn.date.strftime("%Y-%m-%d") if txn.date else now[:10],
+                "amount": amount,
+                "type": txn_type.value,
+                "description": txn.memo or txn.payee or "Transação",
+                "memo": txn.memo,
+                "payee": txn.payee,
+                "check_number": txn.checknum,
+                "reconciliation_status": ReconciliationStatus.PENDING.value,
+                "reconciled_with_id": None,
+                "reconciled_with_type": None,
+                "reconciled_at": None,
+                "match_confidence": None,
+                "campaign_id": campaign["id"],
+                "created_at": now
+            }
+            transactions.append(transaction)
+        
+        # Create statement record
+        statement = {
+            "id": statement_id,
+            "bank_name": account.institution.organization if hasattr(account, 'institution') and account.institution else "Banco",
+            "account_number": account.account_id or "N/A",
+            "account_type": account.account_type if hasattr(account, 'account_type') else None,
+            "start_date": account.statement.start_date.strftime("%Y-%m-%d") if account.statement.start_date else now[:10],
+            "end_date": account.statement.end_date.strftime("%Y-%m-%d") if account.statement.end_date else now[:10],
+            "currency": account.statement.currency if hasattr(account.statement, 'currency') else "BRL",
+            "total_credits": total_credits,
+            "total_debits": total_debits,
+            "transaction_count": len(transactions),
+            "reconciled_count": 0,
+            "pending_count": len(transactions),
+            "campaign_id": campaign["id"],
+            "created_at": now
+        }
+        
+        # Save to database
+        await db.bank_statements.insert_one(statement)
+        if transactions:
+            await db.bank_transactions.insert_many(transactions)
+        
+        return {
+            "statement": statement,
+            "transactions": transactions,
+            "message": f"Extrato importado com sucesso: {len(transactions)} transações"
+        }
+        
+    except Exception as e:
+        logging.error(f"Erro ao processar arquivo OFX: {e}")
+        raise HTTPException(status_code=400, detail=f"Erro ao processar arquivo: {str(e)}")
+
+@api_router.get("/bank-statements")
+async def list_bank_statements(current_user: dict = Depends(get_current_user)):
+    """List all bank statements for current campaign"""
+    campaign = await db.campaigns.find_one({"owner_id": current_user["id"]}, {"_id": 0})
+    if not campaign:
+        return []
+    
+    statements = await db.bank_statements.find(
+        {"campaign_id": campaign["id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    return statements
+
+@api_router.get("/bank-statements/{statement_id}")
+async def get_bank_statement(statement_id: str, current_user: dict = Depends(get_current_user)):
+    """Get bank statement with transactions"""
+    statement = await db.bank_statements.find_one({"id": statement_id}, {"_id": 0})
+    if not statement:
+        raise HTTPException(status_code=404, detail="Extrato não encontrado")
+    
+    transactions = await db.bank_transactions.find(
+        {"statement_id": statement_id},
+        {"_id": 0}
+    ).sort("date", -1).to_list(1000)
+    
+    return {
+        "statement": statement,
+        "transactions": transactions
+    }
+
+@api_router.get("/bank-statements/{statement_id}/transactions")
+async def get_statement_transactions(
+    statement_id: str,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get transactions for a bank statement with optional status filter"""
+    query = {"statement_id": statement_id}
+    if status:
+        query["reconciliation_status"] = status
+    
+    transactions = await db.bank_transactions.find(query, {"_id": 0}).sort("date", -1).to_list(1000)
+    return transactions
+
+@api_router.post("/bank-statements/{statement_id}/reconcile")
+async def auto_reconcile_statement(statement_id: str, current_user: dict = Depends(get_current_user)):
+    """Automatically reconcile bank transactions with revenues and expenses"""
+    
+    # Get statement
+    statement = await db.bank_statements.find_one({"id": statement_id}, {"_id": 0})
+    if not statement:
+        raise HTTPException(status_code=404, detail="Extrato não encontrado")
+    
+    campaign = await db.campaigns.find_one({"owner_id": current_user["id"]}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+    
+    # Get pending transactions
+    pending_txns = await db.bank_transactions.find(
+        {"statement_id": statement_id, "reconciliation_status": ReconciliationStatus.PENDING.value},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    # Get revenues and expenses for matching
+    revenues = await db.revenues.find({"campaign_id": campaign["id"]}, {"_id": 0}).to_list(1000)
+    expenses = await db.expenses.find({"campaign_id": campaign["id"]}, {"_id": 0}).to_list(1000)
+    
+    reconciled_count = 0
+    results = []
+    
+    for txn in pending_txns:
+        best_match = None
+        best_confidence = 0
+        match_type = None
+        
+        if txn["type"] == BankTransactionType.CREDIT.value:
+            # Match with revenues
+            for rev in revenues:
+                confidence = calculate_match_confidence(txn, rev)
+                if confidence > best_confidence and confidence >= 70:
+                    best_confidence = confidence
+                    best_match = rev
+                    match_type = "revenue"
+        else:
+            # Match with expenses
+            for exp in expenses:
+                confidence = calculate_match_confidence(txn, exp)
+                if confidence > best_confidence and confidence >= 70:
+                    best_confidence = confidence
+                    best_match = exp
+                    match_type = "expense"
+        
+        if best_match:
+            # Update transaction as reconciled
+            now = datetime.now(timezone.utc).isoformat()
+            await db.bank_transactions.update_one(
+                {"id": txn["id"]},
+                {"$set": {
+                    "reconciliation_status": ReconciliationStatus.RECONCILED.value,
+                    "reconciled_with_id": best_match["id"],
+                    "reconciled_with_type": match_type,
+                    "reconciled_at": now,
+                    "match_confidence": best_confidence
+                }}
+            )
+            reconciled_count += 1
+            results.append({
+                "transaction_id": txn["id"],
+                "matched_with": best_match["id"],
+                "matched_type": match_type,
+                "confidence": best_confidence,
+                "status": "reconciled"
+            })
+        else:
+            results.append({
+                "transaction_id": txn["id"],
+                "status": "no_match",
+                "confidence": 0
+            })
+    
+    # Update statement counts
+    all_txns = await db.bank_transactions.find({"statement_id": statement_id}, {"_id": 0}).to_list(1000)
+    reconciled_total = len([t for t in all_txns if t.get("reconciliation_status") == ReconciliationStatus.RECONCILED.value])
+    pending_total = len([t for t in all_txns if t.get("reconciliation_status") == ReconciliationStatus.PENDING.value])
+    
+    await db.bank_statements.update_one(
+        {"id": statement_id},
+        {"$set": {"reconciled_count": reconciled_total, "pending_count": pending_total}}
+    )
+    
+    return {
+        "message": f"Conciliação automática concluída: {reconciled_count} transações conciliadas",
+        "reconciled_count": reconciled_count,
+        "pending_count": pending_total,
+        "results": results
+    }
+
+def calculate_match_confidence(transaction: dict, record: dict) -> float:
+    """Calculate confidence score for matching a bank transaction with a revenue/expense"""
+    confidence = 0
+    
+    # Amount match (40% weight)
+    txn_amount = transaction["amount"]
+    rec_amount = record["amount"]
+    if abs(txn_amount - rec_amount) < 0.01:
+        confidence += 40
+    elif abs(txn_amount - rec_amount) / max(txn_amount, rec_amount) < 0.05:
+        confidence += 30
+    elif abs(txn_amount - rec_amount) / max(txn_amount, rec_amount) < 0.10:
+        confidence += 15
+    
+    # Date match (30% weight)
+    txn_date = transaction["date"]
+    rec_date = record["date"]
+    if txn_date == rec_date:
+        confidence += 30
+    else:
+        try:
+            txn_dt = datetime.strptime(txn_date, "%Y-%m-%d")
+            rec_dt = datetime.strptime(rec_date, "%Y-%m-%d")
+            diff_days = abs((txn_dt - rec_dt).days)
+            if diff_days <= 1:
+                confidence += 25
+            elif diff_days <= 3:
+                confidence += 15
+            elif diff_days <= 7:
+                confidence += 5
+        except:
+            pass
+    
+    # Description match (30% weight) - fuzzy matching
+    txn_desc = (transaction.get("description") or "").lower()
+    txn_payee = (transaction.get("payee") or "").lower()
+    rec_desc = (record.get("description") or "").lower()
+    rec_name = (record.get("donor_name") or record.get("supplier_name") or "").lower()
+    
+    # Check for common words
+    txn_words = set(txn_desc.split() + txn_payee.split())
+    rec_words = set(rec_desc.split() + rec_name.split())
+    common_words = txn_words & rec_words
+    
+    if len(common_words) >= 3:
+        confidence += 30
+    elif len(common_words) >= 2:
+        confidence += 20
+    elif len(common_words) >= 1:
+        confidence += 10
+    
+    # Check for CPF/CNPJ match
+    rec_doc = record.get("donor_cpf_cnpj") or record.get("supplier_cpf_cnpj") or ""
+    if rec_doc and rec_doc in txn_desc:
+        confidence += 20
+    
+    return min(confidence, 100)
+
+@api_router.post("/bank-transactions/{transaction_id}/reconcile-manual")
+async def manual_reconcile_transaction(
+    transaction_id: str,
+    record_id: str = Query(...),
+    record_type: str = Query(...),  # "revenue" or "expense"
+    current_user: dict = Depends(get_current_user)
+):
+    """Manually reconcile a bank transaction with a revenue or expense"""
+    
+    # Validate record type
+    if record_type not in ["revenue", "expense"]:
+        raise HTTPException(status_code=400, detail="Tipo de registro inválido. Use 'revenue' ou 'expense'")
+    
+    # Get transaction
+    transaction = await db.bank_transactions.find_one({"id": transaction_id}, {"_id": 0})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
+    
+    # Get record
+    collection = db.revenues if record_type == "revenue" else db.expenses
+    record = await collection.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail=f"{'Receita' if record_type == 'revenue' else 'Despesa'} não encontrada")
+    
+    # Update transaction
+    now = datetime.now(timezone.utc).isoformat()
+    await db.bank_transactions.update_one(
+        {"id": transaction_id},
+        {"$set": {
+            "reconciliation_status": ReconciliationStatus.MANUAL.value,
+            "reconciled_with_id": record_id,
+            "reconciled_with_type": record_type,
+            "reconciled_at": now,
+            "match_confidence": 100
+        }}
+    )
+    
+    # Update statement counts
+    statement = await db.bank_statements.find_one({"id": transaction["statement_id"]}, {"_id": 0})
+    if statement:
+        all_txns = await db.bank_transactions.find({"statement_id": statement["id"]}, {"_id": 0}).to_list(1000)
+        reconciled_total = len([t for t in all_txns if t.get("reconciliation_status") in [ReconciliationStatus.RECONCILED.value, ReconciliationStatus.MANUAL.value]])
+        pending_total = len([t for t in all_txns if t.get("reconciliation_status") == ReconciliationStatus.PENDING.value])
+        
+        await db.bank_statements.update_one(
+            {"id": statement["id"]},
+            {"$set": {"reconciled_count": reconciled_total, "pending_count": pending_total}}
+        )
+    
+    return {"message": "Transação conciliada manualmente", "status": "success"}
+
+@api_router.post("/bank-transactions/{transaction_id}/ignore")
+async def ignore_transaction(transaction_id: str, current_user: dict = Depends(get_current_user)):
+    """Mark a bank transaction as ignored"""
+    
+    transaction = await db.bank_transactions.find_one({"id": transaction_id}, {"_id": 0})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
+    
+    await db.bank_transactions.update_one(
+        {"id": transaction_id},
+        {"$set": {"reconciliation_status": ReconciliationStatus.IGNORED.value}}
+    )
+    
+    # Update statement counts
+    statement = await db.bank_statements.find_one({"id": transaction["statement_id"]}, {"_id": 0})
+    if statement:
+        all_txns = await db.bank_transactions.find({"statement_id": statement["id"]}, {"_id": 0}).to_list(1000)
+        pending_total = len([t for t in all_txns if t.get("reconciliation_status") == ReconciliationStatus.PENDING.value])
+        
+        await db.bank_statements.update_one(
+            {"id": statement["id"]},
+            {"$set": {"pending_count": pending_total}}
+        )
+    
+    return {"message": "Transação ignorada", "status": "success"}
+
+@api_router.post("/bank-transactions/{transaction_id}/create-record")
+async def create_record_from_transaction(
+    transaction_id: str,
+    category: str = Query(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a revenue or expense from a bank transaction"""
+    
+    transaction = await db.bank_transactions.find_one({"id": transaction_id}, {"_id": 0})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
+    
+    campaign = await db.campaigns.find_one({"owner_id": current_user["id"]}, {"_id": 0})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    record_id = str(uuid.uuid4())
+    
+    if transaction["type"] == BankTransactionType.CREDIT.value:
+        # Create revenue
+        revenue = {
+            "id": record_id,
+            "description": transaction["description"] or transaction["payee"] or "Receita importada",
+            "amount": transaction["amount"],
+            "category": category or "outros",
+            "donor_name": transaction["payee"],
+            "donor_cpf_cnpj": None,
+            "date": transaction["date"],
+            "receipt_number": None,
+            "notes": f"Importado do extrato bancário. ID original: {transaction['transaction_id']}",
+            "campaign_id": campaign["id"],
+            "created_at": now,
+            "attachment_id": None,
+            "tipo_receita": "doacao_financeira",
+            "tipo_doador": "pessoa_fisica",
+            "forma_recebimento": "transferencia",
+            "recibo_eleitoral": None,
+            "donor_titulo_eleitor": None
+        }
+        await db.revenues.insert_one(revenue)
+        record_type = "revenue"
+    else:
+        # Create expense
+        expense = {
+            "id": record_id,
+            "description": transaction["description"] or transaction["payee"] or "Despesa importada",
+            "amount": transaction["amount"],
+            "category": category or "outros",
+            "supplier_name": transaction["payee"],
+            "supplier_cpf_cnpj": None,
+            "date": transaction["date"],
+            "invoice_number": None,
+            "notes": f"Importado do extrato bancário. ID original: {transaction['transaction_id']}",
+            "campaign_id": campaign["id"],
+            "created_at": now,
+            "attachment_id": None,
+            "payment_status": "pago",
+            "contract_id": None,
+            "tipo_pagamento": "transferencia",
+            "numero_parcela": None,
+            "total_parcelas": None,
+            "numero_documento_fiscal": None,
+            "data_pagamento": transaction["date"]
+        }
+        await db.expenses.insert_one(expense)
+        record_type = "expense"
+    
+    # Update transaction as reconciled
+    await db.bank_transactions.update_one(
+        {"id": transaction_id},
+        {"$set": {
+            "reconciliation_status": ReconciliationStatus.RECONCILED.value,
+            "reconciled_with_id": record_id,
+            "reconciled_with_type": record_type,
+            "reconciled_at": now,
+            "match_confidence": 100
+        }}
+    )
+    
+    return {
+        "message": f"{'Receita' if record_type == 'revenue' else 'Despesa'} criada com sucesso",
+        "record_id": record_id,
+        "record_type": record_type
+    }
+
+@api_router.delete("/bank-statements/{statement_id}")
+async def delete_bank_statement(statement_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a bank statement and all its transactions"""
+    
+    statement = await db.bank_statements.find_one({"id": statement_id}, {"_id": 0})
+    if not statement:
+        raise HTTPException(status_code=404, detail="Extrato não encontrado")
+    
+    # Delete transactions
+    await db.bank_transactions.delete_many({"statement_id": statement_id})
+    
+    # Delete statement
+    await db.bank_statements.delete_one({"id": statement_id})
+    
+    return {"message": "Extrato e transações excluídos com sucesso"}
+
+# ============== CPF/CNPJ VALIDATION ENDPOINT ==============
+
+@api_router.get("/validate/document")
+async def validate_document(cpf_cnpj: str = Query(...)):
+    """Validate and format CPF or CNPJ"""
+    # Remove formatting
+    doc = re.sub(r'[^0-9]', '', cpf_cnpj)
+    
+    if len(doc) == 11:
+        # CPF
+        is_valid = validate_cpf(doc)
+        formatted = format_cpf(doc) if is_valid else doc
+        return {
+            "type": "cpf",
+            "valid": is_valid,
+            "formatted": formatted,
+            "raw": doc
+        }
+    elif len(doc) == 14:
+        # CNPJ
+        is_valid = validate_cnpj(doc)
+        formatted = format_cnpj(doc) if is_valid else doc
+        return {
+            "type": "cnpj",
+            "valid": is_valid,
+            "formatted": formatted,
+            "raw": doc
+        }
+    else:
+        return {
+            "type": "unknown",
+            "valid": False,
+            "formatted": cpf_cnpj,
+            "raw": doc,
+            "error": "Documento deve ter 11 dígitos (CPF) ou 14 dígitos (CNPJ)"
+        }
+
+# Include router - AFTER all route definitions
 app.include_router(api_router)
 
 app.add_middleware(

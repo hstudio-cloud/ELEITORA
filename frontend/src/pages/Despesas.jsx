@@ -13,6 +13,7 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, categoryLabels } from '../lib/utils';
 import { Plus, Pencil, Trash2, TrendingDown, Search, Filter, X, Upload, FileText, CheckCircle, Clock, Paperclip } from 'lucide-react';
+import { CpfCnpjInput } from '../components/CpfCnpjInput';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -268,9 +269,9 @@ export default function Despesas() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>CPF/CNPJ do Fornecedor</Label>
-                                        <Input
+                                        <CpfCnpjInput
                                             value={formData.supplier_cpf_cnpj}
-                                            onChange={(e) => handleChange('supplier_cpf_cnpj', e.target.value)}
+                                            onChange={(value) => handleChange('supplier_cpf_cnpj', value)}
                                             data-testid="expense-supplier-cpf-input"
                                         />
                                     </div>

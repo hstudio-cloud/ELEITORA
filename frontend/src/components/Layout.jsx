@@ -16,7 +16,8 @@ import {
     ChevronRight,
     Vote,
     Bot,
-    ClipboardCheck
+    ClipboardCheck,
+    Landmark
 } from 'lucide-react';
 
 const navItems = [
@@ -25,8 +26,9 @@ const navItems = [
     { path: '/despesas', label: 'Despesas', icon: TrendingDown },
     { path: '/contratos', label: 'Contratos', icon: FileText },
     { path: '/pagamentos', label: 'Pagamentos', icon: CreditCard },
+    { path: '/extratos', label: 'Extratos Bancários', icon: Landmark, highlight: true },
     { path: '/relatorios', label: 'Relatórios', icon: BarChart3 },
-    { path: '/conformidade', label: 'Conformidade TSE', icon: ClipboardCheck, highlight: true },
+    { path: '/conformidade', label: 'Conformidade TSE', icon: ClipboardCheck },
     { path: '/assistente', label: 'Assistente IA', icon: Bot },
     { path: '/configuracoes', label: 'Configurações', icon: Settings },
 ];
