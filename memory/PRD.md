@@ -785,3 +785,50 @@ Formato oficial conforme Resolução TSE 23.607/2019:
 - Configurar em: Dashboard > Configurações > Dados da Campanha
 
 ---
+
+## Update (2026-03-05): Campos SPCE Completos em Receitas e Despesas
+
+### Funcionalidades Implementadas
+
+#### Campos SPCE em Receitas
+Frontend atualizado com campos de conformidade SPCE:
+- **Tipo de Receita**: Doação Financeira, Doação Estimável, Recursos Próprios, Fundo Partidário, etc.
+- **Tipo de Doador**: Pessoa Física, Pessoa Jurídica, Partido, Candidato, etc.
+- **Forma de Recebimento**: PIX, Transferência Bancária, Depósito, Cheque, etc.
+- **Título de Eleitor do Doador**: Campo condicional (aparece apenas para Pessoa Física)
+
+#### Campos SPCE em Despesas
+Frontend atualizado com campos de conformidade SPCE:
+- **Forma de Pagamento**: PIX, Transferência Bancária, Boleto, Cheque, etc.
+- **Nº Documento Fiscal (NF)**: Campo para número da nota fiscal
+- **Data do Pagamento**: Data efetiva do pagamento
+
+#### Botão Download Recibo Eleitoral
+- Botão de download em cada linha da tabela de Receitas
+- Endpoint: GET /api/revenues/{revenue_id}/recibo-pdf
+- Gera PDF formatado com dados da receita e doador
+
+#### Correção de Bug
+- Corrigido erro de import em ConformidadeTSE.jsx (FileContract → FileSignature)
+
+### Arquivos Modificados
+- /app/frontend/src/pages/Receitas.jsx - Campos SPCE e botão download recibo
+- /app/frontend/src/pages/Despesas.jsx - Campos SPCE (tipo_pagamento, etc.)
+- /app/frontend/src/pages/ConformidadeTSE.jsx - Corrigido import de ícone
+
+### Testes
+- Backend: 100% (14/14 testes)
+- Frontend: 100% (23/23 testes)
+- Arquivo: /app/test_reports/iteration_11.json
+
+### Próximas Tarefas (P1)
+- [ ] Atualizar Relatorios.jsx com controles UI para exportação SPCE expandida
+- [ ] Investigar/corrigir expiração de sessão se reportada pelo usuário
+
+### Backlog (P2)
+- [ ] Integração com GOV.BR/ICP-Brasil
+- [ ] Importação de extratos bancários (OFX)
+- [ ] Conciliação bancária automática
+- [ ] Portal personalizado Ativa Contabilidade
+
+---
