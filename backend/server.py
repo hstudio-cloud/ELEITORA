@@ -39,6 +39,12 @@ except ImportError:
     PDF_AVAILABLE = False
 
 try:
+    from PyPDF2 import PdfReader
+    PDF_TEXT_EXTRACTION_AVAILABLE = True
+except ImportError:
+    PDF_TEXT_EXTRACTION_AVAILABLE = False
+
+try:
     import resend
     RESEND_AVAILABLE = True
 except ImportError:
@@ -2416,6 +2422,142 @@ def ensure_spce_ready(precheck: dict):
         },
     )
 
+def _sanitize_filename_token(value: str, fallback: str = "DOC") -> str:
+    token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip())
+    token = token.strip("_")
+    return token[:60] if token else fallback
+
+def _expense_service_description(category: str) -> str:
+    key = (category or "outros").lower().replace(" ", "_")
+    return SPCE_DESPESA_CATEGORIAS.get(key, SPCE_DESPESA_CATEGORIAS["outros"])["descricao"]
+
+def _expense_is_ready_for_spce(expense: dict) -> bool:
+    amount_ok = float(expense.get("amount", 0) or 0) > 0
+    date_ok = _is_valid_iso_date(expense.get("date"))
+    supplier_name_ok = bool((expense.get("supplier_name") or "").strip())
+    supplier_doc = normalize_document(expense.get("supplier_cpf_cnpj"))
+    supplier_doc_ok = bool(
+        supplier_doc and (
+            (len(supplier_doc) == 11 and validate_cpf(supplier_doc))
+            or (len(supplier_doc) == 14 and validate_cnpj(supplier_doc))
+        )
+    )
+    payment_ok = (expense.get("payment_status") or "").lower() == "pago"
+    attachment_ok = bool(expense.get("attachment_id"))
+    payment_type_ok = bool(expense.get("tipo_pagamento"))
+    fiscal_doc_ok = bool((expense.get("numero_documento_fiscal") or expense.get("invoice_number") or "").strip())
+    payment_date = expense.get("data_pagamento") or expense.get("date")
+    payment_date_ok = _is_valid_iso_date(payment_date)
+    return all([
+        amount_ok,
+        date_ok,
+        supplier_name_ok,
+        supplier_doc_ok,
+        payment_ok,
+        attachment_ok,
+        payment_type_ok,
+        fiscal_doc_ok,
+        payment_date_ok,
+    ])
+
+def _generate_expense_cover_bytes(expense: dict, campaign: dict, cnpj: str, seq: int) -> bytes:
+    service_desc = _expense_service_description(expense.get("category"))
+    payment_date = expense.get("data_pagamento") or expense.get("date") or "-"
+    supplier_doc = normalize_document(expense.get("supplier_cpf_cnpj")) or "-"
+    tomador = campaign.get("candidate_name") or "Candidato(a)"
+    tomador_doc = normalize_document(campaign.get("cpf_candidato")) or "-"
+    lines = [
+        "CAPA DE COMPROVANTE DE DESPESA - SPCE",
+        f"Sequencial: {seq}",
+        f"Campanha (Tomador): {tomador}",
+        f"CPF do Tomador: {tomador_doc}",
+        f"CNPJ da Campanha: {cnpj}",
+        f"Prestador: {expense.get('supplier_name', '-')}",
+        f"CPF/CNPJ do Prestador: {supplier_doc}",
+        f"Tipo de Pagamento: {expense.get('tipo_pagamento', '-')}",
+        f"Documento Fiscal: {expense.get('numero_documento_fiscal') or expense.get('invoice_number') or '-'}",
+        f"Descricao da Despesa: {expense.get('description', '-')}",
+        f"Especie do Servico (SPCE): {service_desc}",
+        f"Categoria: {expense.get('category', '-')}",
+        f"Valor: R$ {float(expense.get('amount', 0) or 0):,.2f}",
+        f"Data da Despesa: {expense.get('date', '-')}",
+        f"Data de Pagamento: {payment_date}",
+        f"Status: {expense.get('payment_status', '-')}",
+        f"ID da Despesa: {expense.get('id', '-')}",
+    ]
+
+    if PDF_AVAILABLE:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=2 * cm,
+            leftMargin=2 * cm,
+            topMargin=2 * cm,
+            bottomMargin=2 * cm,
+        )
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            "CoverTitle",
+            parent=styles["Heading1"],
+            fontSize=14,
+            leading=18,
+            alignment=TA_LEFT,
+            spaceAfter=10,
+        )
+        body_style = ParagraphStyle(
+            "CoverBody",
+            parent=styles["Normal"],
+            fontSize=10,
+            leading=14,
+            alignment=TA_LEFT,
+            spaceAfter=4,
+        )
+        story = [Paragraph(lines[0], title_style), Spacer(1, 0.3 * cm)]
+        for row in lines[1:]:
+            story.append(Paragraph(row, body_style))
+        story.append(Spacer(1, 0.4 * cm))
+        story.append(Paragraph(
+            "Documento gerado automaticamente para organização da exportação SPCE (texto pesquisável/OCR-ready).",
+            body_style,
+        ))
+        doc.build(story)
+        return buffer.getvalue()
+
+    return ("\n".join(lines)).encode("utf-8")
+
+def _build_ocr_text_for_attachment(expense: dict, attachment: dict, file_bytes: bytes) -> bytes:
+    header = [
+        "OCR_INDEX_DESPESA",
+        f"Despesa ID: {expense.get('id', '-')}",
+        f"Descricao: {expense.get('description', '-')}",
+        f"Prestador: {expense.get('supplier_name', '-')}",
+        f"CPF/CNPJ Prestador: {expense.get('supplier_cpf_cnpj', '-')}",
+        f"Arquivo Original: {attachment.get('original_name') or attachment.get('filename') or '-'}",
+        "",
+        "TEXTO_EXTRAIDO:",
+    ]
+    extracted_text = ""
+
+    content_type = (attachment.get("content_type") or "").lower()
+    if content_type == "application/pdf" and PDF_TEXT_EXTRACTION_AVAILABLE:
+        try:
+            reader = PdfReader(io.BytesIO(file_bytes))
+            pages_text = []
+            for page in reader.pages:
+                pages_text.append(page.extract_text() or "")
+            extracted_text = "\n".join(pages_text).strip()
+        except Exception:
+            extracted_text = ""
+
+    if not extracted_text:
+        extracted_text = (
+            "Nao foi possivel extrair texto OCR automaticamente do arquivo. "
+            "Mantenha este comprovante junto da capa para conferencia no SPCE."
+        )
+
+    return ("\n".join(header) + "\n" + extracted_text).encode("utf-8")
+
 @api_router.get("/export/spce/precheck")
 async def spce_precheck(current_user: dict = Depends(get_current_user)):
     campaign_id = current_user.get("campaign_id")
@@ -3052,38 +3194,70 @@ NÃºmero do Recibo: {i + 1}
         
         # Generate documents for DESPESAS folder
         despesas_arquivos = []
-        for i, exp in enumerate(expenses):
-            supplier_cpf = (exp.get("supplier_cpf_cnpj") or "").replace(".", "").replace("-", "").replace("/", "")
-            date_exp = exp.get("date", "").replace("-", "")
-            if date_exp:
+        attachments_by_id = {a.get("id"): a for a in attachments if a.get("id")}
+        zf.writestr("DESPESAS/OCR/", "")
+
+        for i, exp in enumerate(expenses, 1):
+            if not _expense_is_ready_for_spce(exp):
+                continue
+
+            supplier_doc = normalize_document(exp.get("supplier_cpf_cnpj")) or "SEM_DOC"
+            date_exp = (exp.get("date", "") or "").replace("-", "")
+            if len(date_exp) == 8:
                 date_exp = date_exp[6:8] + date_exp[4:6] + date_exp[0:4]  # DDMMYYYY
-            
-            filename = f"DESP_{i+247}_{date_exp}_{supplier_cpf}.pdf"
-            
-            # Create expense document content
-            expense_content = f"""COMPROVANTE DE DESPESA ELEITORAL
+            else:
+                date_exp = "00000000"
 
-Campanha: {campaign.get('candidate_name', '')}
-CNPJ: {cnpj}
+            supplier_token = _sanitize_filename_token(exp.get("supplier_name"), "FORNECEDOR")
+            expense_seq = 246 + i
+            base_name = f"DESP_{expense_seq}_{date_exp}_{supplier_doc}"
 
-Fornecedor: {exp.get('supplier_name', '')}
-CPF/CNPJ: {exp.get('supplier_cpf_cnpj', '')}
+            # 1) Capa da despesa (texto pesquisável / OCR-ready)
+            cover_bytes = _generate_expense_cover_bytes(exp, campaign, cnpj, expense_seq)
+            cover_name = f"{base_name}_CAPA.pdf" if PDF_AVAILABLE else f"{base_name}_CAPA.txt"
+            zf.writestr(f"DESPESAS/{cover_name}", cover_bytes)
 
-DescriÃ§Ã£o: {exp.get('description', '')}
-Valor: R$ {exp.get('amount', 0):,.2f}
-Data: {exp.get('date', '')}
-Categoria: {exp.get('category', '')}
-Status: {exp.get('payment_status', 'pendente')}
-
-Nota Fiscal: {exp.get('invoice_number', '-')}
-"""
-            zf.writestr(f"DESPESAS/{filename}", expense_content.encode('utf-8'))
-            
-            category_desc = exp.get('category', '').replace('_', ' ').title()
             despesas_arquivos.append({
-                "codigo": filename,
-                "descricao": f"DESP_{category_desc}_{exp.get('supplier_name', '').replace(' ', '_')[:20]}_{supplier_cpf}_{date_exp}_R${exp.get('amount', 0):.2f}_{i+247}"
+                "codigo": cover_name,
+                "descricao": (
+                    f"CAPA_{supplier_token}_{supplier_doc}_{date_exp}_R${float(exp.get('amount', 0) or 0):.2f}_{expense_seq}"
+                ),
             })
+
+            # 2) Comprovante anexado + arquivo OCR auxiliar
+            attachment_id = exp.get("attachment_id")
+            attachment = attachments_by_id.get(attachment_id)
+            if not attachment:
+                continue
+
+            file_path = UPLOAD_DIR / (attachment.get("filename") or "")
+            if not file_path.exists():
+                continue
+
+            try:
+                with open(file_path, "rb") as f:
+                    file_content = f.read()
+
+                original_name = attachment.get("original_name") or attachment.get("filename") or f"{base_name}_ANEXO"
+                original_name = _sanitize_filename_token(original_name, f"{base_name}_ANEXO")
+                ext = os.path.splitext(attachment.get("filename") or "")[1].lower() or ".bin"
+                anexo_name = f"{base_name}_COMPROVANTE_{original_name}{ext}"
+                zf.writestr(f"DESPESAS/{anexo_name}", file_content)
+
+                ocr_txt = _build_ocr_text_for_attachment(exp, attachment, file_content)
+                ocr_name = f"{base_name}_OCR.txt"
+                zf.writestr(f"DESPESAS/OCR/{ocr_name}", ocr_txt)
+
+                despesas_arquivos.append({
+                    "codigo": anexo_name,
+                    "descricao": f"COMPROVANTE_{supplier_token}_{supplier_doc}_{date_exp}_{expense_seq}",
+                })
+                despesas_arquivos.append({
+                    "codigo": f"OCR/{ocr_name}",
+                    "descricao": f"OCR_INDEX_{supplier_token}_{supplier_doc}_{date_exp}_{expense_seq}",
+                })
+            except Exception:
+                continue
         
         # Generate DEMONSTRATIVOS
         demonstrativos_arquivos = []
@@ -3144,7 +3318,8 @@ Despesas Pendentes: R$ {sum(e.get('amount', 0) for e in expenses if e.get('payme
                     if entity_type == "revenue":
                         zf.writestr(f"RECEITAS/{att.get('original_name', att.get('filename'))}", file_content)
                     elif entity_type == "expense":
-                        zf.writestr(f"DESPESAS/{att.get('original_name', att.get('filename'))}", file_content)
+                        # Despesas são tratadas acima com capa + comprovante + OCR
+                        continue
                     elif entity_type == "contract":
                         zf.writestr(f"AVULSOS_OUTROS/{att.get('original_name', att.get('filename'))}", file_content)
                 except:
