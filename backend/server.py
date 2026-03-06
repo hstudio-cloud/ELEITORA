@@ -1089,6 +1089,7 @@ class ProfessionalResponse(BaseModel):
 # ============== PIX MODELS ==============
 class PixPaymentCreate(BaseModel):
     expense_id: Optional[str] = None  # Optional: link to expense
+    source_account_type: Optional[str] = "doacao"  # doacao, fundo_partidario, fefec
     pix_key: str
     pix_key_type: str  # cpf, cnpj, email, phone, random
     recipient_name: str  # Name of recipient
@@ -1101,6 +1102,10 @@ class PixPaymentResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     expense_id: Optional[str] = None
+    source_account_type: Optional[str] = "doacao"
+    source_bank: Optional[str] = None
+    source_agency: Optional[str] = None
+    source_account: Optional[str] = None
     pix_key: str
     pix_key_type: str
     recipient_name: str
@@ -6048,6 +6053,39 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
     campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
 
     pix_data = data.model_dump()
+    source_account_type = (pix_data.get("source_account_type") or "doacao").strip().lower()
+    account_map = {
+        "doacao": {
+            "bank": campaign.get("conta_doacao_banco"),
+            "agency": campaign.get("conta_doacao_agencia"),
+            "account": campaign.get("conta_doacao_numero"),
+            "digit": campaign.get("conta_doacao_digito"),
+            "label": "Conta de Doacao",
+        },
+        "fundo_partidario": {
+            "bank": campaign.get("conta_fundo_partidario_banco"),
+            "agency": campaign.get("conta_fundo_partidario_agencia"),
+            "account": campaign.get("conta_fundo_partidario_numero"),
+            "digit": campaign.get("conta_fundo_partidario_digito"),
+            "label": "Conta Fundo Partidario",
+        },
+        "fefec": {
+            "bank": campaign.get("conta_fefec_banco"),
+            "agency": campaign.get("conta_fefec_agencia"),
+            "account": campaign.get("conta_fefec_numero"),
+            "digit": campaign.get("conta_fefec_digito"),
+            "label": "Conta FEFEC",
+        },
+    }
+    selected_account = account_map.get(source_account_type)
+    if not selected_account:
+        raise HTTPException(status_code=400, detail="Conta de origem invalida. Use: doacao, fundo_partidario ou fefec.")
+    if not selected_account.get("bank") or not selected_account.get("agency") or not selected_account.get("account"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Dados bancarios incompletos para {selected_account['label']}. Configure em Configuracoes > Contas Bancarias.",
+        )
+
     pix_data["recipient_cpf_cnpj"] = validate_and_normalize_document(
         pix_data.get("recipient_cpf_cnpj"), "CPF/CNPJ do favorecido", required=False
     )
@@ -6115,6 +6153,7 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
 
     pix_doc = {
         "id": pix_id,
+        "source_account_type": source_account_type,
         "pix_key": pix_data["pix_key"],
         "pix_key_type": pix_data["pix_key_type"],
         "recipient_name": pix_data["recipient_name"],
@@ -6130,9 +6169,10 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
         "bb_error": bb_error,
         "integration_mode": "real" if txid else "simulado",
         "campaign_id": campaign_id,
-        "source_bank": campaign.get("conta_doacao_banco"),
-        "source_agency": campaign.get("conta_doacao_agencia"),
-        "source_account": campaign.get("conta_doacao_numero"),
+        "source_bank": selected_account.get("bank"),
+        "source_agency": selected_account.get("agency"),
+        "source_account": selected_account.get("account"),
+        "source_account_digit": selected_account.get("digit"),
         "created_at": datetime.now(timezone.utc).isoformat()
     }
 

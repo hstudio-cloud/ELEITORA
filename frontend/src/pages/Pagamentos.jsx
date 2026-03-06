@@ -44,6 +44,13 @@ const pixStatuses = {
     cancelado: { label: 'Cancelado', color: 'bg-gray-500/20 text-gray-500 border-gray-500/30' }
 };
 
+const pixSourceAccounts = [
+    { value: 'doacao', label: 'Conta de Doacao (Outros Recursos)' },
+    { value: 'fundo_partidario', label: 'Conta Fundo Partidario' },
+    { value: 'fefec', label: 'Conta FEFEC (Fundo Eleitoral)' }
+];
+const pixSourceAccountLabels = Object.fromEntries(pixSourceAccounts.map(item => [item.value, item.label]));
+
 const emptyForm = {
     description: '',
     amount: '',
@@ -56,6 +63,7 @@ const emptyForm = {
 };
 
 const emptyPixForm = {
+    source_account_type: 'doacao',
     pix_key: '',
     pix_key_type: 'cpf',
     recipient_name: '',
@@ -669,6 +677,24 @@ export default function Pagamentos() {
                                                             />
                                                         </div>
                                                         <div className="space-y-2">
+                                                            <Label>Conta de Origem *</Label>
+                                                            <Select
+                                                                value={pixFormData.source_account_type}
+                                                                onValueChange={(value) => handlePixChange('source_account_type', value)}
+                                                            >
+                                                                <SelectTrigger data-testid="pix-source-account-select">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {pixSourceAccounts.map(account => (
+                                                                        <SelectItem key={account.value} value={account.value}>
+                                                                            {account.label}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="space-y-2">
                                                             <Label>Data de Agendamento *</Label>
                                                             <Input
                                                                 type="date"
@@ -852,6 +878,11 @@ export default function Pagamentos() {
                                                             <div>
                                                                 <p className="font-medium">{pix.recipient_name}</p>
                                                                 <p className="text-xs text-muted-foreground">{pix.description}</p>
+                                                                {pix.source_account_type && (
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        Origem: {pixSourceAccountLabels[pix.source_account_type] || pix.source_account_type}
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell>
@@ -958,6 +989,12 @@ export default function Pagamentos() {
                                             <div className="flex justify-between">
                                                 <span className="text-sm text-muted-foreground">Data Agendada</span>
                                                 <span>{formatDate(selectedPixPayment.scheduled_date)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-sm text-muted-foreground">Conta de Origem</span>
+                                                <span className="text-sm">
+                                                    {pixSourceAccountLabels[selectedPixPayment.source_account_type] || selectedPixPayment.source_account_type || 'Conta de Doacao'}
+                                                </span>
                                             </div>
                                             {selectedPixPayment.transaction_id && (
                                                 <div className="flex justify-between">
