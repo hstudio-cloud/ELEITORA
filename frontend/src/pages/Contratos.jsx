@@ -24,11 +24,22 @@ import { Progress } from '../components/ui/progress';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const contractTemplates = [
-    { value: 'bem_movel', label: 'Locação de Bem Móvel', description: 'Equipamentos, rádios, etc.' },
-    { value: 'espaco_evento', label: 'Locação de Espaço para Evento', description: 'Espaço para evento eleitoral' },
-    { value: 'imovel', label: 'Locação de Imóvel', description: 'Comitê, escritório' },
-    { value: 'veiculo_com_motorista', label: 'Veículo com Motorista', description: 'Carro de som, paredão' },
-    { value: 'veiculo_sem_motorista', label: 'Veículo sem Motorista', description: 'Veículo sem condutor' }
+    { value: 'veiculo_com_motorista', label: 'Veiculo com Motorista', description: 'Carro de som, paredao e deslocamento com condutor' },
+    { value: 'veiculo_sem_motorista', label: 'Veiculo sem Motorista', description: 'Veiculo sem condutor' },
+    { value: 'imovel_comite', label: 'Imovel para Comite', description: 'Sede, comite e escritorio de campanha' },
+    { value: 'imovel_evento', label: 'Imovel para Evento', description: 'Espaco para reuniao e ato eleitoral' },
+    { value: 'servico_grafico', label: 'Servicos Graficos', description: 'Impressos e materiais de campanha' },
+    { value: 'servico_publicidade', label: 'Servicos de Publicidade', description: 'Planejamento e veiculacao de campanha' },
+    { value: 'servico_pesquisa', label: 'Servicos de Pesquisa', description: 'Pesquisa eleitoral e diagnostico' },
+    { value: 'servico_juridico', label: 'Servicos Juridicos', description: 'Assessoria e consultoria juridica' },
+    { value: 'servico_contabil', label: 'Servicos Contabeis', description: 'Contabilidade eleitoral e SPCE' },
+    { value: 'servico_ti', label: 'Servicos de TI', description: 'Suporte tecnico, sistemas e dados' },
+    { value: 'producao_audiovisual', label: 'Producao Audiovisual', description: 'Videos, jingles e conteudo' },
+    { value: 'impulsionamento', label: 'Impulsionamento de Conteudo', description: 'Midias digitais e plataformas' },
+    { value: 'outros', label: 'Outros Contratos', description: 'Demais servicos/locacoes permitidos' },
+    { value: 'bem_movel', label: 'Bem Movel (Legado)', description: 'Tipo legado para contratos antigos' },
+    { value: 'imovel', label: 'Imovel (Legado)', description: 'Tipo legado mapeado para comite' },
+    { value: 'espaco_evento', label: 'Espaco Evento (Legado)', description: 'Tipo legado mapeado para evento' }
 ];
 
 const contractStatuses = [
@@ -511,7 +522,7 @@ export default function Contratos() {
                 )}
 
                 {/* Property fields */}
-                {type === 'imovel' && (
+                {(type === 'imovel_comite' || type === 'imovel') && (
                     <>
                         <div className="space-y-2 md:col-span-2">
                             <Label>Descrição do Imóvel</Label>
@@ -536,7 +547,7 @@ export default function Contratos() {
                 )}
 
                 {/* Event space fields */}
-                {type === 'espaco_evento' && (
+                {(type === 'imovel_evento' || type === 'espaco_evento') && (
                     <>
                         <div className="space-y-2">
                             <Label>Horário de Início</Label>

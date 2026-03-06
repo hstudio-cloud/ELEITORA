@@ -454,11 +454,24 @@ class ContractStatus(str, Enum):
     CANCELADO = "cancelado"
 
 class ContractTemplateType(str, Enum):
+    # Legacy templates (mantidos por compatibilidade)
     BEM_MOVEL = "bem_movel"
     ESPACO_EVENTO = "espaco_evento"
     IMOVEL = "imovel"
     VEICULO_COM_MOTORISTA = "veiculo_com_motorista"
     VEICULO_SEM_MOTORISTA = "veiculo_sem_motorista"
+    # SPCE templates
+    IMOVEL_COMITE = "imovel_comite"
+    IMOVEL_EVENTO = "imovel_evento"
+    SERVICO_GRAFICO = "servico_grafico"
+    SERVICO_PUBLICIDADE = "servico_publicidade"
+    SERVICO_PESQUISA = "servico_pesquisa"
+    SERVICO_JURIDICO = "servico_juridico"
+    SERVICO_CONTABIL = "servico_contabil"
+    SERVICO_TI = "servico_ti"
+    PRODUCAO_AUDIOVISUAL = "producao_audiovisual"
+    IMPULSIONAMENTO = "impulsionamento"
+    OUTROS = "outros"
 
 # Required attachments by contract type
 CONTRACT_REQUIRED_ATTACHMENTS = {
@@ -492,6 +505,71 @@ CONTRACT_REQUIRED_ATTACHMENTS = {
         {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/ResponsÃ¡vel (RG/CPF)", "required": True},
         {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia", "required": True},
         {"key": "doc_espaco", "label": "Documento do EspaÃ§o (se houver)", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "imovel_comite": [
+        {"key": "doc_imovel", "label": "Documento do ImÃ³vel (Escritura/Contrato)", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/Locador (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia do Locador", "required": True},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "imovel_evento": [
+        {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/ResponsÃ¡vel (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia", "required": True},
+        {"key": "doc_espaco", "label": "Documento do EspaÃ§o (se houver)", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "servico_grafico": [
+        {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
+        {"key": "proposta_servico", "label": "Proposta/OrÃ§amento do ServiÃ§o", "required": True},
+        {"key": "arte_aprovada", "label": "Arte/EspecificaÃ§Ã£o do Material", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "servico_publicidade": [
+        {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
+        {"key": "proposta_servico", "label": "Proposta/Plano de MÃ­dia", "required": True},
+        {"key": "relatorio_entrega", "label": "RelatÃ³rio de Entrega/VeiculaÃ§Ã£o", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "servico_pesquisa": [
+        {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
+        {"key": "proposta_servico", "label": "Proposta/Plano de Pesquisa", "required": True},
+        {"key": "relatorio_entrega", "label": "RelatÃ³rio/Resultado da Pesquisa", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "servico_juridico": [
+        {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
+        {"key": "doc_oab", "label": "ComprovaÃ§Ã£o de OAB (se aplicÃ¡vel)", "required": False},
+        {"key": "proposta_servico", "label": "Proposta/Objeto do ServiÃ§o", "required": True},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "servico_contabil": [
+        {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
+        {"key": "doc_crc", "label": "ComprovaÃ§Ã£o de CRC (se aplicÃ¡vel)", "required": False},
+        {"key": "proposta_servico", "label": "Proposta/Objeto do ServiÃ§o", "required": True},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "servico_ti": [
+        {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
+        {"key": "proposta_servico", "label": "Escopo TÃ©cnico do ServiÃ§o", "required": True},
+        {"key": "relatorio_entrega", "label": "RelatÃ³rio de Entrega", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "producao_audiovisual": [
+        {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
+        {"key": "proposta_servico", "label": "Roteiro/Escopo da ProduÃ§Ã£o", "required": True},
+        {"key": "relatorio_entrega", "label": "ComprovaÃ§Ã£o de Entrega do Material", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "impulsionamento": [
+        {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
+        {"key": "proposta_servico", "label": "Plano de Impulsionamento", "required": True},
+        {"key": "relatorio_entrega", "label": "RelatÃ³rio de VeiculaÃ§Ã£o", "required": False},
+        {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
+    ],
+    "outros": [
+        {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
+        {"key": "proposta_servico", "label": "DescriÃ§Ã£o/Proposta do Objeto", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ]
 }
@@ -1220,18 +1298,36 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
     
     return header + locador_section + locatario_section + object_clause + term_clause + value_clause + forum_clause + signature_section
 
-def get_contract_title(template_type: str) -> str:
-    titles = {
-        "bem_movel": "BEM MÃ“VEL PARA CAMPANHA ELEITORAL",
-        "espaco_evento": "ESPAÃ‡O PARA EVENTO ELEITORAL",
-        "imovel": "IMÃ“VEL PARA CAMPANHA ELEITORAL",
-        "veiculo_com_motorista": "VEÃCULO COM MOTORISTA PARA CAMPANHA ELEITORAL",
-        "veiculo_sem_motorista": "VEÃCULO SEM MOTORISTA PARA CAMPANHA ELEITORAL"
+def _normalize_contract_template_type(template_type: str) -> str:
+    legacy_aliases = {
+        "imovel": "imovel_comite",
+        "espaco_evento": "imovel_evento",
     }
-    return titles.get(template_type, "BEM MÃ“VEL PARA CAMPANHA ELEITORAL")
+    return legacy_aliases.get(template_type, template_type or "outros")
+
+def get_contract_title(template_type: str) -> str:
+    normalized = _normalize_contract_template_type(template_type)
+    titles = {
+        "veiculo_com_motorista": "VEÃCULO COM MOTORISTA PARA CAMPANHA ELEITORAL",
+        "veiculo_sem_motorista": "VEÃCULO SEM MOTORISTA PARA CAMPANHA ELEITORAL",
+        "imovel_comite": "IMÃ“VEL PARA COMITÃŠ DE CAMPANHA",
+        "imovel_evento": "IMÃ“VEL/ESPAÃ‡O PARA EVENTO ELEITORAL",
+        "servico_grafico": "SERVIÃ‡OS GRÃFICOS DE CAMPANHA",
+        "servico_publicidade": "SERVIÃ‡OS DE PUBLICIDADE DE CAMPANHA",
+        "servico_pesquisa": "SERVIÃ‡OS DE PESQUISA ELEITORAL",
+        "servico_juridico": "SERVIÃ‡OS JURÃDICOS ELEITORAIS",
+        "servico_contabil": "SERVIÃ‡OS CONTÃBEIS ELEITORAIS",
+        "servico_ti": "SERVIÃ‡OS DE TECNOLOGIA DA INFORMAÃ‡ÃƒO",
+        "producao_audiovisual": "PRODUÃ‡ÃƒO AUDIOVISUAL DE CAMPANHA",
+        "impulsionamento": "IMPULSIONAMENTO DE CONTEÃšDO ELEITORAL",
+        "outros": "OUTROS SERVIÃ‡OS/LOCAÃ‡Ã•ES DE CAMPANHA",
+        "bem_movel": "BEM MÃ“VEL PARA CAMPANHA ELEITORAL",
+    }
+    return titles.get(normalized, "OUTROS SERVIÃ‡OS/LOCAÃ‡Ã•ES DE CAMPANHA")
 
 def generate_object_clause(template_type: str, contract_data: dict) -> str:
-    if template_type == "bem_movel":
+    normalized = _normalize_contract_template_type(template_type)
+    if normalized == "bem_movel":
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
@@ -1248,7 +1344,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             total ou parcial, do bem locado sem prÃ©via anuÃªncia expressa do LOCADOR.
         </p>
         """
-    elif template_type == "espaco_evento":
+    elif normalized == "imovel_evento":
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
@@ -1265,7 +1361,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             ao tÃ©rmino do perÃ­odo em seu estado inicial.
         </p>
         """
-    elif template_type == "imovel":
+    elif normalized == "imovel_comite":
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
@@ -1285,7 +1381,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             total ou parcial, do imÃ³vel locado sem prÃ©via anuÃªncia expressa do LOCADOR.
         </p>
         """
-    elif template_type == "veiculo_com_motorista":
+    elif normalized == "veiculo_com_motorista":
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
@@ -1311,7 +1407,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             em que o recebeu, respondendo por danos ou prejuÃ­zos causados.
         </p>
         """
-    else:  # veiculo_sem_motorista
+    elif normalized == "veiculo_sem_motorista":
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
@@ -1330,6 +1426,56 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         <p style="text-align: justify;">
             <em>ParÃ¡grafo segundo.</em> O LOCATÃRIO deverÃ¡ devolver o automÃ³vel ao LOCADOR nas mesmas 
             condiÃ§Ãµes em que o recebeu, respondendo por danos ou prejuÃ­zos causados.
+        </p>
+        """
+    elif normalized in {
+        "servico_grafico",
+        "servico_publicidade",
+        "servico_pesquisa",
+        "servico_juridico",
+        "servico_contabil",
+        "servico_ti",
+        "producao_audiovisual",
+        "impulsionamento",
+    }:
+        service_labels = {
+            "servico_grafico": "serviÃ§os grÃ¡ficos",
+            "servico_publicidade": "serviÃ§os de publicidade",
+            "servico_pesquisa": "serviÃ§os de pesquisa eleitoral",
+            "servico_juridico": "serviÃ§os jurÃ­dicos",
+            "servico_contabil": "serviÃ§os contÃ¡beis",
+            "servico_ti": "serviÃ§os de tecnologia da informaÃ§Ã£o",
+            "producao_audiovisual": "serviÃ§os de produÃ§Ã£o audiovisual",
+            "impulsionamento": "serviÃ§os de impulsionamento de conteÃºdo",
+        }
+        service_desc = service_labels.get(normalized, "serviÃ§os especializados")
+        return f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
+        <p style="text-align: justify;">
+            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a prestaÃ§Ã£o de {service_desc}
+            para a campanha eleitoral do LOCATÃRIO, conforme escopo abaixo:
+        </p>
+        <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
+        <p style="text-align: justify;">
+            <em>ParÃ¡grafo primeiro.</em> O LOCADOR compromete-se a executar os serviÃ§os com observÃ¢ncia Ã  legislaÃ§Ã£o eleitoral,
+            incluindo regras de transparÃªncia e prestaÃ§Ã£o de contas aplicÃ¡veis ao SPCE.
+        </p>
+        <p style="text-align: justify;">
+            <em>ParÃ¡grafo segundo.</em> O LOCADOR deverÃ¡ entregar comprovantes de execuÃ§Ã£o e documentos fiscais
+            idÃ´neos correspondentes aos serviÃ§os contratados.
+        </p>
+        """
+    else:
+        return f"""
+        <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
+        <p style="text-align: justify;">
+            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a prestaÃ§Ã£o de serviÃ§os e/ou
+            locaÃ§Ã£o de bens para uso na campanha eleitoral do LOCATÃRIO.
+        </p>
+        <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
+        <p style="text-align: justify;">
+            <em>ParÃ¡grafo Ãºnico.</em> Todas as entregas e pagamentos devem possuir comprovaÃ§Ã£o documental
+            para fins de prestaÃ§Ã£o de contas eleitoral.
         </p>
         """
 
@@ -4384,6 +4530,10 @@ SPCE_CONTRATO_TIPOS = {
     "servico_ti": {"codigo": "10", "descricao": "ServiÃ§os de TI"},
     "producao_audiovisual": {"codigo": "11", "descricao": "ProduÃ§Ã£o Audiovisual"},
     "impulsionamento": {"codigo": "12", "descricao": "Impulsionamento de ConteÃºdos"},
+    # aliases legados para compatibilidade de contratos antigos
+    "imovel": {"codigo": "03", "descricao": "LocaÃ§Ã£o de ImÃ³vel para ComitÃª"},
+    "espaco_evento": {"codigo": "04", "descricao": "LocaÃ§Ã£o de ImÃ³vel para Evento"},
+    "bem_movel": {"codigo": "99", "descricao": "Outros Contratos"},
     "outros": {"codigo": "99", "descricao": "Outros Contratos"}
 }
 
@@ -4422,7 +4572,7 @@ async def export_spce_contratos(current_user: dict = Depends(get_current_user)):
             end_date = end_date[6:8] + end_date[4:6] + end_date[0:4]
         
         # Get contract type
-        template = contract.get("template_type", "outros")
+        template = _normalize_contract_template_type(contract.get("template_type", "outros"))
         tipo_info = SPCE_CONTRATO_TIPOS.get(template, SPCE_CONTRATO_TIPOS["outros"])
         
         # Format amount
@@ -4472,7 +4622,7 @@ async def export_spce_contratos(current_user: dict = Depends(get_current_user)):
         "valor_total_formatado": f"R$ {total_valor:,.2f}",
         "format": "SPCE-CONTRATOS",
         "tipos_utilizados": list(set(
-            SPCE_CONTRATO_TIPOS.get(c.get("template_type", "outros"), SPCE_CONTRATO_TIPOS["outros"])["descricao"]
+            SPCE_CONTRATO_TIPOS.get(_normalize_contract_template_type(c.get("template_type", "outros")), SPCE_CONTRATO_TIPOS["outros"])["descricao"]
             for c in contracts
         ))
     }
