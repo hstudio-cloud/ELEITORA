@@ -75,6 +75,7 @@ const emptyForm = {
     status: 'rascunho',
     notes: '',
     template_type: '',
+    contador_professional_id: '',
     // Payment installments
     num_parcelas: 1,
     gerar_despesas: true,
@@ -134,9 +135,11 @@ export default function Contratos() {
     const [attachmentsDialogOpen, setAttachmentsDialogOpen] = useState(false);
     const [selectedContractAttachments, setSelectedContractAttachments] = useState(null);
     const [uploadingAttachmentKey, setUploadingAttachmentKey] = useState(null);
+    const [contadores, setContadores] = useState([]);
 
     useEffect(() => {
         fetchContracts();
+        fetchContadores();
     }, []);
 
     const fetchContracts = async () => {
@@ -171,7 +174,27 @@ export default function Contratos() {
         setFormData(prev => ({
             ...prev,
             template_type: templateType,
+            contador_professional_id: templateType === 'servico_contabil' ? prev.contador_professional_id : '',
             title: template ? `Contrato de ${template.label}` : prev.title
+        }));
+    };
+
+    const handleSelectContador = (contadorId) => {
+        const contador = contadores.find(c => c.id === contadorId);
+        if (!contador) {
+            handleChange('contador_professional_id', '');
+            return;
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            contador_professional_id: contador.id,
+            contractor_name: contador.name || prev.contractor_name,
+            contractor_cpf_cnpj: contador.cpf || prev.contractor_cpf_cnpj,
+            locador_nome: contador.name || prev.locador_nome,
+            locador_cpf: contador.cpf || prev.locador_cpf,
+            locador_email: contador.email || prev.locador_email,
+            locador_profissao: 'Contador(a)'
         }));
     };
 
@@ -268,6 +291,7 @@ export default function Contratos() {
             status: contract.status || 'rascunho',
             notes: contract.notes || '',
             template_type: contract.template_type || '',
+            contador_professional_id: contract.contador_professional_id || '',
             locador_nome: contract.locador_nome || '',
             locador_nacionalidade: contract.locador_nacionalidade || 'Brasileiro(a)',
             locador_estado_civil: contract.locador_estado_civil || '',
@@ -372,6 +396,15 @@ export default function Contratos() {
         input.click();
     };
 
+    const fetchContadores = async () => {
+        try {
+            const response = await axios.get(`${API}/professionals`, { params: { type: 'contador' } });
+            setContadores(response.data || []);
+        } catch (error) {
+            setContadores([]);
+        }
+    };
+
     const checkSignatureReminders = (contractsToCheck) => {
         const today = new Date().toISOString().split('T')[0];
         const now = Date.now();
@@ -424,6 +457,30 @@ export default function Contratos() {
 
         return (
             <>
+                {type === 'servico_contabil' && (
+                    <div className="space-y-2 md:col-span-2">
+                        <Label>Selecionar Contador Cadastrado</Label>
+                        <Select
+                            value={formData.contador_professional_id || ''}
+                            onValueChange={handleSelectContador}
+                        >
+                            <SelectTrigger data-testid="contract-contador-select">
+                                <SelectValue placeholder="Escolha um contador da plataforma" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {contadores.map((contador) => (
+                                    <SelectItem key={contador.id} value={contador.id}>
+                                        {contador.name} {contador.crc ? `- CRC ${contador.crc}/${contador.crc_state || ''}` : ''}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            Ao selecionar, os dados do contador e documentos de cadastro/CRC serão anexados automaticamente ao contrato.
+                        </p>
+                    </div>
+                )}
+
                 {/* Common object description */}
                 <div className="space-y-2 md:col-span-2">
                     <Label>Descrição do Objeto *</Label>

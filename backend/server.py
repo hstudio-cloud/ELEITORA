@@ -845,6 +845,7 @@ class ContractCreate(BaseModel):
     gerar_despesas: bool = True  # Auto-generate expenses
     # New fields for template contracts
     template_type: Optional[ContractTemplateType] = None
+    contador_professional_id: Optional[str] = None
     # Locador (Prestador de ServiÃ§o) fields
     locador_nome: Optional[str] = None
     locador_nacionalidade: Optional[str] = "Brasileiro(a)"
@@ -911,6 +912,7 @@ class ContractResponse(BaseModel):
     gerar_despesas: Optional[bool] = True
     # New fields
     template_type: Optional[str] = None
+    contador_professional_id: Optional[str] = None
     locador_nome: Optional[str] = None
     locador_nacionalidade: Optional[str] = None
     locador_estado_civil: Optional[str] = None
@@ -1506,6 +1508,151 @@ def generate_signature_token(contract_id: str, email: str, party: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+def _render_text_document_bytes(title: str, lines: List[str]) -> tuple[bytes, str, str]:
+    """Render a simple auto-generated document as PDF (preferred) or TXT fallback."""
+    content_type = "application/pdf" if PDF_AVAILABLE else "text/plain"
+    ext = ".pdf" if PDF_AVAILABLE else ".txt"
+
+    if PDF_AVAILABLE:
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            topMargin=2 * cm,
+            bottomMargin=2 * cm,
+            leftMargin=2 * cm,
+            rightMargin=2 * cm,
+        )
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            "AutoDocTitle",
+            parent=styles["Heading1"],
+            fontSize=13,
+            leading=17,
+            alignment=TA_LEFT,
+            spaceAfter=10,
+        )
+        body_style = ParagraphStyle(
+            "AutoDocBody",
+            parent=styles["Normal"],
+            fontSize=10,
+            leading=14,
+            alignment=TA_LEFT,
+            spaceAfter=4,
+        )
+        story = [Paragraph(title, title_style), Spacer(1, 0.3 * cm)]
+        for line in lines:
+            story.append(Paragraph(line, body_style))
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.getvalue(), content_type, ext
+
+    txt = title + "\n\n" + "\n".join(lines)
+    return txt.encode("utf-8"), content_type, ext
+
+async def _get_contador_for_campaign(contador_id: str, campaign_id: str) -> dict:
+    contador = await db.professionals.find_one(
+        {"id": contador_id, "campaigns": campaign_id, "type": "contador"},
+        {"_id": 0, "password_hash": 0}
+    )
+    if not contador:
+        raise HTTPException(status_code=404, detail="Contador nÃ£o encontrado para esta campanha")
+    return contador
+
+def _apply_contador_data_to_contract(contract_data: dict, contador: dict) -> dict:
+    """Fill contract provider fields from selected contador account."""
+    contador_cpf = normalize_document(contador.get("cpf"))
+    if not contador_cpf or len(contador_cpf) != 11 or not validate_cpf(contador_cpf):
+        raise HTTPException(status_code=400, detail="Contador selecionado sem CPF vÃ¡lido cadastrado")
+
+    contract_data["contractor_name"] = contador.get("name") or contract_data.get("contractor_name")
+    contract_data["contractor_cpf_cnpj"] = contador_cpf
+    contract_data["locador_nome"] = contador.get("name") or contract_data.get("locador_nome")
+    contract_data["locador_cpf"] = contador_cpf
+    contract_data["locador_email"] = contador.get("email") or contract_data.get("locador_email")
+    contract_data["locador_profissao"] = "Contador(a)"
+    contract_data["contador_professional_id"] = contador.get("id")
+    return contract_data
+
+async def _auto_attach_contador_docs(
+    *,
+    contract_id: str,
+    campaign_id: str,
+    uploaded_by: str,
+    contador: dict,
+    existing_attachments: Optional[dict] = None,
+) -> dict:
+    """
+    Auto-generate and attach accountant supporting docs from professional profile.
+    Returns merged attachments map.
+    """
+    attachments_map = dict(existing_attachments or {})
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    city_uf = f"{contador.get('city', '-')}/{(contador.get('state') or '-').upper()}"
+    cpf_fmt = contador.get("cpf") or "-"
+    crc_fmt = f"{contador.get('crc', '-')}/{(contador.get('crc_state') or '-').upper()}" if contador.get("crc") else "-"
+
+    docs_to_generate = []
+    if not attachments_map.get("doc_prestador"):
+        docs_to_generate.append((
+            "doc_prestador",
+            f"Cadastro Profissional - {contador.get('name', 'Contador')}",
+            [
+                f"Nome: {contador.get('name', '-')}",
+                f"Tipo: Contador(a)",
+                f"Email: {contador.get('email', '-')}",
+                f"Telefone: {contador.get('phone', '-')}",
+                f"CPF: {cpf_fmt}",
+                f"CRC: {crc_fmt}",
+                f"EndereÃ§o: {contador.get('address', '-')}",
+                f"Cidade/UF: {city_uf}",
+                f"ObservaÃ§Ãµes: {contador.get('notes', '-')}",
+                f"Gerado automaticamente em: {now_iso}",
+            ],
+        ))
+
+    if contador.get("crc") and not attachments_map.get("doc_crc"):
+        docs_to_generate.append((
+            "doc_crc",
+            f"Comprovacao CRC - {contador.get('name', 'Contador')}",
+            [
+                f"Profissional: {contador.get('name', '-')}",
+                f"CPF: {cpf_fmt}",
+                f"CRC: {crc_fmt}",
+                f"UF do CRC: {(contador.get('crc_state') or '-').upper()}",
+                f"Registro gerado automaticamente em: {now_iso}",
+            ],
+        ))
+
+    for attachment_key, title, lines in docs_to_generate:
+        doc_bytes, content_type, ext = _render_text_document_bytes(title, lines)
+        file_id = str(uuid.uuid4())
+        safe_filename = f"{file_id}{ext}"
+        file_path = UPLOAD_DIR / safe_filename
+        with open(file_path, "wb") as f:
+            f.write(doc_bytes)
+
+        attachment_doc = {
+            "id": file_id,
+            "original_name": f"{title}{ext}",
+            "filename": safe_filename,
+            "content_type": content_type,
+            "size": len(doc_bytes),
+            "campaign_id": campaign_id,
+            "uploaded_by": uploaded_by,
+            "entity_type": "contract_attachment",
+            "entity_id": contract_id,
+            "attachment_key": attachment_key,
+            "auto_generated": True,
+            "source_professional_id": contador.get("id"),
+            "created_at": now_iso,
+        }
+        await db.attachments.insert_one(attachment_doc)
+        attachments_map[attachment_key] = file_id
+
+    return attachments_map
+
 # ============== AUTH ROUTES ==============
 @api_router.post("/auth/register", response_model=dict)
 async def register(user_data: UserCreate):
@@ -1897,6 +2044,13 @@ async def create_contract(data: ContractCreate, current_user: dict = Depends(get
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
     contract_data = data.model_dump()
+
+    if data.template_type == ContractTemplateType.SERVICO_CONTABIL and data.contador_professional_id:
+        contador = await _get_contador_for_campaign(data.contador_professional_id, current_user["campaign_id"])
+        contract_data = _apply_contador_data_to_contract(contract_data, contador)
+    else:
+        contador = None
+
     contract_data["contractor_cpf_cnpj"] = validate_and_normalize_document(
         contract_data.get("contractor_cpf_cnpj"), "CPF/CNPJ do contratado", required=True
     )
@@ -1920,6 +2074,18 @@ async def create_contract(data: ContractCreate, current_user: dict = Depends(get
         contract_doc["contract_html"] = generate_contract_html(contract_doc, campaign)
     
     await db.contracts.insert_one(contract_doc)
+
+    if contador:
+        merged_attachments = await _auto_attach_contador_docs(
+            contract_id=contract_id,
+            campaign_id=current_user["campaign_id"],
+            uploaded_by=current_user["id"],
+            contador=contador,
+            existing_attachments=contract_doc.get("attachments"),
+        )
+        await db.contracts.update_one({"id": contract_id}, {"$set": {"attachments": merged_attachments}})
+        contract_doc["attachments"] = merged_attachments
+
     contract_doc.pop("_id", None)
     
     # Auto-generate expenses based on installment config
@@ -2022,6 +2188,13 @@ async def update_contract(contract_id: str, data: ContractCreate, current_user: 
     
     campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
     update_data = data.model_dump()
+
+    if data.template_type == ContractTemplateType.SERVICO_CONTABIL and data.contador_professional_id:
+        contador = await _get_contador_for_campaign(data.contador_professional_id, current_user["campaign_id"])
+        update_data = _apply_contador_data_to_contract(update_data, contador)
+    else:
+        contador = None
+
     update_data["contractor_cpf_cnpj"] = validate_and_normalize_document(
         update_data.get("contractor_cpf_cnpj"), "CPF/CNPJ do contratado", required=True
     )
@@ -2034,6 +2207,17 @@ async def update_contract(contract_id: str, data: ContractCreate, current_user: 
         update_data["contract_html"] = generate_contract_html({**contract, **update_data}, campaign)
     
     await db.contracts.update_one({"id": contract_id}, {"$set": update_data})
+
+    if contador:
+        merged_attachments = await _auto_attach_contador_docs(
+            contract_id=contract_id,
+            campaign_id=current_user["campaign_id"],
+            uploaded_by=current_user["id"],
+            contador=contador,
+            existing_attachments=(contract.get("attachments") or update_data.get("attachments")),
+        )
+        await db.contracts.update_one({"id": contract_id}, {"$set": {"attachments": merged_attachments}})
+
     updated = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
     return updated
 
