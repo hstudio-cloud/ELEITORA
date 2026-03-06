@@ -30,15 +30,15 @@ export default function AssinarContrato() {
     const [selfieCapture, setSelfieCapture] = useState(null);
     const [cameraError, setCameraError] = useState(null);
 
-    useEffect(() => {
-        verifyToken();
-        return () => {
-            // Cleanup camera on unmount
-            stopCamera();
-        };
-    }, [token]);
+    const stopCamera = useCallback(() => {
+        if (videoRef.current && videoRef.current.srcObject) {
+            videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+            videoRef.current.srcObject = null;
+        }
+        setCameraActive(false);
+    }, []);
 
-    const verifyToken = async () => {
+    const verifyToken = useCallback(async () => {
         try {
             const response = await axios.get(`${API}/contracts/verify/${token}`);
             setContractData(response.data);
@@ -52,7 +52,15 @@ export default function AssinarContrato() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [token]);
+
+    useEffect(() => {
+        verifyToken();
+        return () => {
+            // Cleanup camera on unmount
+            stopCamera();
+        };
+    }, [verifyToken, stopCamera]);
 
     const startCamera = async () => {
         try {
@@ -68,14 +76,6 @@ export default function AssinarContrato() {
             console.error('Camera error:', err);
             setCameraError('Não foi possível acessar a câmera. Verifique as permissões do navegador.');
         }
-    };
-
-    const stopCamera = () => {
-        if (videoRef.current && videoRef.current.srcObject) {
-            videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-            videoRef.current.srcObject = null;
-        }
-        setCameraActive(false);
     };
 
     const captureSelfie = useCallback(() => {
@@ -99,7 +99,7 @@ export default function AssinarContrato() {
         stopCamera();
         
         toast.success('Selfie capturada com sucesso!');
-    }, []);
+    }, [stopCamera]);
 
     const retakeSelfie = () => {
         setSelfieCapture(null);
