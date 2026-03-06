@@ -16,9 +16,11 @@ import json
 import zipfile
 import io
 import httpx
+import unicodedata
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, validator
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -632,6 +634,10 @@ class CampaignCreate(BaseModel):
     # TSE Spending Limits
     eleitores: Optional[int] = None  # NÃºmero de eleitores do municÃ­pio (para cÃ¡lculo do limite TSE)
     codigo_ibge: Optional[str] = None  # CÃ³digo IBGE do municÃ­pio
+    segundo_turno: Optional[bool] = False
+    limite_gastos: Optional[float] = None
+    limite_fonte: Optional[str] = None
+    limite_ano_base: Optional[int] = None
     # SPCE Required Fields
     cnpj: Optional[str] = None  # CNPJ da campanha
     numero_candidato: Optional[str] = None  # NÃºmero do candidato
@@ -676,6 +682,10 @@ class CampaignResponse(BaseModel):
     # TSE Spending Limits
     eleitores: Optional[int] = None
     codigo_ibge: Optional[str] = None
+    segundo_turno: Optional[bool] = False
+    limite_gastos: Optional[float] = None
+    limite_fonte: Optional[str] = None
+    limite_ano_base: Optional[int] = None
     # SPCE Fields
     cnpj: Optional[str] = None
     numero_candidato: Optional[str] = None
@@ -1732,6 +1742,16 @@ async def create_campaign(data: CampaignCreate, current_user: dict = Depends(get
     campaign_data["cpf_candidato"] = validate_and_normalize_document(
         campaign_data.get("cpf_candidato"), "CPF do candidato", allowed_types=("cpf",), required=False
     )
+    limit_data = await resolve_spending_limit(
+        cargo=campaign_data.get("position", ""),
+        city=campaign_data.get("city"),
+        state=campaign_data.get("state"),
+        eleitores=campaign_data.get("eleitores"),
+        segundo_turno=bool(campaign_data.get("segundo_turno", False)),
+    )
+    campaign_data["limite_gastos"] = limit_data.get("limite_gastos", 0.0)
+    campaign_data["limite_fonte"] = limit_data.get("fonte")
+    campaign_data["limite_ano_base"] = limit_data.get("ano_base")
 
     campaign_id = str(uuid.uuid4())
     campaign_doc = {
@@ -1768,6 +1788,16 @@ async def update_campaign(campaign_id: str, data: CampaignCreate, current_user: 
     update_data["cpf_candidato"] = validate_and_normalize_document(
         update_data.get("cpf_candidato"), "CPF do candidato", allowed_types=("cpf",), required=False
     )
+    limit_data = await resolve_spending_limit(
+        cargo=update_data.get("position", ""),
+        city=update_data.get("city"),
+        state=update_data.get("state"),
+        eleitores=update_data.get("eleitores"),
+        segundo_turno=bool(update_data.get("segundo_turno", False)),
+    )
+    update_data["limite_gastos"] = limit_data.get("limite_gastos", 0.0)
+    update_data["limite_fonte"] = limit_data.get("fonte")
+    update_data["limite_ano_base"] = limit_data.get("ano_base")
     await db.campaigns.update_one({"id": campaign_id}, {"$set": update_data})
     
     updated = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
@@ -2619,6 +2649,14 @@ async def get_estados():
         ],
         "regioes": ["Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"]
     }
+
+@api_router.get("/reference/municipios")
+async def get_municipios(uf: str = Query(..., description="UF com 2 letras, ex: SP")):
+    """Lista oficial de municipios brasileiros por UF (IBGE)."""
+    municipios = await _get_ibge_municipios_by_uf(uf)
+    if not municipios:
+        raise HTTPException(status_code=404, detail="Nao foi possivel carregar municipios para a UF informada")
+    return {"uf": uf.upper(), "municipios": municipios, "fonte": "IBGE API localidades"}
 
 @api_router.get("/reference/bancos")
 async def get_bancos():
@@ -6273,105 +6311,390 @@ async def execute_pix_payment(pix_id: str, current_user: dict = Depends(get_curr
     }
 
 # ============== TSE SPENDING LIMITS ==============
-# Limites de gastos eleitorais do TSE - Portaria nÂº 593/2024
-# Valores base para municÃ­pios de diferentes portes (eleiÃ§Ãµes 2024)
+# Fontes oficiais:
+# - Limites municipais (prefeito/vereador): Portaria TSE 593/2024 (anexo por município)
+# - Limites gerais (deputado federal/estadual/distrital): tabela TSE Eleições 2022
 
-TSE_SPENDING_LIMITS = {
-    # Faixas de eleitorado com limites base (valores em R$)
-    # Fonte: TSE Portaria 593/2024, atualizado pelo IPCA
+TSE_MUNICIPAL_LIMITS_2024_XLSX_URL = (
+    "https://cdn.tse.jus.br/estatistica/sead/odsele/"
+    "contas-campanha/limites-gastos/limites_de_gastos_2024.xlsx"
+)
+
+TSE_SPENDING_LIMITS_FALLBACK = {
     "prefeito": {
         "micro": {"min_eleitores": 0, "max_eleitores": 10000, "primeiro_turno": 159850.76, "segundo_turno": 63940.30},
         "pequeno": {"min_eleitores": 10001, "max_eleitores": 50000, "primeiro_turno": 500000.00, "segundo_turno": 200000.00},
         "medio": {"min_eleitores": 50001, "max_eleitores": 200000, "primeiro_turno": 2000000.00, "segundo_turno": 800000.00},
         "grande": {"min_eleitores": 200001, "max_eleitores": 1000000, "primeiro_turno": 10000000.00, "segundo_turno": 4000000.00},
-        "metropole": {"min_eleitores": 1000001, "max_eleitores": float('inf'), "primeiro_turno": 67200000.00, "segundo_turno": 26880000.00}
+        "metropole": {"min_eleitores": 1000001, "max_eleitores": float("inf"), "primeiro_turno": 67200000.00, "segundo_turno": 26880000.00},
     },
     "vereador": {
         "micro": {"min_eleitores": 0, "max_eleitores": 10000, "limite": 15985.08},
         "pequeno": {"min_eleitores": 10001, "max_eleitores": 50000, "limite": 50000.00},
         "medio": {"min_eleitores": 50001, "max_eleitores": 200000, "limite": 200000.00},
         "grande": {"min_eleitores": 200001, "max_eleitores": 1000000, "limite": 1000000.00},
-        "metropole": {"min_eleitores": 1000001, "max_eleitores": float('inf'), "limite": 4770000.00}
-    }
+        "metropole": {"min_eleitores": 1000001, "max_eleitores": float("inf"), "limite": 4770000.00},
+    },
 }
 
-# Dados de alguns municÃ­pios conhecidos (para demonstraÃ§Ã£o)
+TSE_GENERAL_LIMITS_2022 = {
+    "deputado_federal": 3176572.53,
+    "deputado_estadual": 1270629.01,
+    "deputado_distrital": 1270629.01,
+}
+
+# Fallback local para cenários sem acesso externo (mantém compatibilidade de testes)
 MUNICIPIOS_TSE = {
     "5200050": {"nome": "Anhanguera", "uf": "GO", "eleitores": 800, "prefeito_1t": 159850.76, "vereador": 15985.08},
     "5101102": {"nome": "Araguainha", "uf": "MT", "eleitores": 950, "prefeito_1t": 159850.76, "vereador": 15985.08},
-    "3505302": {"nome": "BorÃ¡", "uf": "SP", "eleitores": 850, "prefeito_1t": 159850.76, "vereador": 15985.08},
-    "3550308": {"nome": "SÃ£o Paulo", "uf": "SP", "eleitores": 9500000, "prefeito_1t": 67200000.00, "prefeito_2t": 26880000.00, "vereador": 4770000.00},
+    "3505302": {"nome": "Bora", "uf": "SP", "eleitores": 850, "prefeito_1t": 159850.76, "vereador": 15985.08},
+    "3550308": {"nome": "Sao Paulo", "uf": "SP", "eleitores": 9500000, "prefeito_1t": 67200000.00, "prefeito_2t": 26880000.00, "vereador": 4770000.00},
     "2611606": {"nome": "Recife", "uf": "PE", "eleitores": 1200000, "prefeito_1t": 9776138.29, "prefeito_2t": 3910455.32, "vereador": 1313263.10},
     "4106902": {"nome": "Curitiba", "uf": "PR", "eleitores": 1400000, "prefeito_1t": 14161044.67, "vereador": 689037.15},
-    "2408102": {"nome": "MossorÃ³", "uf": "RN", "eleitores": 220000, "prefeito_1t": 3500000.00, "vereador": 350000.00},
-    "2400505": {"nome": "AssÃº", "uf": "RN", "eleitores": 45000, "prefeito_1t": 450000.00, "vereador": 45000.00},
+    "2408102": {"nome": "Mossoro", "uf": "RN", "eleitores": 220000, "prefeito_1t": 3500000.00, "vereador": 350000.00},
+    "2400505": {"nome": "Assu", "uf": "RN", "eleitores": 45000, "prefeito_1t": 450000.00, "vereador": 45000.00},
 }
 
+_tse_municipal_limits_cache: Dict[str, Dict[str, Any]] = {}
+_tse_municipal_limits_loaded_at: Optional[str] = None
+_tse_municipal_limits_lock = asyncio.Lock()
+_ibge_municipios_cache: Dict[str, List[Dict[str, Any]]] = {}
+_ibge_municipios_lock = asyncio.Lock()
+
+
+def _normalize_text_key(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    text = unicodedata.normalize("NFKD", str(value))
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return " ".join(text.lower().strip().split())
+
+
+def _normalize_position(position: Optional[str]) -> str:
+    raw = _normalize_text_key(position)
+    aliases = {
+        "prefeito": "prefeito",
+        "vice prefeito": "vice_prefeito",
+        "vereador": "vereador",
+        "deputado federal": "deputado_federal",
+        "dep federal": "deputado_federal",
+        "deputado estadual": "deputado_estadual",
+        "dep estadual": "deputado_estadual",
+        "deputado distrital": "deputado_distrital",
+        "dep distrital": "deputado_distrital",
+    }
+    return aliases.get(raw, raw.replace(" ", "_"))
+
+
+def _parse_money_value(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    text = text.replace("R$", "").replace(" ", "")
+    if "," in text and "." in text:
+        text = text.replace(".", "").replace(",", ".")
+    else:
+        text = text.replace(",", ".")
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _column_ref_to_index(cell_ref: str) -> int:
+    letters = "".join(ch for ch in cell_ref if ch.isalpha()).upper()
+    idx = 0
+    for ch in letters:
+        idx = idx * 26 + (ord(ch) - ord("A") + 1)
+    return idx - 1
+
+
+def _xlsx_shared_strings(zf: zipfile.ZipFile) -> List[str]:
+    if "xl/sharedStrings.xml" not in zf.namelist():
+        return []
+    root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
+    ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    values: List[str] = []
+    for si in root.findall("x:si", ns):
+        parts = [node.text or "" for node in si.findall(".//x:t", ns)]
+        values.append("".join(parts))
+    return values
+
+
+def _xlsx_sheet_rows(zf: zipfile.ZipFile, shared_strings: List[str]) -> List[Dict[int, Any]]:
+    worksheet_files = [n for n in zf.namelist() if n.startswith("xl/worksheets/sheet")]
+    if not worksheet_files:
+        return []
+    worksheet_files.sort()
+    root = ET.fromstring(zf.read(worksheet_files[0]))
+    ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    rows: List[Dict[int, Any]] = []
+    for row in root.findall(".//x:sheetData/x:row", ns):
+        parsed: Dict[int, Any] = {}
+        for c in row.findall("x:c", ns):
+            ref = c.attrib.get("r", "")
+            col = _column_ref_to_index(ref)
+            t = c.attrib.get("t")
+            v = c.find("x:v", ns)
+            if v is None:
+                continue
+            raw = v.text or ""
+            value: Any = raw
+            if t == "s":
+                idx = int(raw)
+                value = shared_strings[idx] if 0 <= idx < len(shared_strings) else raw
+            else:
+                try:
+                    value = float(raw)
+                except Exception:
+                    value = raw
+            parsed[col] = value
+        if parsed:
+            rows.append(parsed)
+    return rows
+
+
+def _build_tse_municipal_limits(rows: List[Dict[int, Any]]) -> Dict[str, Dict[str, Any]]:
+    limits: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        uf_raw = row.get(0)
+        city_raw = row.get(1)
+        if not uf_raw or not city_raw:
+            continue
+        uf = str(uf_raw).strip().upper()
+        city = str(city_raw).strip()
+        if len(uf) != 2 or _normalize_text_key(city) in {"municipio", "município"}:
+            continue
+
+        prefeito_1t = _parse_money_value(row.get(5))
+        prefeito_2t = _parse_money_value(row.get(6))
+        vereador = _parse_money_value(row.get(7))
+        if prefeito_1t is None and vereador is None:
+            continue
+
+        key = f"{uf}:{_normalize_text_key(city)}"
+        limits[key] = {
+            "uf": uf,
+            "municipio": city,
+            "prefeito_1t": prefeito_1t or 0.0,
+            "prefeito_2t": prefeito_2t if prefeito_2t is not None else (prefeito_1t or 0.0) * 0.4,
+            "vereador": vereador or 0.0,
+            "fonte": "TSE Portaria 593/2024 - Limites de Gastos 2024",
+            "ano_base": 2024,
+        }
+    return limits
+
+
+async def _load_tse_municipal_limits() -> Dict[str, Dict[str, Any]]:
+    global _tse_municipal_limits_cache, _tse_municipal_limits_loaded_at
+    if _tse_municipal_limits_cache:
+        return _tse_municipal_limits_cache
+
+    async with _tse_municipal_limits_lock:
+        if _tse_municipal_limits_cache:
+            return _tse_municipal_limits_cache
+        try:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client_http:
+                resp = await client_http.get(TSE_MUNICIPAL_LIMITS_2024_XLSX_URL)
+                resp.raise_for_status()
+            with zipfile.ZipFile(io.BytesIO(resp.content), "r") as zf:
+                shared = _xlsx_shared_strings(zf)
+                rows = _xlsx_sheet_rows(zf, shared)
+            parsed = _build_tse_municipal_limits(rows)
+            if parsed:
+                _tse_municipal_limits_cache = parsed
+                _tse_municipal_limits_loaded_at = datetime.now(timezone.utc).isoformat()
+                return _tse_municipal_limits_cache
+        except Exception as e:
+            logger.warning(f"Nao foi possivel carregar limites municipais oficiais do TSE: {e}")
+        return _tse_municipal_limits_cache
+
+
+async def _get_ibge_municipios_by_uf(uf: str) -> List[Dict[str, Any]]:
+    uf_norm = (uf or "").strip().upper()
+    if len(uf_norm) != 2:
+        return []
+    if uf_norm in _ibge_municipios_cache:
+        return _ibge_municipios_cache[uf_norm]
+
+    async with _ibge_municipios_lock:
+        if uf_norm in _ibge_municipios_cache:
+            return _ibge_municipios_cache[uf_norm]
+        try:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client_http:
+                resp = await client_http.get(
+                    f"https://servicodados.ibge.gov.br/api/v1/localidades/estados/{uf_norm}/municipios"
+                )
+                resp.raise_for_status()
+            data = resp.json() or []
+            municipios = sorted(
+                [
+                    {
+                        "codigo_ibge": str(item.get("id")),
+                        "nome": item.get("nome"),
+                        "uf": uf_norm,
+                    }
+                    for item in data
+                    if item.get("id") and item.get("nome")
+                ],
+                key=lambda x: _normalize_text_key(x.get("nome")),
+            )
+            _ibge_municipios_cache[uf_norm] = municipios
+            return municipios
+        except Exception as e:
+            logger.warning(f"Nao foi possivel carregar municipios IBGE para {uf_norm}: {e}")
+            return []
+
+
+def _fallback_municipal_limit(cargo_norm: str, eleitores: int, segundo_turno: bool = False) -> Dict[str, Any]:
+    faixa = "desconhecida"
+    limite = 0.0
+    if cargo_norm == "prefeito":
+        for f, dados in TSE_SPENDING_LIMITS_FALLBACK["prefeito"].items():
+            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
+                faixa = f
+                limite = dados["segundo_turno"] if segundo_turno else dados["primeiro_turno"]
+                break
+    elif cargo_norm == "vereador":
+        for f, dados in TSE_SPENDING_LIMITS_FALLBACK["vereador"].items():
+            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
+                faixa = f
+                limite = dados["limite"]
+                break
+    return {
+        "limite_gastos": limite,
+        "faixa_municipio": faixa,
+        "fonte": "Estimativa por faixas (fallback interno)",
+        "ano_base": 2024,
+        "is_official": False,
+    }
+
+
+async def resolve_spending_limit(
+    cargo: str,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    eleitores: Optional[int] = None,
+    segundo_turno: bool = False,
+) -> Dict[str, Any]:
+    cargo_norm = _normalize_position(cargo)
+
+    if cargo_norm in {"deputado_federal", "deputado_estadual", "deputado_distrital"}:
+        limit = TSE_GENERAL_LIMITS_2022.get(cargo_norm, 0.0)
+        return {
+            "limite_gastos": limit,
+            "faixa_municipio": None,
+            "fonte": "Tabela TSE Eleicoes 2022",
+            "ano_base": 2022,
+            "is_official": True,
+        }
+
+    if cargo_norm in {"prefeito", "vereador"}:
+        uf = (state or "").strip().upper()
+        city_key = _normalize_text_key(city)
+        if uf and city_key:
+            municipal_limits = await _load_tse_municipal_limits()
+            hit = municipal_limits.get(f"{uf}:{city_key}")
+            if hit:
+                limit = hit["prefeito_2t"] if (cargo_norm == "prefeito" and segundo_turno) else (
+                    hit["prefeito_1t"] if cargo_norm == "prefeito" else hit["vereador"]
+                )
+                return {
+                    "limite_gastos": float(limit or 0.0),
+                    "faixa_municipio": "oficial_municipio",
+                    "fonte": hit["fonte"],
+                    "ano_base": hit["ano_base"],
+                    "is_official": True,
+                }
+
+        return _fallback_municipal_limit(cargo_norm, int(eleitores or 0), segundo_turno=segundo_turno)
+
+    return {
+        "limite_gastos": 0.0,
+        "faixa_municipio": None,
+        "fonte": "Sem regra de limite configurada para este cargo",
+        "ano_base": None,
+        "is_official": False,
+    }
+
+
 def calculate_spending_limit(cargo: str, eleitores: int, segundo_turno: bool = False) -> float:
-    """Calculate TSE spending limit based on position and number of voters"""
-    if cargo.lower() == "prefeito":
-        limits = TSE_SPENDING_LIMITS["prefeito"]
-        for faixa, dados in limits.items():
-            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
-                return dados["segundo_turno"] if segundo_turno else dados["primeiro_turno"]
-    elif cargo.lower() == "vereador":
-        limits = TSE_SPENDING_LIMITS["vereador"]
-        for faixa, dados in limits.items():
-            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
-                return dados["limite"]
-    return 0.0
+    """Compat: cálculo legado por faixas."""
+    result = _fallback_municipal_limit(_normalize_position(cargo), int(eleitores or 0), segundo_turno=segundo_turno)
+    return float(result.get("limite_gastos", 0.0))
+
 
 @api_router.get("/tse/spending-limits")
 async def get_spending_limits(
-    cargo: str = Query(..., description="Cargo: prefeito ou vereador"),
-    eleitores: int = Query(..., description="NÃºmero de eleitores do municÃ­pio"),
-    segundo_turno: bool = Query(False, description="Se Ã© segundo turno")
+    cargo: str = Query(..., description="Cargo: prefeito, vereador, deputado federal, deputado estadual"),
+    eleitores: int = Query(0, description="Numero de eleitores do municipio (fallback)"),
+    segundo_turno: bool = Query(False, description="Se e segundo turno"),
+    city: Optional[str] = Query(None, description="Nome da cidade"),
+    state: Optional[str] = Query(None, description="UF"),
 ):
-    """Calculate TSE spending limit for a position"""
-    limit = calculate_spending_limit(cargo, eleitores, segundo_turno)
-    
-    # Find which bracket applies
-    faixa = "desconhecida"
-    if cargo.lower() == "prefeito":
-        for f, dados in TSE_SPENDING_LIMITS["prefeito"].items():
-            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
-                faixa = f
-                break
-    elif cargo.lower() == "vereador":
-        for f, dados in TSE_SPENDING_LIMITS["vereador"].items():
-            if dados["min_eleitores"] <= eleitores <= dados["max_eleitores"]:
-                faixa = f
-                break
-    
+    """Resolve limite de gastos com prioridade para fonte oficial por municipio."""
+    result = await resolve_spending_limit(
+        cargo=cargo,
+        city=city,
+        state=state,
+        eleitores=eleitores,
+        segundo_turno=segundo_turno,
+    )
     return {
         "cargo": cargo,
+        "city": city,
+        "state": state,
         "eleitores": eleitores,
         "segundo_turno": segundo_turno,
-        "limite_gastos": limit,
-        "limite_formatado": format_currency(limit),
-        "faixa_municipio": faixa,
-        "fonte": "TSE Portaria 593/2024",
-        "nota": "Limite baseado nas eleiÃ§Ãµes 2024, atualizado pelo IPCA"
+        "limite_gastos": result["limite_gastos"],
+        "limite_formatado": format_currency(result["limite_gastos"]),
+        "faixa_municipio": result["faixa_municipio"],
+        "fonte": result["fonte"],
+        "ano_base": result["ano_base"],
+        "is_official": result["is_official"],
     }
+
 
 @api_router.get("/tse/municipio/{codigo_ibge}")
 async def get_municipio_limits(codigo_ibge: str):
-    """Get spending limits for a specific municipality by IBGE code"""
-    municipio = MUNICIPIOS_TSE.get(codigo_ibge)
-    if not municipio:
-        raise HTTPException(status_code=404, detail="MunicÃ­pio nÃ£o encontrado na base")
-    
+    """Get spending limits for a municipality by IBGE code."""
+    city_name = None
+    uf = None
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client_http:
+            resp = await client_http.get(
+                f"https://servicodados.ibge.gov.br/api/v1/localidades/municipios/{codigo_ibge}"
+            )
+            resp.raise_for_status()
+        payload = resp.json()
+        city_name = payload.get("nome")
+        uf = payload.get("microrregiao", {}).get("mesorregiao", {}).get("UF", {}).get("sigla")
+    except Exception:
+        local = MUNICIPIOS_TSE.get(codigo_ibge)
+        if local:
+            city_name = local.get("nome")
+            uf = local.get("uf")
+
+    if not city_name or not uf:
+        raise HTTPException(status_code=404, detail="Municipio nao encontrado")
+
+    prefeito_limit = await resolve_spending_limit("prefeito", city=city_name, state=uf, eleitores=0, segundo_turno=False)
+    prefeito_2t_limit = await resolve_spending_limit("prefeito", city=city_name, state=uf, eleitores=0, segundo_turno=True)
+    vereador_limit = await resolve_spending_limit("vereador", city=city_name, state=uf, eleitores=0)
+
     return {
         "codigo_ibge": codigo_ibge,
-        "municipio": municipio["nome"],
-        "uf": municipio["uf"],
-        "eleitores": municipio["eleitores"],
+        "municipio": city_name,
+        "uf": uf,
         "limites": {
-            "prefeito_primeiro_turno": municipio.get("prefeito_1t", 0),
-            "prefeito_segundo_turno": municipio.get("prefeito_2t", municipio.get("prefeito_1t", 0) * 0.4),
-            "vereador": municipio.get("vereador", 0)
+            "prefeito_primeiro_turno": prefeito_limit["limite_gastos"],
+            "prefeito_segundo_turno": prefeito_2t_limit["limite_gastos"],
+            "vereador": vereador_limit["limite_gastos"],
         },
-        "fonte": "TSE Portaria 593/2024"
+        "fonte": prefeito_limit.get("fonte") or vereador_limit.get("fonte"),
+        "ano_base": prefeito_limit.get("ano_base") or vereador_limit.get("ano_base"),
     }
 
 @api_router.get("/tse/campaign-status")
@@ -6389,12 +6712,16 @@ async def get_campaign_spending_status(current_user: dict = Depends(get_current_
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(10000)
     total_spent = sum(e.get("amount", 0) for e in expenses)
     
-    # Get the position and estimate voters (default for small city)
-    position = campaign.get("position", "vereador").lower()
-    eleitores = campaign.get("eleitores", 50000)  # Default estimate
-    
-    # Calculate limit
-    limit = calculate_spending_limit(position, eleitores)
+    position = campaign.get("position", "vereador")
+    eleitores = campaign.get("eleitores", 0)
+    resolved_limit = await resolve_spending_limit(
+        cargo=position,
+        city=campaign.get("city"),
+        state=campaign.get("state"),
+        eleitores=eleitores,
+        segundo_turno=bool(campaign.get("segundo_turno", False)),
+    )
+    limit = resolved_limit.get("limite_gastos", 0.0)
     
     # Check status
     percentage_used = (total_spent / limit * 100) if limit > 0 else 0
@@ -6442,7 +6769,10 @@ async def get_campaign_spending_status(current_user: dict = Depends(get_current_
             "limite_formatado": format_currency(limit),
             "saldo_disponivel": remaining,
             "saldo_formatado": format_currency(remaining),
-            "percentual_utilizado": round(percentage_used, 2)
+            "percentual_utilizado": round(percentage_used, 2),
+            "fonte_limite": resolved_limit.get("fonte"),
+            "ano_base_limite": resolved_limit.get("ano_base"),
+            "is_official": resolved_limit.get("is_official", False),
         },
         "status": status,
         "alerts": alerts,
@@ -6766,9 +7096,16 @@ async def contador_get_campaign_details(campaign_id: str, current_user: dict = D
     contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     
     # Calculate TSE limit status
-    position = campaign.get("position", "vereador").lower()
-    eleitores = campaign.get("eleitores", 50000)
-    limit = calculate_spending_limit(position, eleitores)
+    position = campaign.get("position", "vereador")
+    eleitores = campaign.get("eleitores", 0)
+    resolved_limit = await resolve_spending_limit(
+        cargo=position,
+        city=campaign.get("city"),
+        state=campaign.get("state"),
+        eleitores=eleitores,
+        segundo_turno=bool(campaign.get("segundo_turno", False)),
+    )
+    limit = resolved_limit.get("limite_gastos", 0.0)
     total_expenses = sum(e.get("amount", 0) for e in expenses)
     
     return {
@@ -6792,7 +7129,10 @@ async def contador_get_campaign_details(campaign_id: str, current_user: dict = D
             "gasto_formatado": format_currency(total_expenses),
             "disponivel": limit - total_expenses,
             "disponivel_formatado": format_currency(limit - total_expenses),
-            "percentual_usado": round((total_expenses / limit * 100) if limit > 0 else 0, 2)
+            "percentual_usado": round((total_expenses / limit * 100) if limit > 0 else 0, 2),
+            "fonte_limite": resolved_limit.get("fonte"),
+            "ano_base_limite": resolved_limit.get("ano_base"),
+            "is_official": resolved_limit.get("is_official", False),
         }
     }
 

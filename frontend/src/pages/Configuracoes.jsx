@@ -23,6 +23,8 @@ export default function Configuracoes() {
     // Reference data
     const [partidos, setPartidos] = useState([]);
     const [estados, setEstados] = useState([]);
+    const [municipios, setMunicipios] = useState([]);
+    const [loadingMunicipios, setLoadingMunicipios] = useState(false);
     const [bancos, setBancos] = useState([]);
     const [cargos, setCargos] = useState([]);
 
@@ -32,6 +34,7 @@ export default function Configuracoes() {
         position: 'Vereador',
         city: '',
         state: 'SP',
+        codigo_ibge: '',
         election_year: new Date().getFullYear(),
         // SPCE Required Fields
         cnpj: '',
@@ -66,6 +69,34 @@ export default function Configuracoes() {
         fetchCampaign();
     }, []);
 
+    useEffect(() => {
+        let mounted = true;
+        const loadMunicipios = async () => {
+            if (!campaignForm.state) {
+                if (mounted) setMunicipios([]);
+                return;
+            }
+            setLoadingMunicipios(true);
+            try {
+                const response = await axios.get(`${API}/reference/municipios`, {
+                    params: { uf: campaignForm.state }
+                });
+                if (mounted) {
+                    setMunicipios(response.data.municipios || []);
+                }
+            } catch (error) {
+                if (mounted) setMunicipios([]);
+                console.error('Error fetching municipios:', error);
+            } finally {
+                if (mounted) setLoadingMunicipios(false);
+            }
+        };
+        loadMunicipios();
+        return () => {
+            mounted = false;
+        };
+    }, [campaignForm.state]);
+
     const fetchReferenceData = async () => {
         try {
             const [partidosRes, estadosRes, bancosRes, cargosRes] = await Promise.all([
@@ -94,6 +125,7 @@ export default function Configuracoes() {
                     position: response.data.position || 'Vereador',
                     city: response.data.city || '',
                     state: response.data.state || 'SP',
+                    codigo_ibge: response.data.codigo_ibge || '',
                     election_year: response.data.election_year || new Date().getFullYear(),
                     cnpj: response.data.cnpj || '',
                     numero_candidato: response.data.numero_candidato || '',
@@ -136,6 +168,10 @@ export default function Configuracoes() {
         setSaving(true);
 
         try {
+            if (!campaignForm.city) {
+                toast.error('Selecione a cidade da campanha');
+                return;
+            }
             if (campaign) {
                 await axios.put(`${API}/campaigns/${campaign.id}`, campaignForm);
                 toast.success('Campanha atualizada!');
@@ -343,13 +379,55 @@ export default function Configuracoes() {
                                             </div>
                                             <div className="space-y-2">
                                                 <Label>Cidade *</Label>
+                                                {municipios.length > 0 ? (
+                                                    <Select
+                                                        value={campaignForm.codigo_ibge || ''}
+                                                        onValueChange={(value) => {
+                                                            const municipio = municipios.find(m => m.codigo_ibge === value);
+                                                            handleCampaignChange('codigo_ibge', value);
+                                                            handleCampaignChange('city', municipio?.nome || '');
+                                                        }}
+                                                    >
+                                                        <SelectTrigger data-testid="campaign-city-select">
+                                                            <SelectValue placeholder={loadingMunicipios ? 'Carregando cidades...' : 'Selecione a cidade'} />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {municipios.map(m => (
+                                                                <SelectItem key={m.codigo_ibge} value={m.codigo_ibge}>
+                                                                    {m.nome}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : (
+                                                    <Input
+                                                        value={campaignForm.city}
+                                                        onChange={(e) => {
+                                                            handleCampaignChange('city', e.target.value);
+                                                            handleCampaignChange('codigo_ibge', '');
+                                                        }}
+                                                        required
+                                                        placeholder={loadingMunicipios ? 'Carregando cidades...' : 'Nome da cidade'}
+                                                        data-testid="campaign-city-input"
+                                                    />
+                                                )}
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Limite de Gastos (TSE)</Label>
                                                 <Input
-                                                    value={campaignForm.city}
-                                                    onChange={(e) => handleCampaignChange('city', e.target.value)}
-                                                    required
-                                                    placeholder="Nome da cidade"
-                                                    data-testid="campaign-city-input"
+                                                    value={
+                                                        campaign?.limite_gastos
+                                                            ? `R$ ${Number(campaign.limite_gastos).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                                            : 'Será calculado automaticamente ao salvar'
+                                                    }
+                                                    readOnly
+                                                    data-testid="campaign-limite-gastos-input"
                                                 />
+                                                {campaign?.limite_fonte && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Fonte: {campaign.limite_fonte} {campaign.limite_ano_base ? `(${campaign.limite_ano_base})` : ''}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
