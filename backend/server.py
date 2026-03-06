@@ -1,6 +1,7 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, BackgroundTasks, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
+from fastapi.encoders import jsonable_encoder
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -1328,35 +1329,41 @@ async def register(user_data: UserCreate):
     user_doc.pop("_id", None)
     
     return {"token": token, "user": user_doc}
-
 @api_router.post("/auth/login", response_model=dict)
 async def login(credentials: UserLogin):
-    user = await db.users.find_one({"email": credentials.email})
-    if not user:
-        raise HTTPException(status_code=401, detail="Credenciais inválidas")
-
-    # Backward compatibility for legacy user documents
-    password_hash = user.get("password") or user.get("password_hash")
-    if not password_hash:
-        raise HTTPException(status_code=401, detail="Credenciais inválidas")
-
     try:
-        password_ok = verify_password(credentials.password, password_hash)
-    except Exception:
-        password_ok = False
+        user = await db.users.find_one({"email": credentials.email})
+        if not user:
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
-    if not password_ok:
-        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+        # Backward compatibility for legacy user documents
+        password_hash = user.get("password") or user.get("password_hash")
+        if not password_hash:
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
-    user_id = user.get("id") or str(user.get("_id"))
-    user_role = user.get("role", "candidate")
+        try:
+            password_ok = verify_password(credentials.password, password_hash)
+        except Exception:
+            password_ok = False
 
-    token = create_token(user_id, user["email"], user_role)
-    user.pop("password", None)
-    user.pop("password_hash", None)
-    user.pop("_id", None)
+        if not password_ok:
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
-    return {"token": token, "user": user}
+        user_id = user.get("id") or str(user.get("_id"))
+        user_role = user.get("role", "candidate")
+        user_email = user.get("email") or credentials.email
+
+        token = create_token(user_id, user_email, user_role)
+        user.pop("password", None)
+        user.pop("password_hash", None)
+        user.pop("_id", None)
+
+        return {"token": token, "user": jsonable_encoder(user)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Erro inesperado no login: %s", e)
+        raise HTTPException(status_code=500, detail="Erro interno no login")
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
