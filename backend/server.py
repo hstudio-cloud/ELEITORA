@@ -5691,7 +5691,31 @@ async def voice_command(
         action_data = None
         
         if command == "greeting":
-            response_text = RESPONSES["greeting"]
+            role = (current_user.get("role") or "").lower()
+            perfil = "contador" if "contador" in role else "candidato"
+            expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+            contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(500)
+            today = datetime.now(timezone.utc).date()
+            pending_expenses = [e for e in expenses if (e.get("payment_status") or "").lower() != "pago"]
+            due_soon = []
+            for e in pending_expenses:
+                try:
+                    due = datetime.fromisoformat(str(e.get("date"))).date()
+                    if 0 <= (due - today).days <= 7:
+                        due_soon.append(e)
+                except Exception:
+                    continue
+            unsigned_contracts = [
+                c for c in contracts
+                if (c.get("status") or "").lower() not in {"assinado", "concluido", "finalizado"}
+            ]
+            response_text = (
+                f"Oi, {perfil}. Sou a Flora. "
+                f"Você tem {len(pending_expenses)} despesa(s) pendente(s), "
+                f"{len(due_soon)} pagamento(s) vencendo nos próximos 7 dias "
+                f"e {len(unsigned_contracts)} contrato(s) para finalizar. "
+                "Quer que eu te ajude a gerar uma despesa, criar um contrato ou revisar os vencimentos agora?"
+            )
         
         elif command == "help":
             response_text = RESPONSES["help"]
@@ -5899,7 +5923,7 @@ async def voice_command(
 
 @api_router.get("/voice/greeting")
 async def voice_greeting(current_user: dict = Depends(get_current_user)):
-    """Get voice greeting from Eleitora"""
+    """Get voice greeting from Flora"""
     try:
         audio_base64 = await voice_assistant.generate_speech_base64(RESPONSES["greeting"])
         return {

@@ -30,10 +30,11 @@ const quickActions = [
 // Voice commands examples
 const voiceExamples = [
     "Flora, qual é meu saldo?",
+    "Flora, tenho alguma despesa pra gerar?",
+    "Flora, tem contrato pra fazer?",
+    "Flora, quais pagamentos vencem esta semana?",
     "Adicionar despesa de 500 reais em publicidade",
-    "Mostrar contratos pendentes",
-    "Verificar conformidade",
-    "Ir para despesas"
+    "Mostrar contratos pendentes"
 ];
 
 export default function Assistente() {
@@ -45,6 +46,7 @@ export default function Assistente() {
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [alerts, setAlerts] = useState([]);
     const [sessionId, setSessionId] = useState(null);
+    const [proactiveSummary, setProactiveSummary] = useState(null);
     const scrollRef = useRef(null);
     const inputRef = useRef(null);
     
@@ -62,9 +64,12 @@ export default function Assistente() {
     const audioChunksRef = useRef([]);
     const audioRef = useRef(null);
     const recognitionRef = useRef(null);
+    const wakeCooldownRef = useRef(0);
 
     useEffect(() => {
         fetchChatHistory();
+        fetchProactiveSummary();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -87,6 +92,54 @@ export default function Assistente() {
             console.error('Erro ao carregar histórico:', error);
         } finally {
             setLoadingHistory(false);
+        }
+    };
+
+    const fetchProactiveSummary = async () => {
+        try {
+            const [statsRes, paymentsRes, contractsRes, expensesRes] = await Promise.all([
+                axios.get(`${API}/dashboard/stats`).catch(() => ({ data: {} })),
+                axios.get(`${API}/payments/alerts?days_ahead=7`).catch(() => ({ data: { alerts: [], total: 0 } })),
+                axios.get(`${API}/contracts`).catch(() => ({ data: [] })),
+                axios.get(`${API}/expenses`).catch(() => ({ data: [] }))
+            ]);
+
+            const contracts = contractsRes.data || [];
+            const expenses = expensesRes.data || [];
+            const pendingExpenses = expenses.filter(e => (e.payment_status || '').toLowerCase() !== 'pago');
+            const dueSoonCount = (paymentsRes.data?.alerts || []).length || 0;
+            const unsignedContracts = contracts.filter(c => !['assinado', 'concluido', 'finalizado'].includes((c.status || '').toLowerCase()));
+
+            const summary = {
+                pendingExpensesCount: pendingExpenses.length,
+                pendingExpensesValue: pendingExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0),
+                dueSoonCount,
+                unsignedContractsCount: unsignedContracts.length,
+                activeContractsCount: Number(statsRes.data?.active_contracts || 0)
+            };
+            setProactiveSummary(summary);
+
+            const todayKey = `flora_proactive_${user?.id || 'anon'}_${new Date().toISOString().slice(0, 10)}`;
+            const alreadyPrompted = localStorage.getItem(todayKey) === '1';
+            if (!alreadyPrompted) {
+                const role = String(user?.role || '').toLowerCase().includes('contador') ? 'contador' : 'candidato';
+                const proactiveText =
+                    `Oi, ${role}. Resumo rápido: ${summary.pendingExpensesCount} despesa(s) pendente(s), ` +
+                    `${summary.dueSoonCount} pagamento(s) vencendo em 7 dias e ${summary.unsignedContractsCount} contrato(s) para finalizar. ` +
+                    `Quer que eu te ajude com despesas, contratos ou vencimentos agora?`;
+                setMessages(prev => (prev.length === 0 ? [{
+                    role: 'assistant',
+                    content: proactiveText,
+                    timestamp: new Date().toISOString(),
+                    isVoice: true
+                }] : prev));
+                if (voiceEnabled) {
+                    speakText(proactiveText);
+                }
+                localStorage.setItem(todayKey, '1');
+            }
+        } catch (error) {
+            console.error('Erro ao carregar resumo proativo da Flora:', error);
         }
     };
 
@@ -342,6 +395,9 @@ export default function Assistente() {
         const normalized = (spokenText || '').toLowerCase().trim();
         const wakeMatch = normalized.match(/(?:^|\s)flora(?:\s|,|:|-)*(.*)/i);
         if (!wakeMatch) return;
+        const now = Date.now();
+        if (now - wakeCooldownRef.current < 2500) return;
+        wakeCooldownRef.current = now;
         const command = (wakeMatch[1] || '').trim();
         setWakePhrase(spokenText);
         if (command) {
@@ -349,9 +405,12 @@ export default function Assistente() {
             return;
         }
         const isContador = String(user?.role || '').toLowerCase().includes('contador');
+        const pending = proactiveSummary?.pendingExpensesCount || 0;
+        const dueSoon = proactiveSummary?.dueSoonCount || 0;
+        const unsigned = proactiveSummary?.unsignedContractsCount || 0;
         const welcome = isContador
-            ? 'Oi, contador. O que você precisa agora? Posso ajudar com conformidade, despesas, contratos e exportação SPCE.'
-            : 'Oi, candidato. O que você precisa agora? Posso ajudar com receitas, despesas, contratos e prestação de contas.';
+            ? `Oi, contador. Você tem ${pending} despesa(s) pendente(s), ${dueSoon} vencimento(s) próximo(s) e ${unsigned} contrato(s) a finalizar. O que você precisa agora?`
+            : `Oi, candidato. Você tem ${pending} despesa(s) pendente(s), ${dueSoon} vencimento(s) próximo(s) e ${unsigned} contrato(s) a finalizar. O que você quer priorizar agora?`;
         const assistantMessage = {
             role: 'assistant',
             content: welcome,
@@ -373,6 +432,18 @@ export default function Assistente() {
         setWakeStatus('inativo');
     };
 
+    const requestMicrophoneAccess = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop());
+            return true;
+        } catch (error) {
+            console.error('Microphone permission error:', error);
+            toast.error('Permita acesso ao microfone para ativar a Flora por nome.');
+            return false;
+        }
+    };
+
     const startWakeListener = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) return;
@@ -385,12 +456,22 @@ export default function Assistente() {
 
         recognition.onstart = () => setWakeStatus('ouvindo');
         recognition.onresult = (event) => {
-            const result = event.results[event.results.length - 1];
-            if (!result || !result[0]) return;
-            const transcript = (result[0].transcript || '').trim();
-            processWakePhrase(transcript);
+            for (let i = event.resultIndex; i < event.results.length; i += 1) {
+                const result = event.results[i];
+                if (!result || !result[0]) continue;
+                const transcript = (result[0].transcript || '').trim();
+                if (transcript) {
+                    processWakePhrase(transcript);
+                }
+            }
         };
-        recognition.onerror = () => {
+        recognition.onerror = (event) => {
+            if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+                setWakeStatus('permissao-negada');
+                setWakeEnabled(false);
+                toast.error('Ative o microfone para usar a palavra-chave "Flora".');
+                return;
+            }
             setWakeStatus('erro');
         };
         recognition.onend = () => {
@@ -458,7 +539,13 @@ export default function Assistente() {
                         <Button
                             variant={wakeEnabled ? "default" : "outline"}
                             size="sm"
-                            onClick={() => setWakeEnabled(!wakeEnabled)}
+                            onClick={async () => {
+                                if (!wakeEnabled) {
+                                    const granted = await requestMicrophoneAccess();
+                                    if (!granted) return;
+                                }
+                                setWakeEnabled(!wakeEnabled);
+                            }}
                             className="gap-2"
                             disabled={!wakeSupported}
                         >
@@ -490,6 +577,27 @@ export default function Assistente() {
                             </Badge>
                         ))}
                     </div>
+                )}
+
+                {proactiveSummary && (
+                    <Card className="border-accent/40 bg-accent/5">
+                        <CardContent className="p-4">
+                            <div className="flex flex-wrap items-center gap-3 text-sm">
+                                <Badge variant="outline" className="border-accent/40 text-accent">Flora Ativa</Badge>
+                                <span>{proactiveSummary.pendingExpensesCount} despesas pendentes</span>
+                                <span>{proactiveSummary.dueSoonCount} vencimentos em 7 dias</span>
+                                <span>{proactiveSummary.unsignedContractsCount} contratos para finalizar</span>
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="ml-auto"
+                                    onClick={() => sendMessage('Flora, me lembre os próximos pagamentos e contratos pendentes')}
+                                >
+                                    Revisar Pendências
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {/* Main Content */}
