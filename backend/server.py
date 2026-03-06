@@ -5652,10 +5652,18 @@ async def voice_speak(
         return {
             "audio": audio_base64,
             "format": "mp3",
-            "success": True
+            "success": True,
+            "fallback_local": False
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro na sÃ­ntese de voz: {str(e)}")
+        logger.warning("Voice speak fallback local ativado: %s", e)
+        return {
+            "audio": None,
+            "format": "mp3",
+            "success": False,
+            "fallback_local": True,
+            "detail": "Sintese remota indisponivel. Use fallback local no navegador."
+        }
 
 @api_router.post("/voice/command")
 async def voice_command(
@@ -5897,10 +5905,20 @@ async def voice_greeting(current_user: dict = Depends(get_current_user)):
         return {
             "text": RESPONSES["greeting"],
             "audio": audio_base64,
-            "format": "mp3"
+            "format": "mp3",
+            "success": True,
+            "fallback_local": False
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro: {str(e)}")
+        logger.warning("Voice greeting fallback local ativado: %s", e)
+        return {
+            "text": RESPONSES["greeting"],
+            "audio": None,
+            "format": "mp3",
+            "success": False,
+            "fallback_local": True,
+            "detail": "Sintese remota indisponivel. Use fallback local no navegador."
+        }
 
 # ============== PROFESSIONAL (CONTADOR/ADVOGADO) ROUTES ==============
 @api_router.post("/professionals", response_model=ProfessionalResponse)
