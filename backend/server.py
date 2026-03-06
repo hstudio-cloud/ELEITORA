@@ -94,6 +94,9 @@ BB_APP_KEY = os.environ.get('BB_APP_KEY', '')
 BB_CLIENT_ID = os.environ.get('BB_CLIENT_ID', '')
 BB_CLIENT_SECRET = os.environ.get('BB_CLIENT_SECRET', '')
 BB_ENVIRONMENT = os.environ.get('BB_ENVIRONMENT', 'homologacao')
+BB_CLIENT_CERT_PATH = os.environ.get('BB_CLIENT_CERT_PATH', '')
+BB_CLIENT_KEY_PATH = os.environ.get('BB_CLIENT_KEY_PATH', '')
+BB_STRICT_MODE = os.environ.get('BB_STRICT_MODE', 'false').lower() == 'true'
 
 # BB API URLs based on environment
 if BB_ENVIRONMENT == 'producao':
@@ -122,6 +125,57 @@ class BancoDoBrasilPIX:
         self.api_url = BB_API_URL
         self.access_token = None
         self.token_expires_at = None
+    
+    def _cert_config(self):
+        cert_path = BB_CLIENT_CERT_PATH.strip() if BB_CLIENT_CERT_PATH else ""
+        key_path = BB_CLIENT_KEY_PATH.strip() if BB_CLIENT_KEY_PATH else ""
+        if cert_path and key_path and os.path.exists(cert_path) and os.path.exists(key_path):
+            return (cert_path, key_path)
+        if cert_path and os.path.exists(cert_path):
+            return cert_path
+        return None
+
+    def _httpx_client_kwargs(self) -> dict:
+        kwargs = {"timeout": 30.0}
+        cert_config = self._cert_config()
+        if cert_config:
+            kwargs["cert"] = cert_config
+        return kwargs
+
+    def get_diagnostic_snapshot(self) -> dict:
+        cert_config = self._cert_config()
+        return {
+            "configured": BB_PIX_AVAILABLE,
+            "strict_mode": BB_STRICT_MODE,
+            "environment": BB_ENVIRONMENT,
+            "oauth_url": self.oauth_url,
+            "api_url": self.api_url,
+            "has_app_key": bool(self.app_key),
+            "has_client_id": bool(self.client_id),
+            "has_client_secret": bool(self.client_secret),
+            "uses_client_certificate": bool(cert_config),
+            "client_cert_path": BB_CLIENT_CERT_PATH if BB_CLIENT_CERT_PATH else None,
+            "client_key_path": BB_CLIENT_KEY_PATH if BB_CLIENT_KEY_PATH else None,
+        }
+
+    async def diagnose_connection(self) -> dict:
+        snapshot = self.get_diagnostic_snapshot()
+        if not snapshot["configured"]:
+            snapshot["status"] = "not_configured"
+            snapshot["oauth_ok"] = False
+            snapshot["message"] = "Credenciais BB nao configuradas no ambiente."
+            return snapshot
+        try:
+            token = await self.get_access_token()
+            snapshot["oauth_ok"] = bool(token)
+            snapshot["status"] = "ok" if token else "error"
+            snapshot["message"] = "OAuth BB validado com sucesso." if token else "Token vazio."
+            return snapshot
+        except Exception as e:
+            snapshot["oauth_ok"] = False
+            snapshot["status"] = "error"
+            snapshot["message"] = f"Falha na autenticacao OAuth: {str(e)}"
+            return snapshot
         
     async def get_access_token(self) -> str:
         """ObtÃ©m token de acesso OAuth2"""
@@ -140,7 +194,7 @@ class BancoDoBrasilPIX:
         
         data = "grant_type=client_credentials&scope=pix.read pix.write cob.read cob.write"
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(**self._httpx_client_kwargs()) as client:
             try:
                 response = await client.post(
                     self.oauth_url,
@@ -232,7 +286,7 @@ class BancoDoBrasilPIX:
             "solicitacaoPagador": pix_data.get("description", "Pagamento via Eleitora 360")[:140]
         }
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(**self._httpx_client_kwargs()) as client:
             try:
                 # Create cobranÃ§a (billing request)
                 response = await client.put(
@@ -280,7 +334,7 @@ class BancoDoBrasilPIX:
             "gw-dev-app-key": self.app_key
         }
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(**self._httpx_client_kwargs()) as client:
             try:
                 response = await client.get(f"{self.api_url}/cobv/{txid}", headers=headers)
                 response.raise_for_status()
@@ -315,7 +369,7 @@ class BancoDoBrasilPIX:
             "fim": f"{end_date}T23:59:59Z"
         }
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(**self._httpx_client_kwargs()) as client:
             try:
                 response = await client.get(f"{self.api_url}/pix", headers=headers, params=params)
                 response.raise_for_status()
@@ -6030,6 +6084,7 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
     pix_copia_cola = None
 
     # Try real BB integration if available
+    bb_error = None
     if bb_pix_client and BB_PIX_AVAILABLE:
         try:
             bb_response = await bb_pix_client.create_pix_payment({
@@ -6046,9 +6101,17 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
                 pix_copia_cola = bb_response.get("pixCopiaECola")
                 logging.info(f"PIX BB criado com sucesso: {txid}")
             else:
+                bb_error = bb_response.get("error")
                 logging.warning(f"PIX BB falhou, usando modo simulado: {bb_response.get('error')}")
         except Exception as e:
+            bb_error = str(e)
             logging.error(f"Erro na integração BB PIX: {e}")
+
+    if BB_STRICT_MODE and BB_PIX_AVAILABLE and not txid:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Integracao BB em modo estrito: falha ao criar PIX real ({bb_error or 'erro desconhecido'})"
+        )
 
     pix_doc = {
         "id": pix_id,
@@ -6064,6 +6127,7 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
         "transaction_id": txid,
         "pix_copia_cola": pix_copia_cola,
         "bb_response": bb_response if bb_response else None,
+        "bb_error": bb_error,
         "integration_mode": "real" if txid else "simulado",
         "campaign_id": campaign_id,
         "source_bank": campaign.get("conta_doacao_banco"),
@@ -6154,11 +6218,19 @@ async def simulate_pix_execution(pix_id: str, current_user: dict = Depends(get_c
 @api_router.get("/pix/bank-info")
 async def get_bank_info():
     """Get Banco do Brasil integration info"""
+    cert_ready = False
+    if BB_CLIENT_CERT_PATH and os.path.exists(BB_CLIENT_CERT_PATH):
+        cert_ready = True
+    if BB_CLIENT_KEY_PATH and os.path.exists(BB_CLIENT_KEY_PATH):
+        cert_ready = True
     return {
         "bank": "Banco do Brasil",
         "integration_available": BB_PIX_AVAILABLE,
         "environment": BB_ENVIRONMENT if BB_PIX_AVAILABLE else None,
         "integration_status": "ativo" if BB_PIX_AVAILABLE else "nÃ£o_configurado",
+        "strict_mode": BB_STRICT_MODE,
+        "mtls_configured": cert_ready,
+        "operation_mode": "real_only" if BB_STRICT_MODE else "real_with_simulation_fallback",
         "features": [
             "PIX CobranÃ§a (cobv)",
             "PIX Pagamento",
@@ -6169,6 +6241,22 @@ async def get_bank_info():
         "api_docs": "https://developers.bb.com.br",
         "note": "IntegraÃ§Ã£o com Banco do Brasil para PIX" if BB_PIX_AVAILABLE else "Configure as credenciais BB_APP_KEY, BB_CLIENT_ID e BB_CLIENT_SECRET no ambiente"
     }
+
+@api_router.get("/pix/bank-diagnostic")
+async def get_bank_diagnostic():
+    """Diagnostico rapido da conectividade BB (config + OAuth)."""
+    if not bb_pix_client:
+        return {
+            "status": "not_configured",
+            "configured": False,
+            "message": "Credenciais BB nao configuradas",
+            "required_envs": ["BB_APP_KEY", "BB_CLIENT_ID", "BB_CLIENT_SECRET"],
+            "optional_envs": ["BB_CLIENT_CERT_PATH", "BB_CLIENT_KEY_PATH", "BB_STRICT_MODE"],
+        }
+    diagnostic = await bb_pix_client.diagnose_connection()
+    diagnostic["required_envs"] = ["BB_APP_KEY", "BB_CLIENT_ID", "BB_CLIENT_SECRET"]
+    diagnostic["optional_envs"] = ["BB_CLIENT_CERT_PATH", "BB_CLIENT_KEY_PATH", "BB_STRICT_MODE"]
+    return diagnostic
 
 @api_router.get("/pix/check-status/{pix_id}")
 async def check_pix_status(pix_id: str, current_user: dict = Depends(get_current_user)):
