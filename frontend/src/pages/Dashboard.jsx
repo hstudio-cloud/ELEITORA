@@ -51,19 +51,8 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const COLORS = ['hsl(217, 91%, 60%)', 'hsl(160, 84%, 39%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(280, 65%, 60%)'];
 
-export default function Dashboard() {
-    const [stats, setStats] = useState(null);
-    const [campaign, setCampaign] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [alerts, setAlerts] = useState({ alerts: [], total: 0, overdue_count: 0, due_today: 0 });
-    const [tseStatus, setTseStatus] = useState(null);
-    const [showTour, setShowTour] = useState(false);
-    const [tourStep, setTourStep] = useState(0);
-    const [tourSpeakEnabled, setTourSpeakEnabled] = useState(true);
-    const { user } = useAuth();
-    const navigate = useNavigate();
+const TOUR_STEPS = [
 
-    const tourSteps = [
         {
             title: 'Bem-vindo ao Eleitora 360',
             description: 'Este tour rápido mostra como organizar sua campanha e evitar erros na prestação de contas.',
@@ -114,6 +103,19 @@ export default function Dashboard() {
         }
     ];
 
+
+export default function Dashboard() {
+    const [stats, setStats] = useState(null);
+    const [campaign, setCampaign] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [alerts, setAlerts] = useState({ alerts: [], total: 0, overdue_count: 0, due_today: 0 });
+    const [tseStatus, setTseStatus] = useState(null);
+    const [showTour, setShowTour] = useState(false);
+    const [tourStep, setTourStep] = useState(0);
+    const [tourSpeakEnabled, setTourSpeakEnabled] = useState(true);
+    const { user } = useAuth();
+    const navigate = useNavigate();
+
     const tourStorageKey = user?.id ? `eleitora_tour_done_${user.id}` : null;
 
     useEffect(() => {
@@ -131,7 +133,7 @@ export default function Dashboard() {
 
     useEffect(() => {
         if (!showTour || !tourSpeakEnabled) return;
-        const step = tourSteps[tourStep];
+        const step = TOUR_STEPS[tourStep];
         if (!step || !('speechSynthesis' in window)) return;
 
         const utterance = new SpeechSynthesisUtterance(
@@ -190,7 +192,7 @@ export default function Dashboard() {
     };
 
     const openCurrentTourStep = () => {
-        const step = tourSteps[tourStep];
+        const step = TOUR_STEPS[tourStep];
         if (!step?.route) return;
         if (tourStorageKey) {
             localStorage.setItem(tourStorageKey, '1');
@@ -666,7 +668,7 @@ export default function Dashboard() {
                         <DialogTitle className="flex items-center justify-between gap-3">
                             <span className="flex items-center gap-2">
                                 <Sparkles className="h-5 w-5 text-primary" />
-                                {tourSteps[tourStep]?.title}
+                                {TOUR_STEPS[tourStep]?.title}
                             </span>
                             <Button
                                 variant="ghost"
@@ -678,13 +680,13 @@ export default function Dashboard() {
                             </Button>
                         </DialogTitle>
                         <DialogDescription>
-                            {tourSteps[tourStep]?.description}
+                            {TOUR_STEPS[tourStep]?.description}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">
-                            Etapa {tourStep + 1} de {tourSteps.length}
+                            Etapa {tourStep + 1} de {TOUR_STEPS.length}
                         </span>
                         <Badge variant="outline">Onboarding IA</Badge>
                     </div>
@@ -703,11 +705,11 @@ export default function Dashboard() {
                             Anterior
                         </Button>
                         <Button variant="outline" onClick={openCurrentTourStep}>
-                            {tourSteps[tourStep]?.actionLabel}
+                            {TOUR_STEPS[tourStep]?.actionLabel}
                         </Button>
-                        {tourStep < tourSteps.length - 1 ? (
+                        {tourStep < TOUR_STEPS.length - 1 ? (
                             <Button
-                                onClick={() => setTourStep((prev) => Math.min(tourSteps.length - 1, prev + 1))}
+                                onClick={() => setTourStep((prev) => Math.min(TOUR_STEPS.length - 1, prev + 1))}
                                 className="gap-2"
                             >
                                 Próximo
