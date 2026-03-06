@@ -82,6 +82,7 @@ JWT_EXPIRATION_HOURS = 24
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 APP_URL = os.environ.get('APP_URL', 'https://brasil-voting.preview.emergentagent.com')
+GOVBR_SIGNATURE_URL = os.environ.get('GOVBR_SIGNATURE_URL', 'https://assinador.iti.br/')
 
 if RESEND_AVAILABLE and RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -885,6 +886,9 @@ class ContractCreate(BaseModel):
     locatario_assinatura_data: Optional[str] = None
     locatario_assinatura_hash: Optional[str] = None
     signature_request_token: Optional[str] = None
+    assinatura_externa_iniciada_em: Optional[str] = None
+    signed_document_attachment_id: Optional[str] = None
+    signed_document_uploaded_at: Optional[str] = None
 
 class ContractResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -940,6 +944,9 @@ class ContractResponse(BaseModel):
     locatario_assinatura_data: Optional[str] = None
     locatario_assinatura_hash: Optional[str] = None
     signature_request_token: Optional[str] = None
+    assinatura_externa_iniciada_em: Optional[str] = None
+    signed_document_attachment_id: Optional[str] = None
+    signed_document_uploaded_at: Optional[str] = None
     contract_html: Optional[str] = None
 
 class PaymentCreate(BaseModel):
@@ -2039,38 +2046,50 @@ async def delete_contract(contract_id: str, current_user: dict = Depends(get_cur
 
 # ============== SIGNATURE ROUTES ==============
 class SignatureRequest(BaseModel):
-    contract_id: str
-    locador_email: str
+    contract_id: Optional[str] = None
+    locador_email: Optional[str] = None
 
 class SignContract(BaseModel):
     signature_hash: str
 
 @api_router.post("/contracts/{contract_id}/request-signature")
 async def request_signature(contract_id: str, data: SignatureRequest, current_user: dict = Depends(get_current_user)):
-    """Request signature from locador (service provider)"""
+    """Start external signature flow (download + Gov.br signing)"""
     contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")})
     if not contract:
         raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
     
-    # Generate signature token
-    token = generate_signature_token(contract_id, data.locador_email, "locador")
+    now = datetime.now(timezone.utc).isoformat()
+    locador_email = (data.locador_email or contract.get("locador_email") or "").strip()
+
+    # Generate legacy token (kept for compatibility with old flow)
+    token = generate_signature_token(contract_id, locador_email or "locador@assinatura.externa", "locador")
     
-    # Update contract with signature request
+    # Update contract as pending signature, but keep expense generation unaffected
     await db.contracts.update_one(
         {"id": contract_id},
         {"$set": {
             "signature_request_token": token,
-            "locador_email": data.locador_email,
-            "status": "aguardando_assinatura"
+            "locador_email": locador_email,
+            "status": "aguardando_assinatura",
+            "assinatura_externa_iniciada_em": now
         }}
     )
-    
-    # In production, send email with signature link
-    # For now, return the token for testing
+
+    download_url = f"/api/contracts/{contract_id}/pdf"
+    govbr_url = GOVBR_SIGNATURE_URL
+    provider_signature_hint = (
+        "Após assinatura do candidato no Gov.br, compartilhar o PDF assinado com o prestador "
+        "para segunda assinatura e depois anexar o arquivo final no sistema."
+    )
+
     return {
-        "message": "SolicitaÃ§Ã£o de assinatura enviada",
+        "message": "Fluxo de assinatura externa iniciado",
         "signature_link": f"/assinar/{token}",
-        "token": token
+        "token": token,
+        "download_url": download_url,
+        "govbr_url": govbr_url,
+        "provider_signature_hint": provider_signature_hint
     }
 
 @api_router.post("/contracts/{contract_id}/sign-locatario")
@@ -2567,6 +2586,11 @@ def ensure_spce_ready(precheck: dict):
             "warnings": precheck["warnings"],
         },
     )
+
+def _contract_has_signature_evidence(contract: dict) -> bool:
+    internal_both_signed = bool(contract.get("locador_assinatura_hash")) and bool(contract.get("locatario_assinatura_hash"))
+    external_signed_doc = bool(contract.get("signed_document_attachment_id"))
+    return internal_both_signed or external_signed_doc
 
 def _sanitize_filename_token(value: str, fallback: str = "DOC") -> str:
     token = re.sub(r"[^A-Za-z0-9_-]+", "_", (value or "").strip())
@@ -3079,10 +3103,8 @@ async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
         problemas = []
         if c.get("status") != "ativo":
             problemas.append("status_invalido")
-        if not c.get("locador_assinatura_hash"):
-            problemas.append("falta_assinatura_locador")
-        if not c.get("locatario_assinatura_hash"):
-            problemas.append("falta_assinatura_locatario")
+        if not _contract_has_signature_evidence(c):
+            problemas.append("falta_documento_assinado")
         if not c.get("locador_cpf"):
             problemas.append("falta_cpf_locador")
         
@@ -3468,6 +3490,8 @@ Despesas Pendentes: R$ {sum(e.get('amount', 0) for e in expenses if e.get('payme
                         continue
                     elif entity_type == "contract":
                         zf.writestr(f"AVULSOS_OUTROS/{att.get('original_name', att.get('filename'))}", file_content)
+                    elif entity_type == "contract_signed":
+                        zf.writestr(f"AVULSOS_SPCE/{att.get('original_name', att.get('filename'))}", file_content)
                 except:
                     pass
         
@@ -3747,6 +3771,67 @@ async def attach_contract_document(
     return {
         "message": "Documento anexado com sucesso",
         "contract": updated_contract
+    }
+
+@api_router.post("/contracts/{contract_id}/upload-signed-document")
+async def upload_signed_contract_document(
+    contract_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload externally signed contract document and mark contract as active."""
+    contract = await db.contracts.find_one(
+        {"id": contract_id, "campaign_id": current_user.get("campaign_id")}
+    )
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+
+    if file.content_type not in ALLOWED_FILE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Tipo de arquivo nÃ£o permitido. Use: JPEG, PNG ou PDF"
+        )
+
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (mÃ¡ximo 10MB)")
+
+    file_id = str(uuid.uuid4())
+    file_ext = ALLOWED_FILE_TYPES.get(file.content_type, ".bin")
+    safe_filename = f"{file_id}{file_ext}"
+    file_path = UPLOAD_DIR / safe_filename
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    attachment_doc = {
+        "id": file_id,
+        "original_name": file.filename,
+        "filename": safe_filename,
+        "content_type": file.content_type,
+        "size": len(contents),
+        "campaign_id": current_user["campaign_id"],
+        "uploaded_by": current_user["id"],
+        "entity_type": "contract_signed",
+        "entity_id": contract_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.attachments.insert_one(attachment_doc)
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.contracts.update_one(
+        {"id": contract_id},
+        {"$set": {
+            "signed_document_attachment_id": file_id,
+            "signed_document_uploaded_at": now,
+            "status": "ativo"
+        }}
+    )
+
+    updated_contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
+    return {
+        "message": "Contrato assinado anexado com sucesso",
+        "contract": updated_contract,
+        "attachment": {**attachment_doc, "_id": None}
     }
 
 @api_router.get("/contracts/{contract_id}/expenses")
@@ -4582,9 +4667,10 @@ async def export_spce_contratos(current_user: dict = Depends(get_current_user)):
         status_map = {"ativo": "A", "encerrado": "E", "cancelado": "C", "rascunho": "R"}
         status = status_map.get(contract.get("status", "rascunho"), "R")
         
-        # Signature status
-        assinado_locador = "S" if contract.get("locador_assinatura_hash") else "N"
-        assinado_locatario = "S" if contract.get("locatario_assinatura_hash") else "N"
+        # Signature status: accepts either internal signatures or externally signed uploaded doc
+        signed_evidence = _contract_has_signature_evidence(contract)
+        assinado_locador = "S" if (contract.get("locador_assinatura_hash") or signed_evidence) else "N"
+        assinado_locatario = "S" if (contract.get("locatario_assinatura_hash") or signed_evidence) else "N"
         
         detail = "|".join([
             "100",

@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { formatCurrency, formatDate, statusLabels, statusColors } from '../lib/utils';
 import { 
     Plus, Pencil, Trash2, FileText, Search, Eye, Send, 
-    CheckCircle, Clock, FileSignature, Download, Copy, Upload, Paperclip, DollarSign,
+    CheckCircle, Clock, FileSignature, Download, Upload, DollarSign,
     AlertTriangle, FileCheck, Loader2
 } from 'lucide-react';
 import { Checkbox } from '../components/ui/checkbox';
@@ -61,6 +61,8 @@ const statusColorsExtended = {
     concluido: 'bg-primary/20 text-primary',
     cancelado: 'bg-destructive/20 text-destructive'
 };
+
+const pendingSignatureStatuses = ['aguardando_assinatura', 'assinado_locador', 'assinado_locatario'];
 
 const emptyForm = {
     title: '',
@@ -129,7 +131,6 @@ export default function Contratos() {
     const [signatureEmail, setSignatureEmail] = useState('');
     const [contractExpenses, setContractExpenses] = useState([]);
     const [expensesDialogOpen, setExpensesDialogOpen] = useState(false);
-    const [uploadingId, setUploadingId] = useState(null);
     const [attachmentsDialogOpen, setAttachmentsDialogOpen] = useState(false);
     const [selectedContractAttachments, setSelectedContractAttachments] = useState(null);
     const [uploadingAttachmentKey, setUploadingAttachmentKey] = useState(null);
@@ -212,32 +213,6 @@ export default function Contratos() {
             setExpensesDialogOpen(true);
         } catch (error) {
             toast.error('Erro ao carregar despesas do contrato');
-        }
-    };
-
-    const handleUploadContractDoc = async (contractId, file) => {
-        if (!file) return;
-        
-        const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-        if (!allowedTypes.includes(file.type)) {
-            toast.error('Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF');
-            return;
-        }
-
-        setUploadingId(contractId);
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            await axios.post(`${API}/contracts/${contractId}/attach`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            toast.success('Documento anexado com sucesso!');
-            fetchContracts();
-        } catch (error) {
-            toast.error(error.response?.data?.detail || 'Erro ao anexar documento');
-        } finally {
-            setUploadingId(null);
         }
     };
 
@@ -350,8 +325,7 @@ export default function Contratos() {
     };
 
     const handleRequestSignature = async () => {
-        if (!selectedContract || !signatureEmail) {
-            toast.error('Preencha o email do locador');
+        if (!selectedContract) {
             return;
         }
 
@@ -361,12 +335,10 @@ export default function Contratos() {
                 locador_email: signatureEmail
             });
             
-            toast.success('Solicitação de assinatura enviada!');
-            
-            // Copy link to clipboard
-            const link = `${window.location.origin}/assinar/${response.data.token}`;
-            navigator.clipboard.writeText(link);
-            toast.info('Link de assinatura copiado para área de transferência');
+            toast.success('Fluxo de assinatura externa iniciado!');
+            window.open(`${API}/contracts/${selectedContract.id}/pdf`, '_blank');
+            window.open(response?.data?.govbr_url || 'https://assinador.iti.br/', '_blank');
+            toast.info('PDF do contrato baixado e Gov.br aberto para assinatura digital.');
             
             setSignatureDialogOpen(false);
             setSignatureEmail('');
@@ -376,21 +348,64 @@ export default function Contratos() {
         }
     };
 
-    const handleSignAsLocatario = async (contract) => {
-        try {
-            // Generate a simple signature hash (in production, use proper digital signature)
-            const signatureHash = btoa(`${contract.id}-locatario-${Date.now()}`);
-            
-            await axios.post(`${API}/contracts/${contract.id}/sign-locatario`, {
-                signature_hash: signatureHash
-            });
-            
-            toast.success('Contrato assinado com sucesso!');
-            fetchContracts();
-        } catch (error) {
-            toast.error('Erro ao assinar contrato');
-        }
+    const handleUploadSignedContract = async (contract) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf,.jpg,.jpeg,.png';
+        input.onchange = async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                await axios.post(`${API}/contracts/${contract.id}/upload-signed-document`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                toast.success('Contrato assinado anexado! Status atualizado para ativo.');
+                fetchContracts();
+            } catch (error) {
+                toast.error(error.response?.data?.detail || 'Erro ao anexar contrato assinado');
+            }
+        };
+        input.click();
     };
+
+    const checkSignatureReminders = (contractsToCheck) => {
+        const today = new Date().toISOString().split('T')[0];
+        const now = Date.now();
+        const intervalMs = 30 * 60 * 1000;
+
+        contractsToCheck.forEach((contract) => {
+            const needsReminder =
+                contract.start_date === today &&
+                pendingSignatureStatuses.includes(contract.status) &&
+                !contract.signed_document_attachment_id;
+
+            if (!needsReminder) return;
+
+            const reminderKey = `eleitora_signature_reminder_${contract.id}`;
+            const lastReminder = Number(localStorage.getItem(reminderKey) || '0');
+            if (now - lastReminder < intervalMs) return;
+
+            toast.warning(`Lembrete: anexe o contrato assinado (${contract.title}) para concluir a assinatura.`, {
+                duration: 8000
+            });
+            localStorage.setItem(reminderKey, String(now));
+        });
+    };
+
+    useEffect(() => {
+        if (!contracts.length) return;
+        checkSignatureReminders(contracts);
+
+        const intervalId = window.setInterval(() => {
+            checkSignatureReminders(contracts);
+        }, 30 * 60 * 1000);
+
+        return () => window.clearInterval(intervalId);
+    }, [contracts]);
 
     const filteredContracts = contracts.filter(c =>
         c.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -400,11 +415,7 @@ export default function Contratos() {
 
     const totalValue = filteredContracts.reduce((sum, c) => sum + (c.value || 0), 0);
     const activeContracts = filteredContracts.filter(c => c.status === 'ativo').length;
-    const pendingSignatures = filteredContracts.filter(c => 
-        c.status === 'aguardando_assinatura' || 
-        c.status === 'assinado_locador' || 
-        c.status === 'assinado_locatario'
-    ).length;
+    const pendingSignatures = filteredContracts.filter(c => pendingSignatureStatuses.includes(c.status)).length;
 
     const renderTemplateFields = () => {
         const type = formData.template_type;
@@ -1058,7 +1069,7 @@ export default function Contratos() {
                                                                 <Eye className="h-4 w-4" />
                                                             </Button>
                                                         )}
-                                                        {contract.status === 'rascunho' && contract.template_type && (
+                                                        {(contract.status === 'rascunho' || pendingSignatureStatuses.includes(contract.status)) && contract.template_type && (
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
@@ -1067,19 +1078,19 @@ export default function Contratos() {
                                                                     setSignatureEmail(contract.locador_email || '');
                                                                     setSignatureDialogOpen(true);
                                                                 }}
-                                                                title="Solicitar Assinatura"
+                                                                title="Iniciar assinatura externa"
                                                                 className="text-accent hover:text-accent"
                                                                 data-testid={`request-signature-${contract.id}`}
                                                             >
                                                                 <Send className="h-4 w-4" />
                                                             </Button>
                                                         )}
-                                                        {(contract.status === 'assinado_locador' || contract.status === 'aguardando_assinatura') && (
+                                                        {pendingSignatureStatuses.includes(contract.status) && (
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
-                                                                onClick={() => handleSignAsLocatario(contract)}
-                                                                title="Assinar como Candidato"
+                                                                onClick={() => handleUploadSignedContract(contract)}
+                                                                title="Anexar contrato assinado"
                                                                 className="text-secondary hover:text-secondary"
                                                                 data-testid={`sign-contract-${contract.id}`}
                                                             >
@@ -1158,15 +1169,15 @@ export default function Contratos() {
                         <DialogHeader>
                             <DialogTitle className="font-heading flex items-center gap-2">
                                 <Send className="h-5 w-5" />
-                                Solicitar Assinatura Digital
+                                Iniciar Assinatura Externa (Gov.br)
                             </DialogTitle>
                             <DialogDescription>
-                                Envie o contrato para o locador assinar digitalmente.
+                                Baixe o contrato, assine no Gov.br e depois anexe o documento final assinado por ambas as partes.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 mt-4">
                             <div className="space-y-2">
-                                <Label>Email do Locador *</Label>
+                                <Label>Email do Locador (opcional)</Label>
                                 <Input
                                     type="email"
                                     value={signatureEmail}
@@ -1176,8 +1187,8 @@ export default function Contratos() {
                                 />
                             </div>
                             <p className="text-sm text-muted-foreground">
-                                Um link de assinatura será gerado e copiado para sua área de transferência. 
-                                Você pode enviar este link para o locador por email ou WhatsApp.
+                                O sistema vai baixar o PDF do contrato e abrir o assinador do Gov.br.
+                                Após assinatura do candidato e do prestador, use o botão de anexo na lista para enviar o documento assinado final.
                             </p>
                         </div>
                         <div className="flex justify-end gap-3 mt-4">
@@ -1186,7 +1197,7 @@ export default function Contratos() {
                             </Button>
                             <Button onClick={handleRequestSignature} className="gap-2" data-testid="send-signature-request-btn">
                                 <Send className="h-4 w-4" />
-                                Gerar Link de Assinatura
+                                Baixar e Abrir Gov.br
                             </Button>
                         </div>
                     </DialogContent>
@@ -1431,3 +1442,4 @@ export default function Contratos() {
         </Layout>
     );
 }
+
