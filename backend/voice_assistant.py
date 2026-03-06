@@ -22,11 +22,11 @@ except ImportError:
 
 # Voice configuration
 VOICE_CONFIG = {
-    "name": "Eleitora",
+    "name": "Flora",
     "voice": "nova",
     "model_tts": "tts-1",
     "model_stt": "whisper-1",
-    "speed": 1.0,
+    "speed": 1.03,
     "language": "pt",
 }
 
@@ -52,7 +52,7 @@ COMMAND_PATTERNS = {
 
 # Response templates
 RESPONSES = {
-    "greeting": "Ola! Sou a Eleitora, sua assistente de voz para gestao de campanha. Como posso ajudar?",
+    "greeting": "Ola! Sou a Flora, sua assistente de voz para gestao de campanha. Como posso ajudar?",
     "not_understood": "Desculpe, nao entendi o comando. Pode repetir ou dizer 'ajuda' para ver os comandos disponiveis.",
     "help": """Posso ajudar com:
         - Consultar saldo, receitas e despesas
@@ -60,7 +60,7 @@ RESPONSES = {
         - Adicionar despesas ou receitas por voz
         - Verificar conformidade com TSE
         - Navegar pelo sistema
-        Experimente dizer: 'Eleitora, qual e meu saldo?' ou 'Adicionar despesa de 500 reais'""",
+        Experimente dizer: 'Flora, qual e meu saldo?' ou 'Adicionar despesa de 500 reais'""",
     "processing": "Processando seu pedido...",
     "error": "Desculpe, ocorreu um erro ao processar seu pedido. Tente novamente.",
 }
@@ -92,7 +92,7 @@ class VoiceAssistant:
                     model=self.config["model_stt"],
                     language=self.config["language"],
                     response_format="json",
-                    prompt="Comandos de voz para sistema de gestao de campanha eleitoral. Eleitora e o nome da assistente.",
+                    prompt="Comandos de voz para sistema de gestao de campanha eleitoral. Flora e o nome da assistente.",
                 )
                 return response.text.strip()
 
@@ -103,7 +103,7 @@ class VoiceAssistant:
                 model=self.config["model_stt"],
                 file=audio_file,
                 language=self.config["language"],
-                prompt="Comandos de voz para sistema de gestao de campanha eleitoral. Eleitora e o nome da assistente.",
+                prompt="Comandos de voz para sistema de gestao de campanha eleitoral. Flora e o nome da assistente.",
                 response_format="json",
             )
             return (response.text or "").strip()
@@ -158,7 +158,7 @@ class VoiceAssistant:
     def parse_command(self, text: str) -> Tuple[str, Dict[str, Any]]:
         """Parse transcribed text to identify command and extract parameters"""
         text_lower = text.lower()
-        text_lower = re.sub(r"^(oi|ola|hey|ei)?\s*(eleitora)?,?\s*", "", text_lower)
+        text_lower = re.sub(r"^(oi|ola|hey|ei)?\s*(flora|eleitora)?,?\s*", "", text_lower)
 
         if re.search(r"^(oi|ola|hey|bom dia|boa tarde|boa noite)", text_lower):
             return "greeting", {}

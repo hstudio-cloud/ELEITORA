@@ -28,7 +28,7 @@ const quickActions = [
 
 // Voice commands examples
 const voiceExamples = [
-    "Eleitora, qual é meu saldo?",
+    "Flora, qual é meu saldo?",
     "Adicionar despesa de 500 reais em publicidade",
     "Mostrar contratos pendentes",
     "Verificar conformidade",
@@ -51,13 +51,23 @@ export default function Assistente() {
     const [isProcessingVoice, setIsProcessingVoice] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
+    const [wakeEnabled, setWakeEnabled] = useState(true);
+    const [wakeSupported, setWakeSupported] = useState(false);
+    const [wakeStatus, setWakeStatus] = useState('inativo');
+    const [wakePhrase, setWakePhrase] = useState('');
     const [lastTranscription, setLastTranscription] = useState('');
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const audioRef = useRef(null);
+    const recognitionRef = useRef(null);
 
     useEffect(() => {
         fetchChatHistory();
+    }, []);
+
+    useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        setWakeSupported(Boolean(SpeechRecognition));
     }, []);
 
     useEffect(() => {
@@ -282,6 +292,32 @@ export default function Assistente() {
             audioRef.current.currentTime = 0;
             setIsSpeaking(false);
         }
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+    };
+
+    const speakWithBrowserVoice = (text) => {
+        if (!('speechSynthesis' in window)) return;
+        try {
+            const utterance = new SpeechSynthesisUtterance(text.substring(0, 500));
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice =
+                voices.find(v => /pt-BR/i.test(v.lang) && /female|mulher|google|microsoft/i.test(v.name)) ||
+                voices.find(v => /pt-BR/i.test(v.lang)) ||
+                voices[0];
+            if (preferredVoice) utterance.voice = preferredVoice;
+            utterance.lang = 'pt-BR';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.1;
+            utterance.onend = () => setIsSpeaking(false);
+            utterance.onerror = () => setIsSpeaking(false);
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+        } catch (error) {
+            setIsSpeaking(false);
+            console.error('Browser TTS error:', error);
+        }
     };
 
     const speakText = async (text) => {
@@ -291,12 +327,92 @@ export default function Assistente() {
             
             if (response.data.audio) {
                 playAudioResponse(response.data.audio);
+            } else {
+                speakWithBrowserVoice(text);
             }
         } catch (error) {
-            setIsSpeaking(false);
             console.error('TTS error:', error);
+            speakWithBrowserVoice(text);
         }
     };
+
+    const processWakePhrase = (spokenText) => {
+        const normalized = (spokenText || '').toLowerCase().trim();
+        const wakeMatch = normalized.match(/\bflora\b[\s,:-]*(.*)/i);
+        if (!wakeMatch) return;
+        const command = (wakeMatch[1] || '').trim();
+        setWakePhrase(spokenText);
+        if (command) {
+            sendMessage(command);
+            return;
+        }
+        const welcome = 'Estou ouvindo. Pode falar o comando agora.';
+        const assistantMessage = {
+            role: 'assistant',
+            content: welcome,
+            timestamp: new Date().toISOString(),
+            isVoice: true
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        if (voiceEnabled) {
+            speakText(welcome);
+        }
+    };
+
+    const stopWakeListener = () => {
+        if (recognitionRef.current) {
+            recognitionRef.current.onend = null;
+            recognitionRef.current.stop();
+            recognitionRef.current = null;
+        }
+        setWakeStatus('inativo');
+    };
+
+    const startWakeListener = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+        if (recognitionRef.current) return;
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'pt-BR';
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => setWakeStatus('ouvindo');
+        recognition.onresult = (event) => {
+            const result = event.results[event.results.length - 1];
+            if (!result || !result[0]) return;
+            const transcript = (result[0].transcript || '').trim();
+            processWakePhrase(transcript);
+        };
+        recognition.onerror = () => {
+            setWakeStatus('erro');
+        };
+        recognition.onend = () => {
+            recognitionRef.current = null;
+            if (wakeEnabled) {
+                setTimeout(() => startWakeListener(), 500);
+            } else {
+                setWakeStatus('inativo');
+            }
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+    };
+
+    useEffect(() => {
+        if (wakeEnabled && wakeSupported) {
+            startWakeListener();
+        } else {
+            stopWakeListener();
+        }
+
+        return () => {
+            stopWakeListener();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [wakeEnabled, wakeSupported]);
 
     const formatMessage = (content) => {
         return content
@@ -315,13 +431,13 @@ export default function Assistente() {
                             <div className="p-2 bg-gradient-to-br from-accent to-secondary rounded-lg">
                                 <Bot className="h-6 w-6 text-white" />
                             </div>
-                            Eleitora
+                            Flora
                             <Badge variant="outline" className="ml-2 text-accent border-accent/50">
                                 Assistente IA com Voz
                             </Badge>
                         </h1>
                         <p className="text-muted-foreground mt-1">
-                            Converse por texto ou use comandos de voz
+                            Converse por texto ou use comandos de voz. Diga "Flora" para ativar.
                         </p>
                     </div>
                     <div className="flex gap-2">
@@ -333,6 +449,16 @@ export default function Assistente() {
                         >
                             {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                             {voiceEnabled ? 'Voz Ativa' : 'Voz Desativada'}
+                        </Button>
+                        <Button
+                            variant={wakeEnabled ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setWakeEnabled(!wakeEnabled)}
+                            className="gap-2"
+                            disabled={!wakeSupported}
+                        >
+                            <Radio className="h-4 w-4" />
+                            {wakeEnabled ? 'Flora Sempre Ouvindo' : 'Ativação por Nome'}
                         </Button>
                         <Button 
                             variant="outline" 
@@ -410,12 +536,28 @@ export default function Assistente() {
                                         <span className="text-sm">Ouvindo...</span>
                                     </div>
                                 )}
+
+                                <div className="text-xs p-2 rounded bg-muted/40">
+                                    <span className="font-medium">Ativação por nome:</span>{' '}
+                                    {!wakeSupported
+                                        ? 'Não suportado no navegador'
+                                        : wakeEnabled
+                                            ? `Ligado (${wakeStatus})`
+                                            : 'Desligado'}
+                                </div>
+
+                                {wakePhrase && (
+                                    <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
+                                        <span className="font-medium">Frase detectada:</span>
+                                        <br />&quot;{wakePhrase}&quot;
+                                    </div>
+                                )}
                                 
                                 {isSpeaking && (
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-accent">
                                             <Radio className="h-4 w-4 animate-pulse" />
-                                            <span className="text-sm">Eleitora falando...</span>
+                                            <span className="text-sm">Flora falando...</span>
                                         </div>
                                         <Button 
                                             variant="ghost" 
@@ -487,7 +629,7 @@ export default function Assistente() {
                         <CardHeader className="pb-3 border-b">
                             <div className="flex items-center gap-2">
                                 <MessageSquare className="h-5 w-5 text-accent" />
-                                <CardTitle className="text-base">Conversa com Eleitora</CardTitle>
+                                <CardTitle className="text-base">Conversa com Flora</CardTitle>
                             </div>
                         </CardHeader>
                         
@@ -504,13 +646,13 @@ export default function Assistente() {
                                         <Mic className="h-6 w-6 text-accent absolute -right-2 -bottom-2" />
                                     </div>
                                     <p className="text-lg font-medium text-foreground">
-                                        Olá! Sou a Eleitora
+                                        Olá! Sou a Flora
                                     </p>
                                     <p className="text-sm text-muted-foreground mt-1">
                                         Sua assistente de campanha com voz
                                     </p>
                                     <p className="text-xs text-muted-foreground/70 mt-2">
-                                        Clique em &quot;Falar&quot; ou digite sua pergunta
+                                        Clique em &quot;Falar&quot;, diga &quot;Flora&quot; ou digite sua pergunta
                                     </p>
                                 </div>
                             ) : (
@@ -530,7 +672,7 @@ export default function Assistente() {
                                                 {msg.role === 'assistant' && (
                                                     <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
                                                         <Bot className="h-4 w-4 text-accent" />
-                                                        <span className="text-xs font-medium text-accent">Eleitora</span>
+                                                        <span className="text-xs font-medium text-accent">Flora</span>
                                                         {msg.isVoice && <Mic className="h-3 w-3 text-accent/70" />}
                                                     </div>
                                                 )}
@@ -552,7 +694,7 @@ export default function Assistente() {
                                             <div className="bg-muted rounded-lg p-3">
                                                 <div className="flex items-center gap-2">
                                                     <Loader2 className="h-4 w-4 animate-spin text-accent" />
-                                                    <span className="text-sm text-muted-foreground">Eleitora pensando...</span>
+                                                    <span className="text-sm text-muted-foreground">Flora pensando...</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -589,7 +731,7 @@ export default function Assistente() {
                                 </Button>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
-                                Enter para enviar • Clique em &quot;Falar&quot; para usar comando de voz
+                                Enter para enviar • Clique em &quot;Falar&quot; ou diga &quot;Flora&quot;
                             </p>
                         </div>
                     </Card>
