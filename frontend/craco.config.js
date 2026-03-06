@@ -47,6 +47,10 @@ const webpackConfig = {
       '@': path.resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
+      // Avoid AJV/schema-utils conflict from TypeScript checker in this JS project.
+      webpackConfig.plugins = webpackConfig.plugins.filter(
+        (plugin) => plugin?.constructor?.name !== "ForkTsCheckerWebpackPlugin"
+      );
 
       // Add ignored patterns to reduce watched directories
         webpackConfig.watchOptions = {
