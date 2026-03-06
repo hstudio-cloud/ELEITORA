@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Layout } from '../components/Layout';
@@ -97,7 +97,7 @@ const TOUR_STEPS = [
         },
         {
             title: '7) Use o Assistente IA',
-            description: 'A Eleitora pode te orientar sobre próximos passos, conformidade e dúvidas operacionais.',
+            description: 'A Flora pode te orientar sobre próximos passos, conformidade e dúvidas operacionais.',
             route: '/assistente',
             actionLabel: 'Abrir Assistente'
         }
@@ -113,6 +113,7 @@ export default function Dashboard() {
     const [showTour, setShowTour] = useState(false);
     const [tourStep, setTourStep] = useState(0);
     const [tourSpeakEnabled, setTourSpeakEnabled] = useState(true);
+    const tourAudioRef = useRef(null);
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -131,23 +132,56 @@ export default function Dashboard() {
         }
     }, [user, loading, tourStorageKey]);
 
+    const speakTourWithFlora = useCallback(async (text) => {
+        if (!tourSpeakEnabled || !text) return;
+        try {
+            const response = await axios.post(`${API}/voice/speak?text=${encodeURIComponent(text.substring(0, 500))}`);
+            if (response.data?.audio) {
+                if (tourAudioRef.current) {
+                    tourAudioRef.current.pause();
+                    tourAudioRef.current.currentTime = 0;
+                }
+                const audio = new Audio(`data:audio/mp3;base64,${response.data.audio}`);
+                tourAudioRef.current = audio;
+                audio.play().catch(() => {});
+                return;
+            }
+        } catch (error) {
+            console.error('Erro no voice/speak do tour:', error);
+        }
+
+        if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice =
+                voices.find(v => /pt-BR/i.test(v.lang) && /female|mulher|google|microsoft/i.test(v.name)) ||
+                voices.find(v => /pt-BR/i.test(v.lang)) ||
+                voices[0];
+            if (preferredVoice) utterance.voice = preferredVoice;
+            utterance.lang = 'pt-BR';
+            utterance.rate = 1;
+            utterance.pitch = 1.1;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+        }
+    }, [tourSpeakEnabled]);
+
     useEffect(() => {
         if (!showTour || !tourSpeakEnabled) return;
         const step = TOUR_STEPS[tourStep];
-        if (!step || !('speechSynthesis' in window)) return;
-
-        const utterance = new SpeechSynthesisUtterance(
-            `${step.title}. ${step.description}`
-        );
-        utterance.lang = 'pt-BR';
-        utterance.rate = 1;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
+        if (!step) return;
+        speakTourWithFlora(`${step.title}. ${step.description}`);
 
         return () => {
-            window.speechSynthesis.cancel();
+            if (tourAudioRef.current) {
+                tourAudioRef.current.pause();
+                tourAudioRef.current.currentTime = 0;
+            }
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
         };
-    }, [showTour, tourSpeakEnabled, tourStep]);
+    }, [showTour, tourSpeakEnabled, tourStep, speakTourWithFlora]);
 
     const fetchData = async () => {
         try {
@@ -181,6 +215,10 @@ export default function Dashboard() {
         }
         setShowTour(false);
         setTourStep(0);
+        if (tourAudioRef.current) {
+            tourAudioRef.current.pause();
+            tourAudioRef.current.currentTime = 0;
+        }
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
         }
@@ -255,7 +293,7 @@ export default function Dashboard() {
                             data-testid="open-guided-tour-btn"
                         >
                             <Sparkles className="h-4 w-4" />
-                            Tour da Eleitora
+                            Tour da Flora
                         </Button>
                         <Button
                             variant="outline"

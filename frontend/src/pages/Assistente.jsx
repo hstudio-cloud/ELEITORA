@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { 
     Bot, Send, Loader2, Trash2, AlertTriangle, 
     FileText, BarChart3, Shield, Sparkles, MessageSquare,
@@ -37,6 +38,7 @@ const voiceExamples = [
 
 export default function Assistente() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
     const [loading, setLoading] = useState(false);
@@ -338,7 +340,7 @@ export default function Assistente() {
 
     const processWakePhrase = (spokenText) => {
         const normalized = (spokenText || '').toLowerCase().trim();
-        const wakeMatch = normalized.match(/\bflora\b[\s,:-]*(.*)/i);
+        const wakeMatch = normalized.match(/(?:^|\s)flora(?:\s|,|:|-)*(.*)/i);
         if (!wakeMatch) return;
         const command = (wakeMatch[1] || '').trim();
         setWakePhrase(spokenText);
@@ -346,7 +348,10 @@ export default function Assistente() {
             sendMessage(command);
             return;
         }
-        const welcome = 'Estou ouvindo. Pode falar o comando agora.';
+        const isContador = String(user?.role || '').toLowerCase().includes('contador');
+        const welcome = isContador
+            ? 'Oi, contador. O que você precisa agora? Posso ajudar com conformidade, despesas, contratos e exportação SPCE.'
+            : 'Oi, candidato. O que você precisa agora? Posso ajudar com receitas, despesas, contratos e prestação de contas.';
         const assistantMessage = {
             role: 'assistant',
             content: welcome,
@@ -390,7 +395,7 @@ export default function Assistente() {
         };
         recognition.onend = () => {
             recognitionRef.current = null;
-            if (wakeEnabled) {
+            if (wakeEnabled && !isRecording && !isProcessingVoice) {
                 setTimeout(() => startWakeListener(), 500);
             } else {
                 setWakeStatus('inativo');
@@ -402,7 +407,7 @@ export default function Assistente() {
     };
 
     useEffect(() => {
-        if (wakeEnabled && wakeSupported) {
+        if (wakeEnabled && wakeSupported && !isRecording && !isProcessingVoice) {
             startWakeListener();
         } else {
             stopWakeListener();
@@ -412,7 +417,7 @@ export default function Assistente() {
             stopWakeListener();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [wakeEnabled, wakeSupported]);
+    }, [wakeEnabled, wakeSupported, isRecording, isProcessingVoice]);
 
     const formatMessage = (content) => {
         return content
