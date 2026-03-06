@@ -1,201 +1,204 @@
 """
 Voice Assistant - Eleitora
-Integração com OpenAI Whisper (STT) e TTS para comandos de voz
+Integracao com STT/TTS com fallback para SDK OpenAI.
 """
 import os
 import re
 import json
-from typing import Optional, Dict, Any, Tuple
+import base64
+from typing import Dict, Any, Tuple
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 load_dotenv()
 
-from emergentintegrations.llm.openai import OpenAISpeechToText, OpenAITextToSpeech
+try:
+    from emergentintegrations.llm.openai import OpenAISpeechToText, OpenAITextToSpeech
+    EMERGENT_VOICE_AVAILABLE = True
+except ImportError:
+    OpenAISpeechToText = None  # type: ignore[assignment]
+    OpenAITextToSpeech = None  # type: ignore[assignment]
+    EMERGENT_VOICE_AVAILABLE = False
 
 # Voice configuration
 VOICE_CONFIG = {
     "name": "Eleitora",
-    "voice": "nova",  # Energetic, upbeat - good for assistant
-    "model_tts": "tts-1",  # Fast for real-time
+    "voice": "nova",
+    "model_tts": "tts-1",
     "model_stt": "whisper-1",
     "speed": 1.0,
-    "language": "pt"  # Portuguese
+    "language": "pt",
 }
 
 # Command patterns for executing actions
 COMMAND_PATTERNS = {
-    # Financial queries
-    "saldo": r"(qual|quanto|meu|ver|mostrar).*(saldo|caixa|dinheiro|disponível)",
-    "receitas": r"(qual|quanto|minhas|total|ver|mostrar).*(receitas|doações|arrecadação)",
+    "saldo": r"(qual|quanto|meu|ver|mostrar).*(saldo|caixa|dinheiro|dispon[ií]vel)",
+    "receitas": r"(qual|quanto|minhas|total|ver|mostrar).*(receitas|doa[cç][oõ]es|arrecada[cç][aã]o)",
     "despesas": r"(qual|quanto|minhas|total|ver|mostrar).*(despesas|gastos|custos)",
-    "resumo": r"(resumo|visão geral|situação|como está).*(financeiro|campanha|conta)",
-    
-    # Contract queries
+    "resumo": r"(resumo|vis[aã]o geral|situa[cç][aã]o|como est[aá]).*(financeiro|campanha|conta)",
     "contratos": r"(quantos|quais|meus|ver|mostrar|listar).*(contratos|acordos)",
     "pendentes": r"(documentos?|anexos?|contratos?).*(pendentes?|faltando|incompletos?)",
-    
-    # Actions - Add expense
-    "adicionar_despesa": r"(adicionar?|criar?|registrar?|lançar?).*(despesa|gasto|custo).*(?:de\s+)?(?:R\$\s*)?([\d.,]+)",
-    
-    # Actions - Add revenue  
-    "adicionar_receita": r"(adicionar?|criar?|registrar?|lançar?).*(receita|doação).*(?:de\s+)?(?:R\$\s*)?([\d.,]+)",
-    
-    # Navigation
-    "ir_dashboard": r"(ir|abrir|mostrar|navegar).*(dashboard|painel|início)",
+    "adicionar_despesa": r"(adicionar?|criar?|registrar?|lan[cç]ar?).*(despesa|gasto|custo).*(?:de\s+)?(?:R\$\s*)?([\d.,]+)",
+    "adicionar_receita": r"(adicionar?|criar?|registrar?|lan[cç]ar?).*(receita|doa[cç][aã]o).*(?:de\s+)?(?:R\$\s*)?([\d.,]+)",
+    "ir_dashboard": r"(ir|abrir|mostrar|navegar).*(dashboard|painel|in[ií]cio)",
     "ir_despesas": r"(ir|abrir|mostrar|navegar).*(despesas|gastos)",
-    "ir_receitas": r"(ir|abrir|mostrar|navegar).*(receitas|doações)",
+    "ir_receitas": r"(ir|abrir|mostrar|navegar).*(receitas|doa[cç][oõ]es)",
     "ir_contratos": r"(ir|abrir|mostrar|navegar).*(contratos)",
-    "ir_relatorios": r"(ir|abrir|mostrar|navegar).*(relatórios|exportar)",
-    
-    # Help
-    "ajuda": r"(ajuda|help|o que você pode|comandos|como funciona)",
-    
-    # Compliance
+    "ir_relatorios": r"(ir|abrir|mostrar|navegar).*(relat[oó]rios|exportar)",
+    "ajuda": r"(ajuda|help|o que voc[eê] pode|comandos|como funciona)",
     "conformidade": r"(conformidade|irregular|tse|lei|regras|limite)",
-    
-    # Alerts
-    "alertas": r"(alertas?|avisos?|pendências?|vencimentos?)"
+    "alertas": r"(alertas?|avisos?|pend[eê]ncias?|vencimentos?)",
 }
 
 # Response templates
 RESPONSES = {
-    "greeting": "Olá! Sou a Eleitora, sua assistente de voz para gestão de campanha. Como posso ajudar?",
-    "not_understood": "Desculpe, não entendi o comando. Pode repetir ou dizer 'ajuda' para ver os comandos disponíveis.",
+    "greeting": "Ola! Sou a Eleitora, sua assistente de voz para gestao de campanha. Como posso ajudar?",
+    "not_understood": "Desculpe, nao entendi o comando. Pode repetir ou dizer 'ajuda' para ver os comandos disponiveis.",
     "help": """Posso ajudar com:
         - Consultar saldo, receitas e despesas
         - Ver contratos e documentos pendentes
         - Adicionar despesas ou receitas por voz
         - Verificar conformidade com TSE
         - Navegar pelo sistema
-        Experimente dizer: 'Eleitora, qual é meu saldo?' ou 'Adicionar despesa de 500 reais'""",
+        Experimente dizer: 'Eleitora, qual e meu saldo?' ou 'Adicionar despesa de 500 reais'""",
     "processing": "Processando seu pedido...",
-    "error": "Desculpe, ocorreu um erro ao processar seu pedido. Tente novamente."
+    "error": "Desculpe, ocorreu um erro ao processar seu pedido. Tente novamente.",
 }
 
 
 class VoiceAssistant:
     def __init__(self, api_key: str = None):
         self.api_key = api_key or os.environ.get("EMERGENT_LLM_KEY")
-        self.stt = OpenAISpeechToText(api_key=self.api_key)
-        self.tts = OpenAITextToSpeech(api_key=self.api_key)
+        if EMERGENT_VOICE_AVAILABLE:
+            self.stt = OpenAISpeechToText(api_key=self.api_key)
+            self.tts = OpenAITextToSpeech(api_key=self.api_key)
+        else:
+            self.stt = None
+            self.tts = None
+        self.openai_client = AsyncOpenAI(api_key=self.api_key)
         self.config = VOICE_CONFIG
-    
+
     async def transcribe_audio(self, audio_bytes: bytes, filename: str = "audio.webm") -> str:
         """Convert audio to text using Whisper"""
         try:
-            # Create a file-like object from bytes
             import io
+
             audio_file = io.BytesIO(audio_bytes)
             audio_file.name = filename
-            
-            response = await self.stt.transcribe(
-                file=audio_file,
+
+            if EMERGENT_VOICE_AVAILABLE and self.stt is not None:
+                response = await self.stt.transcribe(
+                    file=audio_file,
+                    model=self.config["model_stt"],
+                    language=self.config["language"],
+                    response_format="json",
+                    prompt="Comandos de voz para sistema de gestao de campanha eleitoral. Eleitora e o nome da assistente.",
+                )
+                return response.text.strip()
+
+            if not self.api_key:
+                raise RuntimeError("EMERGENT_LLM_KEY nao configurada para transcricao de voz.")
+
+            response = await self.openai_client.audio.transcriptions.create(
                 model=self.config["model_stt"],
+                file=audio_file,
                 language=self.config["language"],
+                prompt="Comandos de voz para sistema de gestao de campanha eleitoral. Eleitora e o nome da assistente.",
                 response_format="json",
-                prompt="Comandos de voz para sistema de gestão de campanha eleitoral. Eleitora é o nome da assistente."
             )
-            
-            return response.text.strip()
+            return (response.text or "").strip()
         except Exception as e:
             print(f"Error transcribing audio: {e}")
             raise
-    
+
     async def generate_speech(self, text: str) -> bytes:
         """Convert text to speech using TTS"""
         try:
-            # Limit text to 4096 characters
             if len(text) > 4000:
                 text = text[:4000] + "..."
-            
-            audio_bytes = await self.tts.generate_speech(
-                text=text,
+
+            if EMERGENT_VOICE_AVAILABLE and self.tts is not None:
+                audio_bytes = await self.tts.generate_speech(
+                    text=text,
+                    model=self.config["model_tts"],
+                    voice=self.config["voice"],
+                    speed=self.config["speed"],
+                    response_format="mp3",
+                )
+                return audio_bytes
+
+            if not self.api_key:
+                raise RuntimeError("EMERGENT_LLM_KEY nao configurada para sintese de voz.")
+
+            response = await self.openai_client.audio.speech.create(
                 model=self.config["model_tts"],
                 voice=self.config["voice"],
+                input=text,
                 speed=self.config["speed"],
-                response_format="mp3"
+                response_format="mp3",
             )
-            
-            return audio_bytes
+            if hasattr(response, "read"):
+                return await response.read()
+            if hasattr(response, "content"):
+                return response.content
+            return bytes(response)
         except Exception as e:
             print(f"Error generating speech: {e}")
             raise
-    
+
     async def generate_speech_base64(self, text: str) -> str:
         """Convert text to speech and return as base64"""
         try:
-            if len(text) > 4000:
-                text = text[:4000] + "..."
-            
-            audio_base64 = await self.tts.generate_speech_base64(
-                text=text,
-                model=self.config["model_tts"],
-                voice=self.config["voice"],
-                speed=self.config["speed"],
-                response_format="mp3"
-            )
-            
-            return audio_base64
+            audio_bytes = await self.generate_speech(text)
+            return base64.b64encode(audio_bytes).decode("utf-8")
         except Exception as e:
             print(f"Error generating speech base64: {e}")
             raise
-    
+
     def parse_command(self, text: str) -> Tuple[str, Dict[str, Any]]:
         """Parse transcribed text to identify command and extract parameters"""
         text_lower = text.lower()
-        
-        # Remove "eleitora" prefix if present
-        text_lower = re.sub(r"^(oi|olá|hey|ei)?\s*(eleitora)?,?\s*", "", text_lower)
-        
-        # Check for greeting
-        if re.search(r"^(oi|olá|hey|bom dia|boa tarde|boa noite)", text_lower):
+        text_lower = re.sub(r"^(oi|ola|hey|ei)?\s*(eleitora)?,?\s*", "", text_lower)
+
+        if re.search(r"^(oi|ola|hey|bom dia|boa tarde|boa noite)", text_lower):
             return "greeting", {}
-        
-        # Check for help
         if re.search(COMMAND_PATTERNS["ajuda"], text_lower):
             return "help", {}
-        
-        # Check for add expense with amount
+
         expense_match = re.search(COMMAND_PATTERNS["adicionar_despesa"], text_lower)
         if expense_match:
-            amount_str = expense_match.group(3) if expense_match.lastindex >= 3 else None
+            amount_str = expense_match.group(3) if expense_match.lastindex and expense_match.lastindex >= 3 else None
             if amount_str:
                 amount = float(amount_str.replace(".", "").replace(",", "."))
-                # Try to extract category
                 category = "outros"
                 if "publicidade" in text_lower or "propaganda" in text_lower:
                     category = "publicidade"
-                elif "transporte" in text_lower or "veículo" in text_lower:
+                elif "transporte" in text_lower or "veiculo" in text_lower:
                     category = "transporte"
-                elif "alimentação" in text_lower or "comida" in text_lower:
+                elif "alimentacao" in text_lower or "comida" in text_lower:
                     category = "alimentacao"
-                elif "serviço" in text_lower:
+                elif "servico" in text_lower:
                     category = "servicos_terceiros"
-                
                 return "add_expense", {"amount": amount, "category": category}
-        
-        # Check for add revenue with amount
+
         revenue_match = re.search(COMMAND_PATTERNS["adicionar_receita"], text_lower)
         if revenue_match:
-            amount_str = revenue_match.group(3) if revenue_match.lastindex >= 3 else None
+            amount_str = revenue_match.group(3) if revenue_match.lastindex and revenue_match.lastindex >= 3 else None
             if amount_str:
                 amount = float(amount_str.replace(".", "").replace(",", "."))
                 return "add_revenue", {"amount": amount}
-        
-        # Check for navigation commands
+
         for nav_cmd in ["ir_dashboard", "ir_despesas", "ir_receitas", "ir_contratos", "ir_relatorios"]:
             if re.search(COMMAND_PATTERNS[nav_cmd], text_lower):
                 route = nav_cmd.replace("ir_", "/")
                 return "navigate", {"route": route}
-        
-        # Check for query commands
+
         for query_cmd in ["saldo", "receitas", "despesas", "resumo", "contratos", "pendentes", "conformidade", "alertas"]:
             if re.search(COMMAND_PATTERNS[query_cmd], text_lower):
                 return f"query_{query_cmd}", {}
-        
-        # If no pattern matched, treat as general question for AI
+
         return "ai_chat", {"message": text}
-    
+
     def format_currency(self, value: float) -> str:
         """Format value as Brazilian currency for speech"""
         if value >= 1000:

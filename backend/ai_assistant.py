@@ -8,11 +8,18 @@ import httpx
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 load_dotenv()
 
-# Emergent LLM Integration
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+try:
+    # Preferred integration (if available in environment)
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    EMERGENT_CHAT_AVAILABLE = True
+except ImportError:
+    LlmChat = Any  # type: ignore[assignment]
+    UserMessage = Any  # type: ignore[assignment]
+    EMERGENT_CHAT_AVAILABLE = False
 
 # TSE URLs for scraping electoral rules
 TSE_URLS = {
@@ -53,16 +60,21 @@ DADOS DA CAMPANHA serão fornecidos no contexto. Use-os para dar respostas perso
 class ElectoralAssistant:
     def __init__(self, api_key: str = None):
         self.api_key = api_key or os.environ.get("EMERGENT_LLM_KEY")
-        self.sessions: Dict[str, LlmChat] = {}
+        self.sessions: Dict[str, Any] = {}
+        self.openai_model = os.environ.get("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+        self.openai_client = AsyncOpenAI(api_key=self.api_key)
     
     def get_or_create_session(self, session_id: str, system_message: str = None) -> LlmChat:
         """Get existing session or create new one"""
         if session_id not in self.sessions:
-            self.sessions[session_id] = LlmChat(
-                api_key=self.api_key,
-                session_id=session_id,
-                system_message=system_message or SYSTEM_PROMPT
-            ).with_model("openai", "gpt-5.2")
+            if EMERGENT_CHAT_AVAILABLE:
+                self.sessions[session_id] = LlmChat(
+                    api_key=self.api_key,
+                    session_id=session_id,
+                    system_message=system_message or SYSTEM_PROMPT
+                ).with_model("openai", "gpt-5.2")
+            else:
+                self.sessions[session_id] = []
         return self.sessions[session_id]
     
     async def chat(
@@ -112,14 +124,33 @@ ALERTAS:
             full_message = "\n".join(context_parts) + "\n\n"
         full_message += f"PERGUNTA DO CANDIDATO: {message}"
         
-        # Get or create chat session
-        chat = self.get_or_create_session(session_id)
-        
-        # Send message
-        user_message = UserMessage(text=full_message)
-        response = await chat.send_message(user_message)
-        
-        return response
+        if EMERGENT_CHAT_AVAILABLE:
+            # Get or create chat session
+            chat = self.get_or_create_session(session_id)
+
+            # Send message
+            user_message = UserMessage(text=full_message)
+            response = await chat.send_message(user_message)
+            return response
+
+        # OpenAI fallback for environments without emergentintegrations
+        if not self.api_key:
+            raise RuntimeError("EMERGENT_LLM_KEY não configurada para o assistente de IA.")
+
+        session_history = self.get_or_create_session(session_id)
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages.extend(session_history[-10:])
+        messages.append({"role": "user", "content": full_message})
+
+        response = await self.openai_client.chat.completions.create(
+            model=self.openai_model,
+            messages=messages,
+            temperature=0.3,
+        )
+        answer = (response.choices[0].message.content or "").strip()
+        session_history.append({"role": "user", "content": full_message})
+        session_history.append({"role": "assistant", "content": answer})
+        return answer
     
     def _generate_alerts(self, context: dict) -> str:
         """Generate alerts based on campaign data"""
