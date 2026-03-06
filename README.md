@@ -22,6 +22,12 @@ Start command:
 uvicorn server:app --host 0.0.0.0 --port $PORT
 ```
 
+Build command no Render:
+
+```bash
+pip install -r requirements.render.txt
+```
+
 Variáveis mínimas no Render:
 
 - `MONGO_URL`
