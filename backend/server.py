@@ -391,6 +391,48 @@ def format_cnpj(cnpj: str) -> str:
         return f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}"
     return cnpj
 
+def normalize_document(document: Optional[str]) -> Optional[str]:
+    """Return document digits only."""
+    if document is None:
+        return None
+    cleaned = re.sub(r'[^0-9]', '', str(document))
+    return cleaned or None
+
+def validate_and_normalize_document(
+    document: Optional[str],
+    field_name: str,
+    allowed_types=("cpf", "cnpj"),
+    required: bool = False,
+) -> Optional[str]:
+    """Validate CPF/CNPJ and return normalized digits."""
+    doc = normalize_document(document)
+    if not doc:
+        if required:
+            raise HTTPException(status_code=400, detail=f"{field_name} é obrigatório")
+        return None
+
+    if len(doc) == 11:
+        if "cpf" not in allowed_types:
+            raise HTTPException(status_code=400, detail=f"{field_name} deve ser CNPJ")
+        if not validate_cpf(doc):
+            raise HTTPException(status_code=400, detail=f"{field_name} inválido")
+        return doc
+
+    if len(doc) == 14:
+        if "cnpj" not in allowed_types:
+            raise HTTPException(status_code=400, detail=f"{field_name} deve ser CPF")
+        if not validate_cnpj(doc):
+            raise HTTPException(status_code=400, detail=f"{field_name} inválido")
+        return doc
+
+    if allowed_types == ("cpf",):
+        expected = "11 dígitos (CPF)"
+    elif allowed_types == ("cnpj",):
+        expected = "14 dígitos (CNPJ)"
+    else:
+        expected = "11 dígitos (CPF) ou 14 dígitos (CNPJ)"
+    raise HTTPException(status_code=400, detail=f"{field_name} deve ter {expected}")
+
 # ============== ENUMS ==============
 class UserRole(str, Enum):
     CANDIDATO = "candidato"
@@ -1312,6 +1354,9 @@ async def register(user_data: UserCreate):
     if existing:
         raise HTTPException(status_code=400, detail="Email já cadastrado")
     
+    cpf_normalized = validate_and_normalize_document(
+        user_data.cpf, "CPF", allowed_types=("cpf",), required=False
+    )
     user_id = str(uuid.uuid4())
     user_doc = {
         "id": user_id,
@@ -1319,7 +1364,7 @@ async def register(user_data: UserCreate):
         "password": hash_password(user_data.password),
         "name": user_data.name,
         "role": user_data.role.value,
-        "cpf": user_data.cpf,
+        "cpf": cpf_normalized,
         "phone": user_data.phone,
         "campaign_id": None,
         "created_at": datetime.now(timezone.utc).isoformat()
@@ -1374,15 +1419,18 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 # ============== CAMPAIGN ROUTES ==============
 @api_router.post("/campaigns", response_model=CampaignResponse)
 async def create_campaign(data: CampaignCreate, current_user: dict = Depends(get_current_user)):
+    campaign_data = data.model_dump()
+    campaign_data["cnpj"] = validate_and_normalize_document(
+        campaign_data.get("cnpj"), "CNPJ da campanha", allowed_types=("cnpj",), required=False
+    )
+    campaign_data["cpf_candidato"] = validate_and_normalize_document(
+        campaign_data.get("cpf_candidato"), "CPF do candidato", allowed_types=("cpf",), required=False
+    )
+
     campaign_id = str(uuid.uuid4())
     campaign_doc = {
         "id": campaign_id,
-        "candidate_name": data.candidate_name,
-        "party": data.party,
-        "position": data.position,
-        "city": data.city,
-        "state": data.state,
-        "election_year": data.election_year,
+        **campaign_data,
         "owner_id": current_user["id"],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -1408,6 +1456,12 @@ async def update_campaign(campaign_id: str, data: CampaignCreate, current_user: 
         raise HTTPException(status_code=403, detail="Sem permissão")
     
     update_data = data.model_dump()
+    update_data["cnpj"] = validate_and_normalize_document(
+        update_data.get("cnpj"), "CNPJ da campanha", allowed_types=("cnpj",), required=False
+    )
+    update_data["cpf_candidato"] = validate_and_normalize_document(
+        update_data.get("cpf_candidato"), "CPF do candidato", allowed_types=("cpf",), required=False
+    )
     await db.campaigns.update_one({"id": campaign_id}, {"$set": update_data})
     
     updated = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
@@ -1439,6 +1493,9 @@ async def create_revenue(data: RevenueCreate, current_user: dict = Depends(get_c
     
     revenue_id = str(uuid.uuid4())
     revenue_data = data.model_dump()
+    revenue_data["donor_cpf_cnpj"] = validate_and_normalize_document(
+        revenue_data.get("donor_cpf_cnpj"), "CPF/CNPJ do doador", required=False
+    )
     
     # Auto-generate recibo eleitoral if not provided
     if not revenue_data.get("recibo_eleitoral"):
@@ -1474,7 +1531,11 @@ async def update_revenue(revenue_id: str, data: RevenueCreate, current_user: dic
     if not revenue:
         raise HTTPException(status_code=404, detail="Receita não encontrada")
     
-    await db.revenues.update_one({"id": revenue_id}, {"$set": data.model_dump()})
+    update_data = data.model_dump()
+    update_data["donor_cpf_cnpj"] = validate_and_normalize_document(
+        update_data.get("donor_cpf_cnpj"), "CPF/CNPJ do doador", required=False
+    )
+    await db.revenues.update_one({"id": revenue_id}, {"$set": update_data})
     updated = await db.revenues.find_one({"id": revenue_id}, {"_id": 0})
     return updated
 
@@ -1619,10 +1680,15 @@ async def create_expense(data: ExpenseCreate, current_user: dict = Depends(get_c
     if not current_user.get("campaign_id"):
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
+    expense_data = data.model_dump()
+    expense_data["supplier_cpf_cnpj"] = validate_and_normalize_document(
+        expense_data.get("supplier_cpf_cnpj"), "CPF/CNPJ do fornecedor", required=False
+    )
+
     expense_id = str(uuid.uuid4())
     expense_doc = {
         "id": expense_id,
-        **data.model_dump(),
+        **expense_data,
         "campaign_id": current_user["campaign_id"],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -1650,7 +1716,11 @@ async def update_expense(expense_id: str, data: ExpenseCreate, current_user: dic
     if not expense:
         raise HTTPException(status_code=404, detail="Despesa não encontrada")
     
-    await db.expenses.update_one({"id": expense_id}, {"$set": data.model_dump()})
+    update_data = data.model_dump()
+    update_data["supplier_cpf_cnpj"] = validate_and_normalize_document(
+        update_data.get("supplier_cpf_cnpj"), "CPF/CNPJ do fornecedor", required=False
+    )
+    await db.expenses.update_one({"id": expense_id}, {"$set": update_data})
     updated = await db.expenses.find_one({"id": expense_id}, {"_id": 0})
     return updated
 
@@ -1667,13 +1737,21 @@ async def create_contract(data: ContractCreate, current_user: dict = Depends(get
     if not current_user.get("campaign_id"):
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
+    contract_data = data.model_dump()
+    contract_data["contractor_cpf_cnpj"] = validate_and_normalize_document(
+        contract_data.get("contractor_cpf_cnpj"), "CPF/CNPJ do contratado", required=True
+    )
+    contract_data["locador_cpf"] = validate_and_normalize_document(
+        contract_data.get("locador_cpf"), "CPF do locador", allowed_types=("cpf",), required=False
+    )
+
     # Get campaign data for contract generation
     campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
     
     contract_id = str(uuid.uuid4())
     contract_doc = {
         "id": contract_id,
-        **data.model_dump(),
+        **contract_data,
         "campaign_id": current_user["campaign_id"],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -1694,6 +1772,9 @@ async def create_contract(data: ContractCreate, current_user: dict = Depends(get
 async def generate_contract_expenses(contract_id: str, data: ContractCreate, campaign_id: str):
     """Generate expenses based on contract installment configuration"""
     total_value = data.value
+    normalized_supplier_doc = validate_and_normalize_document(
+        data.contractor_cpf_cnpj, "CPF/CNPJ do contratado", required=True
+    )
     
     # If parcelas_config is provided, use it
     if data.parcelas_config and len(data.parcelas_config) > 0:
@@ -1708,7 +1789,7 @@ async def generate_contract_expenses(contract_id: str, data: ContractCreate, cam
                 "amount": round(parcela_value, 2),
                 "category": "servicos_terceiros",
                 "supplier_name": data.contractor_name,
-                "supplier_cpf_cnpj": data.contractor_cpf_cnpj,
+                "supplier_cpf_cnpj": normalized_supplier_doc,
                 "date": data_vencimento,
                 "payment_status": "pendente",
                 "contract_id": contract_id,
@@ -1741,7 +1822,7 @@ async def generate_contract_expenses(contract_id: str, data: ContractCreate, cam
                 "amount": round(parcela_value, 2),
                 "category": "servicos_terceiros",
                 "supplier_name": data.contractor_name,
-                "supplier_cpf_cnpj": data.contractor_cpf_cnpj,
+                "supplier_cpf_cnpj": normalized_supplier_doc,
                 "date": due_date,
                 "payment_status": "pendente",
                 "contract_id": contract_id,
@@ -1782,6 +1863,12 @@ async def update_contract(contract_id: str, data: ContractCreate, current_user: 
     
     campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
     update_data = data.model_dump()
+    update_data["contractor_cpf_cnpj"] = validate_and_normalize_document(
+        update_data.get("contractor_cpf_cnpj"), "CPF/CNPJ do contratado", required=True
+    )
+    update_data["locador_cpf"] = validate_and_normalize_document(
+        update_data.get("locador_cpf"), "CPF do locador", allowed_types=("cpf",), required=False
+    )
     
     # Regenerate HTML if template type exists
     if data.template_type:
@@ -5017,10 +5104,15 @@ async def create_professional(data: ProfessionalCreate, current_user: dict = Dep
         existing.pop("password_hash", None)
         return existing
     
+    professional_data = data.model_dump(exclude={"password"})
+    professional_data["cpf"] = validate_and_normalize_document(
+        professional_data.get("cpf"), "CPF do profissional", allowed_types=("cpf",), required=False
+    )
+
     professional_id = str(uuid.uuid4())
     professional_doc = {
         "id": professional_id,
-        **data.model_dump(exclude={"password"}),
+        **professional_data,
         "campaigns": [campaign_id],
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat()
@@ -5079,6 +5171,9 @@ async def update_professional(
         raise HTTPException(status_code=404, detail="Profissional não encontrado")
     
     update_data = data.model_dump(exclude={"password"})
+    update_data["cpf"] = validate_and_normalize_document(
+        update_data.get("cpf"), "CPF do profissional", allowed_types=("cpf",), required=False
+    )
     if data.password and data.has_system_access:
         update_data["password_hash"] = hashlib.sha256(data.password.encode()).hexdigest()
     
@@ -5135,32 +5230,45 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
     campaign_id = current_user.get("campaign_id")
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
-    
+
+    pix_data = data.model_dump()
+    pix_data["recipient_cpf_cnpj"] = validate_and_normalize_document(
+        pix_data.get("recipient_cpf_cnpj"), "CPF/CNPJ do favorecido", required=False
+    )
+    if pix_data.get("pix_key_type") == "cpf":
+        pix_data["pix_key"] = validate_and_normalize_document(
+            pix_data.get("pix_key"), "Chave PIX (CPF)", allowed_types=("cpf",), required=True
+        )
+    elif pix_data.get("pix_key_type") == "cnpj":
+        pix_data["pix_key"] = validate_and_normalize_document(
+            pix_data.get("pix_key"), "Chave PIX (CNPJ)", allowed_types=("cnpj",), required=True
+        )
+
     # Verify expense exists if provided
-    if data.expense_id:
+    if pix_data.get("expense_id"):
         expense = await db.expenses.find_one(
-            {"id": data.expense_id, "campaign_id": campaign_id}
+            {"id": pix_data["expense_id"], "campaign_id": campaign_id}
         )
         if not expense:
             raise HTTPException(status_code=404, detail="Despesa não encontrada")
-    
+
     pix_id = str(uuid.uuid4())
     bb_response = None
     txid = None
     pix_copia_cola = None
-    
+
     # Try real BB integration if available
     if bb_pix_client and BB_PIX_AVAILABLE:
         try:
             bb_response = await bb_pix_client.create_pix_payment({
-                "pix_key": data.pix_key,
-                "recipient_name": data.recipient_name,
-                "recipient_cpf_cnpj": data.recipient_cpf_cnpj,
-                "amount": data.amount,
-                "description": data.description,
-                "scheduled_date": data.scheduled_date or datetime.now().strftime("%Y-%m-%d")
+                "pix_key": pix_data["pix_key"],
+                "recipient_name": pix_data["recipient_name"],
+                "recipient_cpf_cnpj": pix_data.get("recipient_cpf_cnpj"),
+                "amount": pix_data["amount"],
+                "description": pix_data.get("description"),
+                "scheduled_date": pix_data.get("scheduled_date") or datetime.now().strftime("%Y-%m-%d")
             })
-            
+
             if bb_response.get("success"):
                 txid = bb_response.get("txid")
                 pix_copia_cola = bb_response.get("pixCopiaECola")
@@ -5169,18 +5277,18 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
                 logging.warning(f"PIX BB falhou, usando modo simulado: {bb_response.get('error')}")
         except Exception as e:
             logging.error(f"Erro na integração BB PIX: {e}")
-    
+
     pix_doc = {
         "id": pix_id,
-        "pix_key": data.pix_key,
-        "pix_key_type": data.pix_key_type,
-        "recipient_name": data.recipient_name,
-        "recipient_cpf_cnpj": data.recipient_cpf_cnpj,
-        "amount": data.amount,
-        "description": data.description,
-        "scheduled_date": data.scheduled_date,
-        "expense_id": data.expense_id,
-        "status": "agendado" if data.scheduled_date else "processando",
+        "pix_key": pix_data["pix_key"],
+        "pix_key_type": pix_data["pix_key_type"],
+        "recipient_name": pix_data["recipient_name"],
+        "recipient_cpf_cnpj": pix_data.get("recipient_cpf_cnpj"),
+        "amount": pix_data["amount"],
+        "description": pix_data.get("description"),
+        "scheduled_date": pix_data.get("scheduled_date"),
+        "expense_id": pix_data.get("expense_id"),
+        "status": "agendado" if pix_data.get("scheduled_date") else "processando",
         "transaction_id": txid,
         "pix_copia_cola": pix_copia_cola,
         "bb_response": bb_response if bb_response else None,
@@ -5188,10 +5296,10 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
         "campaign_id": campaign_id,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    
+
     await db.pix_payments.insert_one(pix_doc)
     pix_doc.pop("_id", None)
-    
+
     return {
         "message": "Pagamento PIX criado com sucesso",
         "pix_payment": pix_doc,
@@ -6561,3 +6669,4 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
