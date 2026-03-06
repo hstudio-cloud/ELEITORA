@@ -1332,13 +1332,30 @@ async def register(user_data: UserCreate):
 @api_router.post("/auth/login", response_model=dict)
 async def login(credentials: UserLogin):
     user = await db.users.find_one({"email": credentials.email})
-    if not user or not verify_password(credentials.password, user["password"]):
+    if not user:
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
-    
-    token = create_token(user["id"], user["email"], user["role"])
-    user.pop("password")
+
+    # Backward compatibility for legacy user documents
+    password_hash = user.get("password") or user.get("password_hash")
+    if not password_hash:
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+
+    try:
+        password_ok = verify_password(credentials.password, password_hash)
+    except Exception:
+        password_ok = False
+
+    if not password_ok:
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+
+    user_id = user.get("id") or str(user.get("_id"))
+    user_role = user.get("role", "candidate")
+
+    token = create_token(user_id, user["email"], user_role)
+    user.pop("password", None)
+    user.pop("password_hash", None)
     user.pop("_id", None)
-    
+
     return {"token": token, "user": user}
 
 @api_router.get("/auth/me", response_model=UserResponse)
