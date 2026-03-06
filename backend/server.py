@@ -66,7 +66,9 @@ client = AsyncIOMotorClient(
 db = client[os.environ['DB_NAME']]
 
 # JWT Config
-JWT_SECRET = os.environ.get('JWT_SECRET', 'eleitora360-secret-key-2024')
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
@@ -129,7 +131,7 @@ class BancoDoBrasilPIX:
         
         data = "grant_type=client_credentials&scope=pix.read pix.write cob.read cob.write"
         
-        async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.post(
                     self.oauth_url,
@@ -221,7 +223,7 @@ class BancoDoBrasilPIX:
             "solicitacaoPagador": pix_data.get("description", "Pagamento via Eleitora 360")[:140]
         }
         
-        async with httpx.AsyncClient(verify=False) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 # Create cobrança (billing request)
                 response = await client.put(
@@ -269,7 +271,7 @@ class BancoDoBrasilPIX:
             "gw-dev-app-key": self.app_key
         }
         
-        async with httpx.AsyncClient(verify=False) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(f"{self.api_url}/cobv/{txid}", headers=headers)
                 response.raise_for_status()
@@ -304,7 +306,7 @@ class BancoDoBrasilPIX:
             "fim": f"{end_date}T23:59:59Z"
         }
         
-        async with httpx.AsyncClient(verify=False) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(f"{self.api_url}/pix", headers=headers, params=params)
                 response.raise_for_status()
@@ -5986,7 +5988,28 @@ async def root():
 
 @api_router.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    try:
+        await db.command("ping")
+        return {
+            "status": "healthy",
+            "components": {
+                "database": "ok",
+                "pdf": "ok" if PDF_AVAILABLE else "unavailable",
+                "ofx": "ok" if OFX_AVAILABLE else "unavailable",
+                "email": "ok" if RESEND_AVAILABLE else "unavailable",
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.exception("Health check failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "unhealthy",
+                "component": "database",
+                "error": "database_unreachable",
+            },
+        )
 
 # Bank statement and validation endpoints defined below
 
