@@ -6471,10 +6471,23 @@ async def validate_document(cpf_cnpj: str = Query(...)):
 # Include router - AFTER all route definitions
 app.include_router(api_router)
 
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ORIGINS', 'http://localhost:3000').split(',')
+    if origin.strip()
+]
+if not cors_origins:
+    cors_origins = ['http://localhost:3000']
+
+# Browsers reject wildcard origins when credentials are enabled.
+cors_allow_credentials = os.environ.get('CORS_ALLOW_CREDENTIALS', 'false').lower() == 'true'
+if '*' in cors_origins:
+    cors_allow_credentials = False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials=cors_allow_credentials,
+    allow_origins=cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

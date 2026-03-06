@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: eleitora-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SENDER_EMAIL
+        sync: false
+      - key: BB_APP_KEY
+        sync: false
+      - key: BB_CLIENT_ID
+        sync: false
+      - key: BB_CLIENT_SECRET
+        sync: false
+      - key: BB_ENVIRONMENT
+        value: homologacao
