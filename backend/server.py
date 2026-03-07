@@ -1866,7 +1866,7 @@ async def update_campaign(campaign_id: str, data: CampaignCreate, current_user: 
 async def generate_recibo_eleitoral(campaign_id: str) -> str:
     """Generate sequential electoral receipt number"""
     # Get campaign info for the prefix
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     if not campaign:
         return None
     
@@ -3015,7 +3015,7 @@ async def spce_precheck(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
 
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha não encontrada")
 
@@ -3034,7 +3034,7 @@ async def export_spce_doacoes(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     ensure_spce_ready(build_spce_precheck(campaign, revenues=revenues))
     
@@ -3267,7 +3267,7 @@ async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
             "itens": []
         }
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
@@ -3512,7 +3512,7 @@ async def generate_tse_report(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     
@@ -3562,7 +3562,7 @@ async def export_spce_zip(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
     
@@ -4353,7 +4353,7 @@ async def generate_pdf_report(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     
@@ -4771,7 +4771,7 @@ async def export_spce_despesas(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     ensure_spce_ready(build_spce_precheck(campaign, expenses=expenses))
     ensure_spce_ready(build_spce_precheck(campaign, expenses=expenses))
@@ -4831,7 +4831,7 @@ async def export_spce_despagtos(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     
     cnpj = (campaign.get("cnpj") or "").replace(".", "").replace("/", "").replace("-", "")
@@ -4910,7 +4910,7 @@ async def export_spce_contratos(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     ensure_spce_ready(build_spce_precheck(campaign, contracts=contracts))
     
@@ -5004,7 +5004,7 @@ async def export_spce_despesas_pdf(current_user: dict = Depends(get_current_user
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     
     # Create PDF
@@ -5115,7 +5115,7 @@ async def export_spce_contratos_pdf(current_user: dict = Depends(get_current_use
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     
     # Create PDF
@@ -5427,7 +5427,7 @@ async def ai_chat(
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
     # Get campaign data
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
@@ -5470,6 +5470,37 @@ async def ai_chat(
     chat_history_doc = await db.chat_history.find_one({"session_id": session_id})
     chat_history = chat_history_doc.get("messages", []) if chat_history_doc else []
     
+    def _fallback_ai_response(message_text: str) -> str:
+        msg = (message_text or "").lower()
+        if "saldo" in msg or "resumo" in msg:
+            return (
+                f"Resumo rápido: receitas {format_currency(total_revenues)}, despesas {format_currency(total_expenses)} "
+                f"e saldo {format_currency(total_revenues - total_expenses)}. "
+                f"Pendências: {pending_count} despesa(s) e {contracts_missing_docs} contrato(s) com documentação pendente."
+            )
+        if "despesa" in msg or "gasto" in msg:
+            return (
+                f"Você tem {pending_count} despesa(s) pendente(s), com total pendente de {format_currency(pending_expenses)}. "
+                "Quer que eu priorize por vencimento?"
+            )
+        if "contrato" in msg:
+            return (
+                f"Há {len(contracts)} contrato(s) cadastrados e {contracts_missing_docs} com documentação pendente. "
+                "Posso te listar os próximos contratos para finalizar."
+            )
+        if "conform" in msg or "tse" in msg or "spce" in msg:
+            if campaign_context.get("limite_gastos", 0) > 0:
+                percentage = (total_expenses / campaign_context["limite_gastos"]) * 100
+                return (
+                    f"Conformidade: gastos em {percentage:.1f}% do limite e saldo de limite de "
+                    f"{format_currency(campaign_context['limite_gastos'] - total_expenses)}."
+                )
+            return "Conformidade: limite de gastos ainda não configurado. Complete Configurações para monitoramento automático."
+        return (
+            "Estou em modo de contingência agora, mas sigo operacional. "
+            f"Posso ajudar com resumo financeiro, despesas pendentes ({pending_count}) e contratos pendentes ({contracts_missing_docs})."
+        )
+
     try:
         # Get AI response
         response = await assistant.chat(
@@ -5499,11 +5530,11 @@ async def ai_chat(
         if campaign_context.get("limite_gastos", 0) > 0:
             percentage = (total_expenses / campaign_context["limite_gastos"]) * 100
             if percentage >= 90:
-                alerts.append(f"âš ï¸ Gastos em {percentage:.1f}% do limite!")
+                alerts.append(f"?? Gastos em {percentage:.1f}% do limite!")
         if pending_count > 0:
-            alerts.append(f"ðŸ“‹ {pending_count} despesa(s) pendente(s)")
+            alerts.append(f"?? {pending_count} despesa(s) pendente(s)")
         if contracts_missing_docs > 0:
-            alerts.append(f"ðŸ“Ž {contracts_missing_docs} contrato(s) sem documentaÃ§Ã£o completa")
+            alerts.append(f"?? {contracts_missing_docs} contrato(s) sem documentação completa")
         
         return {
             "response": response,
@@ -5512,8 +5543,31 @@ async def ai_chat(
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao processar mensagem: {str(e)}")
-
+        logger.exception("Falha no provedor de IA em /ai/chat. Aplicando fallback local: %s", e)
+        fallback_response = _fallback_ai_response(data.message)
+        new_messages = [
+            {"role": "user", "content": data.message, "timestamp": datetime.now(timezone.utc).isoformat()},
+            {"role": "assistant", "content": fallback_response, "timestamp": datetime.now(timezone.utc).isoformat()}
+        ]
+        await db.chat_history.update_one(
+            {"session_id": session_id},
+            {
+                "$push": {"messages": {"$each": new_messages}},
+                "$set": {
+                    "campaign_id": campaign_id,
+                    "user_id": current_user["id"],
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "fallback_mode": True
+                }
+            },
+            upsert=True
+        )
+        return {
+            "response": fallback_response,
+            "session_id": session_id,
+            "alerts": ["Modo contingência ativo: IA externa indisponível."],
+            "fallback_mode": True
+        }
 @api_router.get("/ai/chat/history")
 async def get_chat_history(
     session_id: Optional[str] = None,
@@ -5562,7 +5616,7 @@ async def ai_analyze_expenses(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     
     if not expenses:
@@ -5587,7 +5641,7 @@ async def ai_check_compliance(current_user: dict = Depends(get_current_user)):
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
     revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
@@ -5741,7 +5795,7 @@ async def voice_command(
             response_text = f"VocÃª tem {len(expenses)} despesas registradas, totalizando {voice_assistant.format_currency(total)}. Despesas pendentes: {voice_assistant.format_currency(pending)}."
         
         elif command == "query_resumo":
-            campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+            campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
             revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
             expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
             contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
@@ -5790,7 +5844,7 @@ async def voice_command(
         
         elif command == "query_conformidade":
             # Use AI for compliance check
-            campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+            campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
             revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
             expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
             
@@ -5859,7 +5913,7 @@ async def voice_command(
             message = params.get("message", transcribed_text)
             
             # Get campaign context
-            campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+            campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
             revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
             expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
             
@@ -6092,7 +6146,7 @@ async def create_pix_payment(data: PixPaymentCreate, current_user: dict = Depend
     campaign_id = current_user.get("campaign_id")
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {} or {}
 
     pix_data = data.model_dump()
     source_account_type = (pix_data.get("source_account_type") or "doacao").strip().lower()
@@ -6874,7 +6928,7 @@ async def get_campaign_spending_status(current_user: dict = Depends(get_current_
     if not campaign_id:
         raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
     
@@ -7256,7 +7310,7 @@ async def contador_get_campaign_details(campaign_id: str, current_user: dict = D
     if not is_admin and not has_access:
         raise HTTPException(status_code=403, detail="VocÃª nÃ£o tem acesso a esta campanha")
     
-    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0})
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
     
@@ -7916,5 +7970,6 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
 
 
