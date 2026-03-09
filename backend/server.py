@@ -505,7 +505,7 @@ class ContractStatus(str, Enum):
     RASCUNHO = "rascunho"
     AGUARDANDO_ASSINATURA = "aguardando_assinatura"
     ASSINADO_LOCADOR = "assinado_locador"
-    ASSINADO_LOCATARIO = "assinado_locatario"
+    ASSINADO_LOCATÁRIO = "assinado_locatario"
     ATIVO = "ativo"
     CONCLUIDO = "concluido"
     CANCELADO = "cancelado"
@@ -561,7 +561,7 @@ CONTRACT_REQUIRED_ATTACHMENTS = {
     "espaco_evento": [
         {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/ResponsÃ¡vel (RG/CPF)", "required": True},
         {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia", "required": True},
-        {"key": "doc_espaco", "label": "Documento do EspaÃ§o (se houver)", "required": False},
+        {"key": "doc_espaco", "label": "Documento do Espaço (se houver)", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "imovel_comite": [
@@ -573,7 +573,7 @@ CONTRACT_REQUIRED_ATTACHMENTS = {
     "imovel_evento": [
         {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/ResponsÃ¡vel (RG/CPF)", "required": True},
         {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia", "required": True},
-        {"key": "doc_espaco", "label": "Documento do EspaÃ§o (se houver)", "required": False},
+        {"key": "doc_espaco", "label": "Documento do Espaço (se houver)", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "servico_grafico": [
@@ -1263,26 +1263,26 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
     header = f"""
     <div style="font-family: 'Times New Roman', serif; max-width: 800px; margin: 0 auto; padding: 40px; line-height: 1.8;">
         <h1 style="text-align: center; font-size: 16pt; margin-bottom: 30px;">
-            CONTRATO DE LOCAÃ‡ÃƒO DE {get_contract_title(template_type)}
+            CONTRATO DE LOCAÇÃO DE {get_contract_title(template_type)}
         </h1>
         <p style="text-align: justify;">
-            Pelo presente instrumento particular, os signatÃ¡rios tÃªm entre si justa e contratada a locaÃ§Ã£o 
-            do bem abaixo descrito, mediante as seguintes clÃ¡usulas.
+            Pelo presente instrumento particular, os signatários têm entre si justa e contratada a locação 
+            do bem abaixo descrito, mediante as seguintes cláusulas.
         </p>
     """
     
     # Locador section
     locador_section = f"""
-        <h2 style="font-size: 14pt; margin-top: 30px;">IDENTIFICAÃ‡ÃƒO DAS PARTES</h2>
+        <h2 style="font-size: 14pt; margin-top: 30px;">IDENTIFICAÇÃO DAS PARTES</h2>
         
         <p><strong>LOCADOR(A):</strong></p>
         <p style="text-align: justify;">
             <strong>Nome:</strong> {contract_data.get('locador_nome', '_______________')}<br>
             <strong>Nacionalidade:</strong> {contract_data.get('locador_nacionalidade', 'Brasileiro(a)')}<br>
             <strong>Estado Civil:</strong> {contract_data.get('locador_estado_civil', '_______________')}<br>
-            <strong>ProfissÃ£o:</strong> {contract_data.get('locador_profissao', '_______________')}<br>
-            <strong>EndereÃ§o:</strong> {contract_data.get('locador_endereco', '_______________')}, 
-            nÂº {contract_data.get('locador_numero', '___')}, 
+            <strong>Profissão:</strong> {contract_data.get('locador_profissao', '_______________')}<br>
+            <strong>Endereço:</strong> {contract_data.get('locador_endereco', '_______________')}, 
+            nº {contract_data.get('locador_numero', '___')}, 
             CEP: {contract_data.get('locador_cep', '_______________')}, 
             Bairro: {contract_data.get('locador_bairro', '_______________')}, 
             {contract_data.get('locador_cidade', '_______________')}/{contract_data.get('locador_estado', '__')}<br>
@@ -1291,13 +1291,13 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
         </p>
     """
     
-    # LocatÃ¡rio section (Candidate - auto-filled)
+    # Locatário section (Candidate - auto-filled)
     locatario_section = f"""
         <p><strong>LOCATÃRIO:</strong></p>
         <p style="text-align: justify;">
-            <strong>Campanha:</strong> ELEIÃ‡ÃƒO {campaign.get('election_year', '2024')} - {campaign.get('candidate_name', '_______________')} - {campaign.get('position', 'VEREADOR').upper()}<br>
+            <strong>Campanha:</strong> ELEIÇÃO {campaign.get('election_year', '2024')} - {campaign.get('candidate_name', '_______________')} - {campaign.get('position', 'VEREADOR').upper()}<br>
             <strong>Partido:</strong> {campaign.get('party', '_______________')}<br>
-            <strong>EndereÃ§o:</strong> {campaign.get('city', '_______________')}/{campaign.get('state', '__')}
+            <strong>Endereço:</strong> {campaign.get('city', '_______________')}/{campaign.get('state', '__')}
         </p>
     """
     
@@ -1308,16 +1308,16 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
     value_clause = f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO VALOR DO ALUGUEL</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA TERCEIRA.</strong> Pela locaÃ§Ã£o ora ajustada, o LOCATÃRIO pagarÃ¡ a quantia de 
-            <strong>{format_currency(contract_data.get('value', 0))}</strong>, cujo pagamento serÃ¡ efetuado 
+            <strong>CLÃUSULA TERCEIRA.</strong> Pela locação ora ajustada, o LOCATÃRIO pagará a quantia de 
+            <strong>{format_currency(contract_data.get('value', 0))}</strong>, cujo pagamento será efetuado 
             atÃ© o dia {format_date_br(contract_data.get('end_date', ''))}.
         </p>
     """
     
     term_clause = f"""
-        <h3 style="font-size: 12pt; margin-top: 20px;">DA VIGÃŠNCIA</h3>
+        <h3 style="font-size: 12pt; margin-top: 20px;">DA VIGÊNCIA</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA SEGUNDA.</strong> O presente contrato terÃ¡ vigÃªncia a partir de 
+            <strong>CLÃUSULA SEGUNDA.</strong> O presente contrato terÃ¡ vigência a partir de 
             {format_date_br(contract_data.get('start_date', ''))} atÃ© {format_date_br(contract_data.get('end_date', ''))}.
         </p>
     """
@@ -1328,7 +1328,7 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
         <p style="text-align: justify;">
             <strong>CLÃUSULA QUARTA.</strong> As partes elegem o Foro da Comarca de 
             {campaign.get('city', '_______________')}/{campaign.get('state', '__')} para dirimir eventuais 
-            controvÃ©rsias decorrentes deste contrato, com renÃºncia a qualquer outro, por mais privilegiado que seja.
+            controvérsias decorrentes deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.
         </p>
     """
     
@@ -1336,7 +1336,7 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
     signature_section = f"""
         <p style="margin-top: 40px; text-align: justify;">
             E, por estarem assim ajustados e contratados, assinam o presente em 02 (Duas) vias de igual forma 
-            e teor, na presenÃ§a das testemunhas abaixo.
+            e teor, na presença das testemunhas abaixo.
         </p>
         
         <p style="text-align: right; margin-top: 30px;">
@@ -1389,19 +1389,19 @@ def get_contract_title(template_type: str) -> str:
         "veiculo_com_motorista": "VEÃCULO COM MOTORISTA PARA CAMPANHA ELEITORAL",
         "veiculo_sem_motorista": "VEÃCULO SEM MOTORISTA PARA CAMPANHA ELEITORAL",
         "imovel_comite": "IMÃ“VEL PARA COMITÃŠ DE CAMPANHA",
-        "imovel_evento": "IMÃ“VEL/ESPAÃ‡O PARA EVENTO ELEITORAL",
-        "servico_grafico": "SERVIÃ‡OS GRÃFICOS DE CAMPANHA",
-        "servico_publicidade": "SERVIÃ‡OS DE PUBLICIDADE DE CAMPANHA",
-        "servico_pesquisa": "SERVIÃ‡OS DE PESQUISA ELEITORAL",
-        "servico_juridico": "SERVIÃ‡OS JURÃDICOS ELEITORAIS",
-        "servico_contabil": "SERVIÃ‡OS CONTÃBEIS ELEITORAIS",
-        "servico_ti": "SERVIÃ‡OS DE TECNOLOGIA DA INFORMAÃ‡ÃƒO",
-        "producao_audiovisual": "PRODUÃ‡ÃƒO AUDIOVISUAL DE CAMPANHA",
-        "impulsionamento": "IMPULSIONAMENTO DE CONTEÃšDO ELEITORAL",
-        "outros": "OUTROS SERVIÃ‡OS/LOCAÃ‡Ã•ES DE CAMPANHA",
+        "imovel_evento": "IMÃ“VEL/ESPAÇO PARA EVENTO ELEITORAL",
+        "servico_grafico": "SERVIÇOS GRÃFICOS DE CAMPANHA",
+        "servico_publicidade": "SERVIÇOS DE PUBLICIDADE DE CAMPANHA",
+        "servico_pesquisa": "SERVIÇOS DE PESQUISA ELEITORAL",
+        "servico_juridico": "SERVIÇOS JURÃDICOS ELEITORAIS",
+        "servico_contabil": "SERVIÇOS CONTÃBEIS ELEITORAIS",
+        "servico_ti": "SERVIÇOS DE TECNOLOGIA DA INFORMAÇÃO",
+        "producao_audiovisual": "PRODUÇÃO AUDIOVISUAL DE CAMPANHA",
+        "impulsionamento": "IMPULSIONAMENTO DE CONTEÚDO ELEITORAL",
+        "outros": "OUTROS SERVIÇOS/LOCAÇÕES DE CAMPANHA",
         "bem_movel": "BEM MÃ“VEL PARA CAMPANHA ELEITORAL",
     }
-    return titles.get(normalized, "OUTROS SERVIÃ‡OS/LOCAÃ‡Ã•ES DE CAMPANHA")
+    return titles.get(normalized, "OUTROS SERVIÇOS/LOCAÇÕES DE CAMPANHA")
 
 def generate_object_clause(template_type: str, contract_data: dict) -> str:
     normalized = _normalize_contract_template_type(template_type)
@@ -1409,7 +1409,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locaÃ§Ã£o, para uso exclusivo 
+            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
             da campanha eleitoral do LOCATÃRIO, do seguinte bem mÃ³vel de propriedade do LOCADOR:
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
@@ -1418,7 +1418,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             ficando responsÃ¡vel pelo seu bom estado de conservaÃ§Ã£o.
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo Segundo.</em> SÃ£o vedados a transferÃªncia, a sublocaÃ§Ã£o, a cessÃ£o ou o emprÃ©stimo, 
+            <em>ParÃ¡grafo Segundo.</em> SÃ£o vedados a transferÃªncia, a sublocação, a cessÃ£o ou o emprÃ©stimo, 
             total ou parcial, do bem locado sem prÃ©via anuÃªncia expressa do LOCADOR.
         </p>
         """
@@ -1426,7 +1426,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locaÃ§Ã£o, para realizaÃ§Ã£o 
+            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para realizaÃ§Ã£o 
             de atividade da campanha eleitoral do LOCATÃRIO, do seguinte espaÃ§o de propriedade do LOCADOR:
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
@@ -1443,7 +1443,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locaÃ§Ã£o, para uso exclusivo 
+            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
             da campanha eleitoral do LOCATÃRIO, do seguinte bem imÃ³vel de propriedade do LOCADOR:
         </p>
         <p style="margin-left: 40px;">
@@ -1455,7 +1455,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             ficando responsÃ¡vel pelas obras necessÃ¡rias ao seu bom estado de conservaÃ§Ã£o.
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo Segundo.</em> SÃ£o vedados a transferÃªncia, a sublocaÃ§Ã£o, a cessÃ£o ou o emprÃ©stimo, 
+            <em>ParÃ¡grafo Segundo.</em> SÃ£o vedados a transferÃªncia, a sublocação, a cessÃ£o ou o emprÃ©stimo, 
             total ou parcial, do imÃ³vel locado sem prÃ©via anuÃªncia expressa do LOCADOR.
         </p>
         """
@@ -1463,7 +1463,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locaÃ§Ã£o do veÃ­culo:
+            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação do veÃ­culo:
         </p>
         <p style="margin-left: 40px;">
             <strong>VeÃ­culo:</strong> {contract_data.get('veiculo_marca', '___')} {contract_data.get('veiculo_modelo', '___')}<br>
@@ -1473,7 +1473,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         </p>
         <p style="text-align: justify;">
             <strong>Motorista:</strong> {contract_data.get('motorista_nome', '_______________')}, 
-            CNH nÂº {contract_data.get('motorista_cnh', '_______________')}
+            CNH nº {contract_data.get('motorista_cnh', '_______________')}
         </p>
         <p style="text-align: justify;">
             <strong>Equipamento a ser puxado (se aplicÃ¡vel):</strong><br>
@@ -1489,7 +1489,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locaÃ§Ã£o do veÃ­culo:
+            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação do veÃ­culo:
         </p>
         <p style="margin-left: 40px;">
             <strong>VeÃ­culo:</strong> {contract_data.get('veiculo_marca', '___')} {contract_data.get('veiculo_modelo', '___')}<br>
@@ -1498,7 +1498,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             <strong>RENAVAM:</strong> {contract_data.get('veiculo_renavam', '___')}
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo primeiro.</em> O automÃ³vel serÃ¡ utilizado exclusivamente pelo LOCATÃRIO ou 
+            <em>ParÃ¡grafo primeiro.</em> O automÃ³vel será utilizado exclusivamente pelo LOCATÃRIO ou 
             terceiros sob sua responsabilidade.
         </p>
         <p style="text-align: justify;">
@@ -1548,7 +1548,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
             <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a prestaÃ§Ã£o de serviÃ§os e/ou
-            locaÃ§Ã£o de bens para uso na campanha eleitoral do LOCATÃRIO.
+            locação de bens para uso na campanha eleitoral do LOCATÃRIO.
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
         <p style="text-align: justify;">
@@ -1692,7 +1692,7 @@ async def _auto_attach_contador_docs(
                 f"Telefone: {contador.get('phone', '-')}",
                 f"CPF: {cpf_fmt}",
                 f"CRC: {crc_fmt}",
-                f"EndereÃ§o: {contador.get('address', '-')}",
+                f"Endereço: {contador.get('address', '-')}",
                 f"Cidade/UF: {city_uf}",
                 f"ObservaÃ§Ãµes: {contador.get('notes', '-')}",
                 f"Gerado automaticamente em: {now_iso}",
@@ -2073,7 +2073,7 @@ async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_
     elements.append(Spacer(1, 30))
     
     # Legal notice
-    elements.append(Paragraph("<i>Este recibo foi emitido em conformidade com a ResoluÃ§Ã£o TSE nÂº 23.607/2019</i>", styles['Center']))
+    elements.append(Paragraph("<i>Este recibo foi emitido em conformidade com a ResoluÃ§Ã£o TSE nº 23.607/2019</i>", styles['Center']))
     elements.append(Paragraph(f"<i>Gerado em: {datetime.now().strftime('%d/%m/%Y Ã s %H:%M:%S')}</i>", styles['Center']))
     
     doc.build(elements)
@@ -2517,7 +2517,7 @@ async def generate_and_store_contract_pdf(contract_id: str, contract: dict, camp
     elements.append(Spacer(1, 20))
     
     # Title
-    title = contract.get("title", "CONTRATO DE PRESTAÃ‡ÃƒO DE SERVIÃ‡OS")
+    title = contract.get("title", "CONTRATO DE PRESTAÃ‡ÃƒO DE SERVIÇOS")
     elements.append(Paragraph(title.upper(), styles['Title2']))
     elements.append(Spacer(1, 20))
     
@@ -2539,7 +2539,7 @@ async def generate_and_store_contract_pdf(contract_id: str, contract: dict, camp
     elements.append(Paragraph("<b>===== ASSINATURAS DIGITAIS =====</b>", styles['Center']))
     elements.append(Spacer(1, 20))
     
-    # LocatÃ¡rio signature
+    # Locatário signature
     if contract.get("locatario_assinatura_hash"):
         elements.append(Paragraph("<b>LOCATÃRIO / CONTRATANTE:</b>", styles['Normal']))
         elements.append(Paragraph(f"Nome: {campaign.get('candidate_name', 'N/A')}", styles['Normal']))
@@ -2623,17 +2623,17 @@ async def get_contract_templates():
             {
                 "type": "bem_movel",
                 "name": "LocaÃ§Ã£o de Bem MÃ³vel",
-                "description": "Contrato para locaÃ§Ã£o de equipamentos, rÃ¡dios, etc."
+                "description": "Contrato para locação de equipamentos, rÃ¡dios, etc."
             },
             {
                 "type": "espaco_evento",
-                "name": "LocaÃ§Ã£o de EspaÃ§o para Evento",
-                "description": "Contrato para locaÃ§Ã£o de espaÃ§o para evento eleitoral"
+                "name": "LocaÃ§Ã£o de Espaço para Evento",
+                "description": "Contrato para locação de espaÃ§o para evento eleitoral"
             },
             {
                 "type": "imovel",
                 "name": "LocaÃ§Ã£o de ImÃ³vel",
-                "description": "Contrato para locaÃ§Ã£o de imÃ³vel (comitÃª, escritÃ³rio)"
+                "description": "Contrato para locação de imÃ³vel (comitÃª, escritÃ³rio)"
             },
             {
                 "type": "veiculo_com_motorista",
@@ -2643,7 +2643,7 @@ async def get_contract_templates():
             {
                 "type": "veiculo_sem_motorista",
                 "name": "LocaÃ§Ã£o de VeÃ­culo sem Motorista",
-                "description": "Contrato para locaÃ§Ã£o de veÃ­culo sem motorista"
+                "description": "Contrato para locação de veÃ­culo sem motorista"
             }
         ]
     }
@@ -6159,7 +6159,7 @@ async def voice_command(
             if pending_docs:
                 response_text = f"VocÃª tem {len(pending_docs)} contratos com documentos pendentes."
             else:
-                response_text = "Todos os seus contratos tÃªm a documentaÃ§Ã£o completa."
+                response_text = "Todos os seus contratos têm a documentaÃ§Ã£o completa."
         
         elif command == "query_alertas":
             expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
