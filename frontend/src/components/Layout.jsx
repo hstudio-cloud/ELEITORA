@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { FloatingFloraChat } from './FloatingFloraChat';
 import { Button } from './ui/button';
 import {
     LayoutDashboard,
@@ -165,6 +166,9 @@ export const Layout = ({ children }) => {
                     {children}
                 </div>
             </main>
+
+            {/* Floating Flora Chat */}
+            <FloatingFloraChat />
         </div>
     );
 };
