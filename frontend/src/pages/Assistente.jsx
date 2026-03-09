@@ -47,9 +47,11 @@ export default function Assistente() {
     const [alerts, setAlerts] = useState([]);
     const [sessionId, setSessionId] = useState(null);
     const [proactiveSummary, setProactiveSummary] = useState(null);
+    const [hasSeenTour, setHasSeenTour] = useState(false);
+    const [tourShown, setTourShown] = useState(false);
     const scrollRef = useRef(null);
     const inputRef = useRef(null);
-    
+
     // Voice state
     const [isRecording, setIsRecording] = useState(false);
     const [isProcessingVoice, setIsProcessingVoice] = useState(false);
@@ -68,6 +70,7 @@ export default function Assistente() {
 
     useEffect(() => {
         fetchChatHistory();
+        checkTourStatus();
         fetchProactiveSummary();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -83,6 +86,40 @@ export default function Assistente() {
         }
     }, [messages]);
 
+    // Check if user has completed the tour
+    const checkTourStatus = () => {
+        const tourKey = `flora_tour_completed_${user?.id || 'anon'}`;
+        const completed = localStorage.getItem(tourKey) === '1';
+        setHasSeenTour(completed);
+    };
+
+    // Show tour message only on first access
+    const showTourIfNeeded = () => {
+        if (!hasSeenTour && !tourShown) {
+            const tourKey = `flora_tour_completed_${user?.id || 'anon'}`;
+            localStorage.setItem(tourKey, '1');
+            setTourShown(true);
+
+            const tourMessage = {
+                role: 'assistant',
+                content: `👋 Olá! Sou a Flora, sua assistente inteligente de campanha!\n\nPosso ajudá-lo com:\n\n📊 **Finanças**: Saldo, receitas, despesas, pix\n📋 **Contratos**: Criar, assinar, acompanhar\n✅ **Conformidade TSE**: Verificar regras eleitorais\n⏰ **Vencimentos**: Alertas de pagamentos\n📁 **Documentos**: Gerenciar anexos\n\nApenas diga o que precisa! 😊`,
+                timestamp: new Date().toISOString(),
+                isTour: true
+            };
+            setMessages([tourMessage]);
+            if (voiceEnabled) {
+                speakText(tourMessage.content);
+            }
+        }
+    };
+
+    useEffect(() => {
+        if (messages.length === 0 && hasSeenTour !== null && !tourShown) {
+            showTourIfNeeded();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasSeenTour]);
+
     const fetchChatHistory = async () => {
         try {
             const response = await axios.get(`${API}/ai/chat/history`);
@@ -93,6 +130,49 @@ export default function Assistente() {
         } finally {
             setLoadingHistory(false);
         }
+    };
+
+    // Generate intelligent contextual questions based on campaign state
+    const generateContextualQuestions = (summary) => {
+        const questions = [];
+        const hour = new Date().getHours();
+        const isBusinessHours = hour >= 9 && hour < 18;
+
+        // Morning greeting
+        if (hour < 12) {
+            questions.push('Qual é o cenário financeiro da campanha hoje?');
+        } else if (hour >= 12 && hour < 15) {
+            questions.push('Teve alguma despesa nova a registrar nesta tarde?');
+        } else {
+            questions.push('Como foi o dia financeiro da campanha?');
+        }
+
+        // If there are pending expenses
+        if (summary.pendingExpensesCount > 0) {
+            if (summary.pendingExpensesCount === 1) {
+                questions.push('Tenho 1 despesa pendente. Me ajuda a registrá-la?');
+            } else {
+                questions.push(`Tenho ${summary.pendingExpensesCount} despesas para registrar. Quer me ajudar?`);
+            }
+        }
+
+        // If there are contracts to sign
+        if (summary.unsignedContractsCount > 0) {
+            questions.push(`Tenho ${summary.unsignedContractsCount} contrato(s) para assinar. Pode gerar o link?`);
+        }
+
+        // If there are due payments
+        if (summary.dueSoonCount > 0) {
+            questions.push(`Tenho ${summary.dueSoonCount} pagamento(s) vencendo em breve. Me lembra dos valores?`);
+        }
+
+        // Compliance check (once a week)
+        const weekCheck = Math.floor(Math.random() * 7) === 0;
+        if (weekCheck) {
+            questions.push('Minha campanha está em conformidade com as regras do TSE?');
+        }
+
+        return questions;
     };
 
     const fetchProactiveSummary = async () => {
@@ -115,26 +195,57 @@ export default function Assistente() {
                 pendingExpensesValue: pendingExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0),
                 dueSoonCount,
                 unsignedContractsCount: unsignedContracts.length,
-                activeContractsCount: Number(statsRes.data?.active_contracts || 0)
+                activeContractsCount: Number(statsRes.data?.active_contracts || 0),
+                totalBalance: Number(statsRes.data?.balance || 0),
+                totalRevenue: Number(statsRes.data?.revenue || 0),
+                totalExpenses: Number(statsRes.data?.expenses || 0)
             };
             setProactiveSummary(summary);
 
+            // Show proactive message only once per day (after tour)
             const todayKey = `flora_proactive_${user?.id || 'anon'}_${new Date().toISOString().slice(0, 10)}`;
             const alreadyPrompted = localStorage.getItem(todayKey) === '1';
-            if (!alreadyPrompted) {
+
+            if (!alreadyPrompted && hasSeenTour) {
                 const role = String(user?.role || '').toLowerCase().includes('contador') ? 'contador' : 'candidato';
-                const proactiveText =
-                    `Oi, ${role}. Resumo rápido: ${summary.pendingExpensesCount} despesa(s) pendente(s), ` +
-                    `${summary.dueSoonCount} pagamento(s) vencendo em 7 dias e ${summary.unsignedContractsCount} contrato(s) para finalizar. ` +
-                    `Quer que eu te ajude com despesas, contratos ou vencimentos agora?`;
-                setMessages(prev => (prev.length === 0 ? [{
+
+                // Generate contextual questions
+                const contextualQuestions = generateContextualQuestions(summary);
+                const randomQuestion = contextualQuestions[Math.floor(Math.random() * contextualQuestions.length)];
+
+                // Build smart greeting
+                let greeting = `Oi, ${role}! `;
+
+                if (summary.pendingExpensesCount > 0 || summary.dueSoonCount > 0 || summary.unsignedContractsCount > 0) {
+                    greeting += `Tenho um resumo rápido:\n`;
+                    if (summary.pendingExpensesCount > 0) {
+                        greeting += `💰 ${summary.pendingExpensesCount} despesa(s) pendente(s) (R$ ${summary.pendingExpensesValue.toFixed(2)})\n`;
+                    }
+                    if (summary.dueSoonCount > 0) {
+                        greeting += `⏰ ${summary.dueSoonCount} pagamento(s) vencendo em 7 dias\n`;
+                    }
+                    if (summary.unsignedContractsCount > 0) {
+                        greeting += `📋 ${summary.unsignedContractsCount} contrato(s) para finalizar\n`;
+                    }
+                    greeting += `\n${randomQuestion}`;
+                } else {
+                    greeting += `Sua campanha está em ordem! ${randomQuestion}`;
+                }
+
+                const proactiveMessage = {
                     role: 'assistant',
-                    content: proactiveText,
+                    content: greeting,
                     timestamp: new Date().toISOString(),
-                    isVoice: true
-                }] : prev));
+                    isVoice: true,
+                    isProactive: true
+                };
+
+                if (messages.length === 0 || !messages[0].isTour) {
+                    setMessages(prev => (prev.length === 0 ? [proactiveMessage] : prev));
+                }
+
                 if (voiceEnabled) {
-                    speakText(proactiveText);
+                    speakText(greeting);
                 }
                 localStorage.setItem(todayKey, '1');
             }
