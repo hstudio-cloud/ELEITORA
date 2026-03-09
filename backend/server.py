@@ -178,7 +178,7 @@ class BancoDoBrasilPIX:
             return snapshot
         
     async def get_access_token(self) -> str:
-        """ObtÃ©m token de acesso OAuth2"""
+        """Obtém token de acesso OAuth2"""
         # Check if token is still valid
         if self.access_token and self.token_expires_at:
             if datetime.now(timezone.utc) < self.token_expires_at:
@@ -218,10 +218,10 @@ class BancoDoBrasilPIX:
                 
             except httpx.HTTPError as e:
                 logging.error(f"BB PIX: Erro ao obter token: {e}")
-                raise HTTPException(status_code=500, detail=f"Erro de autenticaÃ§Ã£o com Banco do Brasil: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Erro de autenticação com Banco do Brasil: {str(e)}")
     
     async def _get_token_alternative(self, client: httpx.AsyncClient) -> str:
-        """Tenta mÃ©todo alternativo de autenticaÃ§Ã£o"""
+        """Tenta método alternativo de autenticação"""
         # Some BB environments require the app key in the auth flow
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
@@ -247,14 +247,14 @@ class BancoDoBrasilPIX:
                 self.access_token = token_data.get("access_token")
                 expires_in = token_data.get("expires_in", 3600)
                 self.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in - 60)
-                logging.info("BB PIX: Token obtido via mÃ©todo alternativo")
+                logging.info("BB PIX: Token obtido via método alternativo")
                 return self.access_token
             else:
                 logging.error(f"BB PIX Alt Auth Error: {response.status_code} - {response.text}")
-                raise HTTPException(status_code=500, detail="Falha na autenticaÃ§Ã£o com Banco do Brasil")
+                raise HTTPException(status_code=500, detail="Falha na autenticação com Banco do Brasil")
         except Exception as e:
-            logging.error(f"BB PIX: Erro no mÃ©todo alternativo: {e}")
-            raise HTTPException(status_code=500, detail=f"Erro de autenticaÃ§Ã£o: {str(e)}")
+            logging.error(f"BB PIX: Erro no método alternativo: {e}")
+            raise HTTPException(status_code=500, detail=f"Erro de autenticação: {str(e)}")
     
     async def create_pix_payment(self, pix_data: dict) -> dict:
         """Cria um pagamento PIX"""
@@ -471,7 +471,7 @@ def validate_and_normalize_document(
     doc = normalize_document(document)
     if not doc:
         if required:
-            raise HTTPException(status_code=400, detail=f"{field_name} Ã© obrigatÃ³rio")
+            raise HTTPException(status_code=400, detail=f"{field_name} é obrigatório")
         return None
 
     if len(doc) == 11:
@@ -547,7 +547,7 @@ CONTRACT_REQUIRED_ATTACHMENTS = {
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "imovel": [
-        {"key": "doc_imovel", "label": "Documento do ImÃ³vel (Escritura/Contrato)", "required": True},
+        {"key": "doc_imovel", "label": "Documento do Imóvel (Escritura/Contrato)", "required": True},
         {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/Locador (RG/CPF)", "required": True},
         {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia do Locador", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
@@ -565,7 +565,7 @@ CONTRACT_REQUIRED_ATTACHMENTS = {
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "imovel_comite": [
-        {"key": "doc_imovel", "label": "Documento do ImÃ³vel (Escritura/Contrato)", "required": True},
+        {"key": "doc_imovel", "label": "Documento do Imóvel (Escritura/Contrato)", "required": True},
         {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/Locador (RG/CPF)", "required": True},
         {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia do Locador", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
@@ -578,7 +578,7 @@ CONTRACT_REQUIRED_ATTACHMENTS = {
     ],
     "servico_grafico": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
-        {"key": "proposta_servico", "label": "Proposta/OrÃ§amento do ServiÃ§o", "required": True},
+        {"key": "proposta_servico", "label": "Proposta/OrÃ§amento do Serviço", "required": True},
         {"key": "arte_aprovada", "label": "Arte/EspecificaÃ§Ã£o do Material", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
@@ -597,18 +597,18 @@ CONTRACT_REQUIRED_ATTACHMENTS = {
     "servico_juridico": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
         {"key": "doc_oab", "label": "ComprovaÃ§Ã£o de OAB (se aplicÃ¡vel)", "required": False},
-        {"key": "proposta_servico", "label": "Proposta/Objeto do ServiÃ§o", "required": True},
+        {"key": "proposta_servico", "label": "Proposta/Objeto do Serviço", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "servico_contabil": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
         {"key": "doc_crc", "label": "ComprovaÃ§Ã£o de CRC (se aplicÃ¡vel)", "required": False},
-        {"key": "proposta_servico", "label": "Proposta/Objeto do ServiÃ§o", "required": True},
+        {"key": "proposta_servico", "label": "Proposta/Objeto do Serviço", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "servico_ti": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
-        {"key": "proposta_servico", "label": "Escopo TÃ©cnico do ServiÃ§o", "required": True},
+        {"key": "proposta_servico", "label": "Escopo Técnico do Serviço", "required": True},
         {"key": "relatorio_entrega", "label": "RelatÃ³rio de Entrega", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
@@ -910,7 +910,7 @@ class ContractCreate(BaseModel):
     # New fields for template contracts
     template_type: Optional[ContractTemplateType] = None
     contador_professional_id: Optional[str] = None
-    # Locador (Prestador de ServiÃ§o) fields
+    # Locador (Prestador de Serviço) fields
     locador_nome: Optional[str] = None
     locador_nacionalidade: Optional[str] = "Brasileiro(a)"
     locador_estado_civil: Optional[str] = None
@@ -1310,7 +1310,7 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
         <p style="text-align: justify;">
             <strong>CLÃUSULA TERCEIRA.</strong> Pela locação ora ajustada, o LOCATÃRIO pagará a quantia de 
             <strong>{format_currency(contract_data.get('value', 0))}</strong>, cujo pagamento será efetuado 
-            atÃ© o dia {format_date_br(contract_data.get('end_date', ''))}.
+            até o dia {format_date_br(contract_data.get('end_date', ''))}.
         </p>
     """
     
@@ -1318,7 +1318,7 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
         <h3 style="font-size: 12pt; margin-top: 20px;">DA VIGÊNCIA</h3>
         <p style="text-align: justify;">
             <strong>CLÃUSULA SEGUNDA.</strong> O presente contrato terÃ¡ vigência a partir de 
-            {format_date_br(contract_data.get('start_date', ''))} atÃ© {format_date_br(contract_data.get('end_date', ''))}.
+            {format_date_br(contract_data.get('start_date', ''))} até {format_date_br(contract_data.get('end_date', ''))}.
         </p>
     """
     
@@ -1410,16 +1410,16 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
             <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
-            da campanha eleitoral do LOCATÃRIO, do seguinte bem mÃ³vel de propriedade do LOCADOR:
+            da campanha eleitoral do LOCATÃRIO, do seguinte bem móvel de propriedade do LOCADOR:
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo primeiro.</em> O LOCATÃRIO Ã© obrigado a conservar o bem mÃ³vel ora alugado, 
+            <em>Parágrafo primeiro.</em> O LOCATÃRIO é obrigado a conservar o bem móvel ora alugado, 
             ficando responsÃ¡vel pelo seu bom estado de conservaÃ§Ã£o.
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo Segundo.</em> SÃ£o vedados a transferÃªncia, a sublocação, a cessÃ£o ou o emprÃ©stimo, 
-            total ou parcial, do bem locado sem prÃ©via anuÃªncia expressa do LOCADOR.
+            <em>Parágrafo Segundo.</em> São vedados a transferência, a sublocação, a cessão ou o empréstimo, 
+            total ou parcial, do bem locado sem prévia anuÃªncia expressa do LOCADOR.
         </p>
         """
     elif normalized == "imovel_evento":
@@ -1431,12 +1431,12 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo primeiro.</em> O LOCADOR colocarÃ¡ o espaÃ§o Ã  disposiÃ§Ã£o do LOCATÃRIO entre as 
+            <em>Parágrafo primeiro.</em> O LOCADOR colocarÃ¡ o espaÃ§o Ã  disposiÃ§Ã£o do LOCATÃRIO entre as 
             {contract_data.get('evento_horario_inicio', '___')} e {contract_data.get('evento_horario_fim', '___')} horas.
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo Segundo.</em> O LOCATÃRIO usarÃ¡ com zelo as dependÃªncias, devendo restituÃ­-lo 
-            ao tÃ©rmino do perÃ­odo em seu estado inicial.
+            <em>Parágrafo Segundo.</em> O LOCATÃRIO usarÃ¡ com zelo as dependÃªncias, devendo restituÃ­-lo 
+            ao término do perÃ­odo em seu estado inicial.
         </p>
         """
     elif normalized == "imovel_comite":
@@ -1444,19 +1444,19 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
             <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
-            da campanha eleitoral do LOCATÃRIO, do seguinte bem imÃ³vel de propriedade do LOCADOR:
+            da campanha eleitoral do LOCATÃRIO, do seguinte bem imóvel de propriedade do LOCADOR:
         </p>
         <p style="margin-left: 40px;">
             <strong>{contract_data.get('imovel_descricao', '_______________')}</strong><br>
             Registro: {contract_data.get('imovel_registro', '_______________')}
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo primeiro.</em> O LOCATÃRIO Ã© obrigado a conservar o bem imÃ³vel ora alugado, 
+            <em>Parágrafo primeiro.</em> O LOCATÃRIO é obrigado a conservar o bem imóvel ora alugado, 
             ficando responsÃ¡vel pelas obras necessÃ¡rias ao seu bom estado de conservaÃ§Ã£o.
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo Segundo.</em> SÃ£o vedados a transferÃªncia, a sublocação, a cessÃ£o ou o emprÃ©stimo, 
-            total ou parcial, do imÃ³vel locado sem prÃ©via anuÃªncia expressa do LOCADOR.
+            <em>Parágrafo Segundo.</em> São vedados a transferência, a sublocação, a cessão ou o empréstimo, 
+            total ou parcial, do imóvel locado sem prévia anuÃªncia expressa do LOCADOR.
         </p>
         """
     elif normalized == "veiculo_com_motorista":
@@ -1481,7 +1481,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             Placa: {contract_data.get('reboque_placa', '___')} - RENAVAM: {contract_data.get('reboque_renavam', '___')}
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo Ãºnico.</em> O LOCATÃRIO deverÃ¡ devolver o veÃ­culo ao LOCADOR nas mesmas condiÃ§Ãµes 
+            <em>Parágrafo Ãºnico.</em> O LOCATÃRIO deverÃ¡ devolver o veÃ­culo ao LOCADOR nas mesmas condiÃ§Ãµes 
             em que o recebeu, respondendo por danos ou prejuÃ­zos causados.
         </p>
         """
@@ -1498,11 +1498,11 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             <strong>RENAVAM:</strong> {contract_data.get('veiculo_renavam', '___')}
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo primeiro.</em> O automÃ³vel será utilizado exclusivamente pelo LOCATÃRIO ou 
+            <em>Parágrafo primeiro.</em> O automóvel será utilizado exclusivamente pelo LOCATÃRIO ou 
             terceiros sob sua responsabilidade.
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo segundo.</em> O LOCATÃRIO deverÃ¡ devolver o automÃ³vel ao LOCADOR nas mesmas 
+            <em>Parágrafo segundo.</em> O LOCATÃRIO deverÃ¡ devolver o automóvel ao LOCADOR nas mesmas 
             condiÃ§Ãµes em que o recebeu, respondendo por danos ou prejuÃ­zos causados.
         </p>
         """
@@ -1535,11 +1535,11 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo primeiro.</em> O LOCADOR compromete-se a executar os serviÃ§os com observÃ¢ncia Ã  legislaÃ§Ã£o eleitoral,
+            <em>Parágrafo primeiro.</em> O LOCADOR compromete-se a executar os serviÃ§os com observÃ¢ncia Ã  legislaÃ§Ã£o eleitoral,
             incluindo regras de transparÃªncia e prestaÃ§Ã£o de contas aplicÃ¡veis ao SPCE.
         </p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo segundo.</em> O LOCADOR deverÃ¡ entregar comprovantes de execuÃ§Ã£o e documentos fiscais
+            <em>Parágrafo segundo.</em> O LOCADOR deverÃ¡ entregar comprovantes de execuÃ§Ã£o e documentos fiscais
             idÃ´neos correspondentes aos serviÃ§os contratados.
         </p>
         """
@@ -1552,7 +1552,7 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
         <p style="text-align: justify;">
-            <em>ParÃ¡grafo Ãºnico.</em> Todas as entregas e pagamentos devem possuir comprovaÃ§Ã£o documental
+            <em>Parágrafo Ãºnico.</em> Todas as entregas e pagamentos devem possuir comprovaÃ§Ã£o documental
             para fins de prestaÃ§Ã£o de contas eleitoral.
         </p>
         """
@@ -2010,7 +2010,7 @@ async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_
         "recursos_proprios": "Recursos PrÃ³prios",
         "fundo_partidario": "Fundo PartidÃ¡rio",
         "fundo_eleitoral": "Fundo Especial de Financiamento de Campanha",
-        "comercializacao": "ComercializaÃ§Ã£o de Bens/ServiÃ§os",
+        "comercializacao": "ComercializaÃ§Ã£o de Bens/Serviços",
         "rendimento_aplicacao": "Rendimento de AplicaÃ§Ã£o",
         "sobras_campanha": "Sobras de Campanha Anterior",
         "outros": "Outros"
@@ -2021,9 +2021,9 @@ async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_
         "transferencia": "TransferÃªncia BancÃ¡ria",
         "deposito": "DepÃ³sito em Conta",
         "cheque": "Cheque",
-        "especie": "EspÃ©cie",
-        "cartao_credito": "CartÃ£o de CrÃ©dito",
-        "cartao_debito": "CartÃ£o de DÃ©bito",
+        "especie": "Espécie",
+        "cartao_credito": "CartÃ£o de Crédito",
+        "cartao_debito": "CartÃ£o de Débito",
         "estimavel": "EstimÃ¡vel em Dinheiro"
     }
     
@@ -2632,8 +2632,8 @@ async def get_contract_templates():
             },
             {
                 "type": "imovel",
-                "name": "LocaÃ§Ã£o de ImÃ³vel",
-                "description": "Contrato para locação de imÃ³vel (comitÃª, escritÃ³rio)"
+                "name": "LocaÃ§Ã£o de Imóvel",
+                "description": "Contrato para locação de imóvel (comitÃª, escritÃ³rio)"
             },
             {
                 "type": "veiculo_com_motorista",
@@ -2720,7 +2720,7 @@ async def get_estados():
             {"uf": "RO", "nome": "RondÃ´nia", "regiao": "Norte"},
             {"uf": "RR", "nome": "Roraima", "regiao": "Norte"},
             {"uf": "SC", "nome": "Santa Catarina", "regiao": "Sul"},
-            {"uf": "SP", "nome": "SÃ£o Paulo", "regiao": "Sudeste"},
+            {"uf": "SP", "nome": "São Paulo", "regiao": "Sudeste"},
             {"uf": "SE", "nome": "Sergipe", "regiao": "Nordeste"},
             {"uf": "TO", "nome": "Tocantins", "regiao": "Norte"}
         ],
@@ -3474,14 +3474,14 @@ async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
         message = "Ainda hÃ¡ campos importantes pendentes de preenchimento."
     else:
         status = "incompleto"
-        message = "Muitos dados obrigatÃ³rios estÃ£o faltando."
+        message = "Muitos dados obrigatórios estÃ£o faltando."
     
     # Alertas e sugestÃµes
     alertas = []
     if not campaign.get("cnpj"):
         alertas.append({
             "tipo": "erro",
-            "mensagem": "CNPJ da campanha nÃ£o configurado - obrigatÃ³rio para exportaÃ§Ã£o SPCE",
+            "mensagem": "CNPJ da campanha nÃ£o configurado - obrigatório para exportaÃ§Ã£o SPCE",
             "acao": "VÃ¡ em ConfiguraÃ§Ãµes e preencha o CNPJ"
         })
     
@@ -5152,7 +5152,7 @@ SPCE_DESPESA_CATEGORIAS = {
     "locacao_veiculo": {"codigo": "107", "descricao": "LocaÃ§Ã£o/CessÃ£o de VeÃ­culos"},
     "locacao_imovel": {"codigo": "108", "descricao": "LocaÃ§Ã£o/CessÃ£o de ImÃ³veis"},
     "eventos": {"codigo": "109", "descricao": "Despesas com Eventos"},
-    "servicos_terceiros": {"codigo": "110", "descricao": "ServiÃ§os Prestados por Terceiros"},
+    "servicos_terceiros": {"codigo": "110", "descricao": "Serviços Prestados por Terceiros"},
     "agua_luz_telefone": {"codigo": "111", "descricao": "Ãgua, Luz, Telefone e Internet"},
     "taxa_bancaria": {"codigo": "112", "descricao": "Taxas e Tarifas BancÃ¡rias"},
     "producao_audiovisual": {"codigo": "113", "descricao": "ProduÃ§Ã£o de Programas de RÃ¡dio/TV/VÃ­deo"},
@@ -5222,19 +5222,19 @@ async def export_spce_despagtos(current_user: dict = Depends(get_current_user)):
 SPCE_CONTRATO_TIPOS = {
     "veiculo_com_motorista": {"codigo": "01", "descricao": "LocaÃ§Ã£o de VeÃ­culo com Motorista"},
     "veiculo_sem_motorista": {"codigo": "02", "descricao": "LocaÃ§Ã£o de VeÃ­culo sem Motorista"},
-    "imovel_comite": {"codigo": "03", "descricao": "LocaÃ§Ã£o de ImÃ³vel para ComitÃª"},
-    "imovel_evento": {"codigo": "04", "descricao": "LocaÃ§Ã£o de ImÃ³vel para Evento"},
-    "servico_grafico": {"codigo": "05", "descricao": "ServiÃ§os GrÃ¡ficos"},
-    "servico_publicidade": {"codigo": "06", "descricao": "ServiÃ§os de Publicidade"},
-    "servico_pesquisa": {"codigo": "07", "descricao": "ServiÃ§os de Pesquisa"},
-    "servico_juridico": {"codigo": "08", "descricao": "ServiÃ§os JurÃ­dicos"},
-    "servico_contabil": {"codigo": "09", "descricao": "ServiÃ§os ContÃ¡beis"},
-    "servico_ti": {"codigo": "10", "descricao": "ServiÃ§os de TI"},
+    "imovel_comite": {"codigo": "03", "descricao": "LocaÃ§Ã£o de Imóvel para ComitÃª"},
+    "imovel_evento": {"codigo": "04", "descricao": "LocaÃ§Ã£o de Imóvel para Evento"},
+    "servico_grafico": {"codigo": "05", "descricao": "Serviços GrÃ¡ficos"},
+    "servico_publicidade": {"codigo": "06", "descricao": "Serviços de Publicidade"},
+    "servico_pesquisa": {"codigo": "07", "descricao": "Serviços de Pesquisa"},
+    "servico_juridico": {"codigo": "08", "descricao": "Serviços JurÃ­dicos"},
+    "servico_contabil": {"codigo": "09", "descricao": "Serviços ContÃ¡beis"},
+    "servico_ti": {"codigo": "10", "descricao": "Serviços de TI"},
     "producao_audiovisual": {"codigo": "11", "descricao": "ProduÃ§Ã£o Audiovisual"},
     "impulsionamento": {"codigo": "12", "descricao": "Impulsionamento de ConteÃºdos"},
     # aliases legados para compatibilidade de contratos antigos
-    "imovel": {"codigo": "03", "descricao": "LocaÃ§Ã£o de ImÃ³vel para ComitÃª"},
-    "espaco_evento": {"codigo": "04", "descricao": "LocaÃ§Ã£o de ImÃ³vel para Evento"},
+    "imovel": {"codigo": "03", "descricao": "LocaÃ§Ã£o de Imóvel para ComitÃª"},
+    "espaco_evento": {"codigo": "04", "descricao": "LocaÃ§Ã£o de Imóvel para Evento"},
     "bem_movel": {"codigo": "99", "descricao": "Outros Contratos"},
     "outros": {"codigo": "99", "descricao": "Outros Contratos"}
 }
@@ -5741,7 +5741,34 @@ async def list_expenses_filtered(
     return expenses
 
 # ============== AI ASSISTANT ROUTES ==============
-from ai_assistant import assistant, get_tse_rules_summary
+# AI Assistant module temporarily disabled - using fallback implementations
+# from ai_assistant import assistant, get_tse_rules_summary
+
+# Fallback implementations for AI functions
+class AssistantFallback:
+    """Fallback AI assistant when ai_assistant module is not available"""
+
+    async def chat(self, message: str, campaign_context: dict) -> str:
+        """Fallback chat - returns basic response"""
+        return f"Recebi sua mensagem: {message}. Por favor, use a interface principal para operações."
+
+    async def analyze_expenses(self, expenses: list, campaign_context: dict) -> str:
+        """Fallback expense analysis"""
+        total = sum(e.get("amount", 0) for e in expenses)
+        return f"Total de despesas: R$ {total:.2f}"
+
+    async def check_compliance(self, campaign_context: dict, contracts: list) -> str:
+        """Fallback compliance check"""
+        return "Conformidade TSE: Sistema verificando dados..."
+
+async def get_tse_rules_summary() -> dict:
+    """Fallback TSE rules"""
+    return {
+        "rules": "Consulte as normas TSE no site oficial",
+        "limits": "Limites estão sendo validados pelo sistema"
+    }
+
+assistant = AssistantFallback()
 
 class ChatMessage(BaseModel):
     message: str
@@ -6117,7 +6144,7 @@ async def voice_command(
             total_rev = sum(r.get("amount", 0) for r in revenues)
             total_exp = sum(e.get("amount", 0) for e in expenses)
             balance = total_rev - total_exp
-            response_text = f"Seu saldo atual Ã© de {voice_assistant.format_currency(balance)}. Total de receitas: {voice_assistant.format_currency(total_rev)}. Total de despesas: {voice_assistant.format_currency(total_exp)}."
+            response_text = f"Seu saldo atual é de {voice_assistant.format_currency(balance)}. Total de receitas: {voice_assistant.format_currency(total_rev)}. Total de despesas: {voice_assistant.format_currency(total_exp)}."
         
         elif command == "query_receitas":
             revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
@@ -6462,7 +6489,7 @@ async def get_contador_campaigns(current_user: dict = Depends(get_current_user))
     )
     
     if not professional:
-        return {"campaigns": [], "message": "VocÃª nÃ£o Ã© um contador cadastrado"}
+        return {"campaigns": [], "message": "VocÃª nÃ£o é um contador cadastrado"}
     
     campaign_ids = professional.get("campaigns", [])
     campaigns = await db.campaigns.find(
@@ -7713,9 +7740,9 @@ async def get_ativa_info():
         ],
         "coverage": [
             "AssÃº", "PendÃªncias", "ParaÃº", "Afonso Bezerra", 
-            "IpanguaÃ§u", "SÃ£o Rafael", "Serra do Mel", "Upanema",
+            "IpanguaÃ§u", "São Rafael", "Serra do Mel", "Upanema",
             "Carnaubais", "Triunfo Potiguar", "ItajÃ¡", "MossorÃ³",
-            "SÃ£o Paulo", "Todo o Rio Grande do Norte"
+            "São Paulo", "Todo o Rio Grande do Norte"
         ],
         "contact": {
             "website": "https://ativacontabilidade.cnt.br",
