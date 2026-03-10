@@ -18,7 +18,8 @@ import {
     Vote,
     Bot,
     ClipboardCheck,
-    Landmark
+    Landmark,
+    Download
 } from 'lucide-react';
 
 const navItems = [
@@ -30,6 +31,7 @@ const navItems = [
     { path: '/extratos', label: 'Extratos Bancários', icon: Landmark, highlight: true },
     { path: '/relatorios', label: 'Relatórios', icon: BarChart3 },
     { path: '/conformidade', label: 'Conformidade TSE', icon: ClipboardCheck },
+    { path: '/importar-prestacao', label: 'Importar Prestação', icon: Download },
     { path: '/assistente', label: 'Assistente IA', icon: Bot },
     { path: '/configuracoes', label: 'Configurações', icon: Settings },
 ];

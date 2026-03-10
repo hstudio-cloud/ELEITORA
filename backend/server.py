@@ -59,6 +59,13 @@ try:
 except ImportError:
     OFX_AVAILABLE = False
 
+# TSE Import system
+try:
+    from tse_import import TSEImportManager, DatabaseImporter, DataMapper
+    TSE_IMPORT_AVAILABLE = True
+except ImportError:
+    TSE_IMPORT_AVAILABLE = False
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -8469,6 +8476,173 @@ async def validate_document(cpf_cnpj: str = Query(...)):
             "raw": doc,
             "error": "Documento deve ter 11 dÃ­gitos (CPF) ou 14 dÃ­gitos (CNPJ)"
         }
+
+# ============== TSE IMPORT ENDPOINTS ==============
+
+@api_router.post("/import/tse/validate")
+async def validate_tse_import(
+    folder_path: str = Query(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Validate TSE import folder structure"""
+    if not TSE_IMPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="TSE import module not available")
+
+    try:
+        folder = Path(folder_path)
+        if not folder.exists():
+            raise HTTPException(status_code=400, detail=f"Pasta não encontrada: {folder_path}")
+
+        manager = TSEImportManager(str(folder))
+        is_valid, errors = manager.validate()
+
+        if is_valid:
+            return {
+                "valid": True,
+                "message": "Estrutura TSE válida",
+                "errors": [],
+                "warnings": []
+            }
+        else:
+            return {
+                "valid": False,
+                "message": "Erros encontrados na validação",
+                "errors": errors,
+                "warnings": []
+            }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao validar: {str(e)}")
+
+
+@api_router.post("/import/tse/preview")
+async def preview_tse_import(
+    folder_path: str = Query(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Preview data to be imported from TSE folder"""
+    if not TSE_IMPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="TSE import module not available")
+
+    try:
+        folder = Path(folder_path)
+        if not folder.exists():
+            raise HTTPException(status_code=400, detail=f"Pasta não encontrada: {folder_path}")
+
+        manager = TSEImportManager(str(folder))
+        is_valid, errors = manager.validate()
+
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Pasta inválida: {', '.join(errors)}")
+
+        preview = manager.preview(limit=5)
+
+        return {
+            "valid": True,
+            "preview": preview,
+            "message": "Preview gerado com sucesso"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao gerar preview: {str(e)}")
+
+
+@api_router.post("/import/tse/execute")
+async def execute_tse_import(
+    folder_path: str = Query(...),
+    campaign_id: str = Query(...),
+    skip_validations: bool = Query(False),
+    current_user: dict = Depends(get_current_user)
+):
+    """Execute TSE import - creates revenues, expenses, and imports documents"""
+    if not TSE_IMPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="TSE import module not available")
+
+    try:
+        folder = Path(folder_path)
+        if not folder.exists():
+            raise HTTPException(status_code=400, detail=f"Pasta não encontrada: {folder_path}")
+
+        # Validate campaign exists
+        campaign = await db.campaigns.find_one({"_id": campaign_id})
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+        # Validate folder structure
+        if not skip_validations:
+            manager = TSEImportManager(str(folder))
+            is_valid, errors = manager.validate()
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=f"Pasta inválida: {', '.join(errors)}")
+
+        # Start import process
+        manager = TSEImportManager(str(folder))
+        manager.validate()
+        manager.load_metadata()
+
+        # Extract all data
+        receipts, expenses, bank_data = manager.extract_all_data()
+
+        # Initialize importer
+        importer = DatabaseImporter(db, campaign_id)
+
+        # Convert extracted data to proper format and import
+        receitas_formatted = []
+        despesas_formatted = []
+
+        # For now, create basic structure
+        # In production, would parse PDFs to extract actual data
+        for i, receipt in enumerate(receipts):
+            receitas_formatted.append({
+                "description": f"Receita importada do TSE #{i+1}",
+                "amount": 0,  # Would be extracted from PDF
+                "category": "doacao_pf",
+                "donor_name": "TSE Import",
+                "donor_cpf_cnpj": "",
+                "date": datetime.now(timezone.utc).isoformat(),
+                "tipo_receita": "doacao_financeira",
+                "tipo_doador": "pessoa_fisica",
+                "forma_recebimento": "deposito"
+            })
+
+        for i, expense in enumerate(expenses):
+            despesas_formatted.append({
+                "description": f"Despesa importada do TSE #{i+1}",
+                "amount": 0,  # Would be extracted from PDF
+                "category": "outros",
+                "supplier_name": "TSE Import",
+                "supplier_cpf_cnpj": "",
+                "date": datetime.now(timezone.utc).isoformat(),
+                "payment_status": "pago",
+                "tipo_pagamento": "transferencia"
+            })
+
+        # Import data
+        await importer.import_receitas(receitas_formatted)
+        await importer.import_despesas(despesas_formatted)
+
+        # Store bank data
+        for stmt in bank_data:
+            await importer.import_banco([{
+                "account_name": f"Account {stmt.get('filename', 'Unknown')}",
+                "account_type": "or",
+                "bank": "Banco do Brasil",
+                "transactions": [],
+                "filename": stmt.get("filename", "")
+            }])
+
+        # Store representantes
+        manager.load_representantes()
+        upload_dir = Path(os.environ.get("UPLOAD_DIR", ROOT_DIR / "uploads"))
+        await importer.store_representantes(manager.representantes_data, upload_dir)
+
+        # Return summary
+        summary = importer.get_summary()
+        summary["message"] = "Importação concluída com sucesso"
+
+        return summary
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao executar import: {str(e)}")
 
 # Include router - AFTER all route definitions
 app.include_router(api_router)

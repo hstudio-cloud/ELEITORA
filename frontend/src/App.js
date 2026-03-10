@@ -26,6 +26,9 @@ import ConformidadeTSE from "./pages/ConformidadeTSE";
 // Extratos Bancários
 import ExtratosBancarios from "./pages/ExtratosBancarios";
 
+// TSE Import
+import { ImportarPrestacaoCont } from "./pages/ImportarPrestacaoCont";
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
     const { user, loading } = useAuth();
@@ -137,7 +140,12 @@ function AppRoutes() {
                     <ExtratosBancarios />
                 </ProtectedRoute>
             } />
-            
+            <Route path="/importar-prestacao" element={
+                <ProtectedRoute>
+                    <ImportarPrestacaoCont />
+                </ProtectedRoute>
+            } />
+
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
