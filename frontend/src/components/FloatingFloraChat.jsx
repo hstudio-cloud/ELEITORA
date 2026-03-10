@@ -33,6 +33,7 @@ export function FloatingFloraChat() {
     }, [messages]);
 
     // Initial greeting
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (isOpen && messages.length === 0) {
             const greeting = "Olá! Sou a Flora, sua assistente. Como posso ajudá-lo?";
