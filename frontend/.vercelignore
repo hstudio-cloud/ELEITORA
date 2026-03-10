@@ -1,0 +1,19 @@
+# Legacy Portuguese-named files that should never be deployed
+src/componentes/**
+src/Componentes/**
+**/FlutuanteFlora**
+**/flutuanteFlora**
+**/Flutuante**
+**/flutuante**
+**/componentes/**
+**/Componentes/**
+
+# Build artifacts
+node_modules/
+.next/
+dist/
+build/
+
+# Development files
+.env.local
+.env.*.local

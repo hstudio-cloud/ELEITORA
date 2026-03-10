@@ -56,6 +56,7 @@
     "zod": "^3.24.4"
   },
   "scripts": {
+    "prebuild": "node scripts/cleanup-legacy.js",
     "start": "craco start",
     "build": "craco build",
     "test": "craco test"
