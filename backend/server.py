@@ -8665,9 +8665,12 @@ async def validate_tse_import_file(
 
         # Handle ZIP file extraction
         if file.filename.lower().endswith('.zip'):
-            file_content = await file.read()
-            with zipfile.ZipFile(io.BytesIO(file_content)) as zip_ref:
-                zip_ref.extractall(temp_dir)
+            try:
+                file_content = await file.read()
+                with zipfile.ZipFile(io.BytesIO(file_content)) as zip_ref:
+                    zip_ref.extractall(temp_dir)
+            except zipfile.BadZipFile:
+                raise HTTPException(status_code=400, detail="Arquivo ZIP está corrompido ou não é um ZIP válido")
         else:
             raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados no momento")
 
@@ -8676,7 +8679,7 @@ async def validate_tse_import_file(
         folders = [f for f in temp_path.iterdir() if f.is_dir()]
 
         if not folders:
-            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas")
+            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas. Certifique-se de que baixou o arquivo completo do TSE")
 
         # Use the first folder found
         extract_folder = str(folders[0])
@@ -8702,6 +8705,7 @@ async def validate_tse_import_file(
     except HTTPException:
         raise
     except Exception as e:
+        logging.error(f"Error in validation: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Erro ao validar: {str(e)}")
     finally:
         # Clean up temporary directory
@@ -8725,9 +8729,12 @@ async def preview_tse_import_file(
 
         # Handle ZIP file extraction
         if file.filename.lower().endswith('.zip'):
-            file_content = await file.read()
-            with zipfile.ZipFile(io.BytesIO(file_content)) as zip_ref:
-                zip_ref.extractall(temp_dir)
+            try:
+                file_content = await file.read()
+                with zipfile.ZipFile(io.BytesIO(file_content)) as zip_ref:
+                    zip_ref.extractall(temp_dir)
+            except zipfile.BadZipFile:
+                raise HTTPException(status_code=400, detail="Arquivo ZIP está corrompido ou não é um ZIP válido")
         else:
             raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados no momento")
 
@@ -8736,16 +8743,20 @@ async def preview_tse_import_file(
         folders = [f for f in temp_path.iterdir() if f.is_dir()]
 
         if not folders:
-            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas")
+            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas. Certifique-se de que baixou o arquivo completo do TSE")
 
         extract_folder = str(folders[0])
+
+        # Log for debugging
+        logging.info(f"Extracted TSE folder: {extract_folder}")
 
         # Validate folder structure
         manager = TSEImportManager(extract_folder)
         is_valid, errors = manager.validate()
 
         if not is_valid:
-            raise HTTPException(status_code=400, detail=f"Pasta inválida: {', '.join(errors)}")
+            error_msg = "; ".join(errors)
+            raise HTTPException(status_code=400, detail=f"Arquivo TSE inválido: {error_msg}")
 
         # Generate preview
         preview = manager.preview(limit=5)
@@ -8758,7 +8769,8 @@ async def preview_tse_import_file(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro ao gerar preview: {str(e)}")
+        logging.error(f"Error in preview: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Erro ao processar arquivo: {str(e)}")
     finally:
         # Clean up temporary directory
         if temp_dir and os.path.exists(temp_dir):
@@ -8783,9 +8795,12 @@ async def execute_tse_import_file(
 
         # Handle ZIP file extraction
         if file.filename.lower().endswith('.zip'):
-            file_content = await file.read()
-            with zipfile.ZipFile(io.BytesIO(file_content)) as zip_ref:
-                zip_ref.extractall(temp_dir)
+            try:
+                file_content = await file.read()
+                with zipfile.ZipFile(io.BytesIO(file_content)) as zip_ref:
+                    zip_ref.extractall(temp_dir)
+            except zipfile.BadZipFile:
+                raise HTTPException(status_code=400, detail="Arquivo ZIP está corrompido ou não é um ZIP válido")
         else:
             raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados no momento")
 
@@ -8794,9 +8809,10 @@ async def execute_tse_import_file(
         folders = [f for f in temp_path.iterdir() if f.is_dir()]
 
         if not folders:
-            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas")
+            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas. Certifique-se de que baixou o arquivo completo do TSE")
 
         extract_folder = str(folders[0])
+        logging.info(f"Starting TSE import for campaign {campaign_id}")
 
         # Validate campaign exists
         campaign = await db.campaigns.find_one({"_id": campaign_id})
@@ -8808,58 +8824,67 @@ async def execute_tse_import_file(
             manager = TSEImportManager(extract_folder)
             is_valid, errors = manager.validate()
             if not is_valid:
-                raise HTTPException(status_code=400, detail=f"Pasta inválida: {', '.join(errors)}")
+                error_msg = "; ".join(errors)
+                raise HTTPException(status_code=400, detail=f"Arquivo TSE inválido: {error_msg}")
 
         # Start import process
-        manager = TSEImportManager(extract_folder)
-        manager.validate()
-        manager.load_metadata()
+        try:
+            manager = TSEImportManager(extract_folder)
+            manager.validate()
+            manager.load_metadata()
 
-        # Extract all data
-        receitas, despesas, bank_data = manager.extract_all_data()
+            # Extract all data
+            receitas, despesas, bank_data = manager.extract_all_data()
+            logging.info(f"Extracted {len(receitas)} receitas, {len(despesas)} despesas, {len(bank_data)} bank records")
 
-        # Format and import to MongoDB
-        importer = DatabaseImporter(db, campaign_id)
+            # Format and import to MongoDB
+            importer = DatabaseImporter(db, campaign_id)
 
-        # Import receitas
-        receitas_formatted = []
-        for receita in receitas:
-            msg = receita.copy()
-            msg['campaign_id'] = campaign_id
-            receitas_formatted.append(msg)
-        await importer.import_receitas(receitas_formatted)
+            # Import receitas
+            receitas_formatted = []
+            for receita in receitas:
+                msg = receita.copy()
+                msg['campaign_id'] = campaign_id
+                receitas_formatted.append(msg)
+            await importer.import_receitas(receitas_formatted)
 
-        # Import despesas
-        despesas_formatted = []
-        for despesa in despesas:
-            msg = despesa.copy()
-            msg['campaign_id'] = campaign_id
-            despesas_formatted.append(msg)
-        await importer.import_despesas(despesas_formatted)
+            # Import despesas
+            despesas_formatted = []
+            for despesa in despesas:
+                msg = despesa.copy()
+                msg['campaign_id'] = campaign_id
+                despesas_formatted.append(msg)
+            await importer.import_despesas(despesas_formatted)
 
-        # Store bank data
-        for stmt in bank_data:
-            await importer.import_banco([{
-                "account_name": f"Account {stmt.get('filename', 'Unknown')}",
-                "account_type": "or",
-                "bank": "Banco do Brasil",
-                "transactions": [],
-                "filename": stmt.get("filename", "")
-            }])
+            # Store bank data
+            for stmt in bank_data:
+                await importer.import_banco([{
+                    "account_name": f"Account {stmt.get('filename', 'Unknown')}",
+                    "account_type": "or",
+                    "bank": "Banco do Brasil",
+                    "transactions": [],
+                    "filename": stmt.get("filename", "")
+                }])
 
-        # Store representantes
-        manager.load_representantes()
-        upload_dir = Path(os.environ.get("UPLOAD_DIR", ROOT_DIR / "uploads"))
-        await importer.store_representantes(manager.representantes_data, upload_dir)
+            # Store representantes
+            manager.load_representantes()
+            upload_dir = Path(os.environ.get("UPLOAD_DIR", ROOT_DIR / "uploads"))
+            await importer.store_representantes(manager.representantes_data, upload_dir)
 
-        # Return summary
-        summary = importer.get_summary()
-        summary["message"] = "Importação concluída com sucesso"
+            # Return summary
+            summary = importer.get_summary()
+            summary["message"] = "Importação concluída com sucesso"
+            logging.info(f"TSE import completed for campaign {campaign_id}")
 
-        return summary
+            return summary
+        except Exception as extract_error:
+            logging.error(f"Error during data extraction: {str(extract_error)}", exc_info=True)
+            raise HTTPException(status_code=400, detail=f"Erro ao processar dados TSE: {str(extract_error)}")
+
     except HTTPException:
         raise
     except Exception as e:
+        logging.error(f"Error in execute import: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro ao executar import: {str(e)}")
     finally:
         # Clean up temporary directory
