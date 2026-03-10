@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, BackgroundTasks, Response
+﻿from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, Form, BackgroundTasks, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from fastapi.encoders import jsonable_encoder
@@ -18,6 +18,8 @@ import io
 import httpx
 import unicodedata
 import xml.etree.ElementTree as ET
+import tempfile
+import shutil
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, validator
 from typing import List, Optional, Dict, Any
@@ -8643,6 +8645,226 @@ async def execute_tse_import(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao executar import: {str(e)}")
+
+
+# File-based TSE Import endpoints (accept uploaded ZIP/RAR files)
+
+@api_router.post("/import/tse/validate-file")
+async def validate_tse_import_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Validate TSE import from uploaded file"""
+    if not TSE_IMPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="TSE import module not available")
+
+    temp_dir = None
+    try:
+        # Create temporary directory
+        temp_dir = tempfile.mkdtemp()
+
+        # Handle ZIP file extraction
+        if file.filename.lower().endswith('.zip'):
+            file_content = await file.read()
+            with zipfile.ZipFile(io.BytesIO(file_content)) as zip_ref:
+                zip_ref.extractall(temp_dir)
+        else:
+            raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados no momento")
+
+        # Find the folder (usually ATSEPJE_* folder inside the ZIP)
+        temp_path = Path(temp_dir)
+        folders = [f for f in temp_path.iterdir() if f.is_dir()]
+
+        if not folders:
+            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas")
+
+        # Use the first folder found
+        extract_folder = str(folders[0])
+
+        # Validate the folder structure
+        manager = TSEImportManager(extract_folder)
+        is_valid, errors = manager.validate()
+
+        if is_valid:
+            return {
+                "valid": True,
+                "message": "Estrutura TSE válida",
+                "errors": [],
+                "warnings": []
+            }
+        else:
+            return {
+                "valid": False,
+                "message": "Erros encontrados na validação",
+                "errors": errors,
+                "warnings": []
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao validar: {str(e)}")
+    finally:
+        # Clean up temporary directory
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@api_router.post("/import/tse/preview-file")
+async def preview_tse_import_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Preview data from uploaded TSE file"""
+    if not TSE_IMPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="TSE import module not available")
+
+    temp_dir = None
+    try:
+        # Create temporary directory
+        temp_dir = tempfile.mkdtemp()
+
+        # Handle ZIP file extraction
+        if file.filename.lower().endswith('.zip'):
+            file_content = await file.read()
+            with zipfile.ZipFile(io.BytesIO(file_content)) as zip_ref:
+                zip_ref.extractall(temp_dir)
+        else:
+            raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados no momento")
+
+        # Find the folder
+        temp_path = Path(temp_dir)
+        folders = [f for f in temp_path.iterdir() if f.is_dir()]
+
+        if not folders:
+            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas")
+
+        extract_folder = str(folders[0])
+
+        # Validate folder structure
+        manager = TSEImportManager(extract_folder)
+        is_valid, errors = manager.validate()
+
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Pasta inválida: {', '.join(errors)}")
+
+        # Generate preview
+        preview = manager.preview(limit=5)
+
+        return {
+            "valid": True,
+            "preview": preview,
+            "message": "Preview gerado com sucesso"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao gerar preview: {str(e)}")
+    finally:
+        # Clean up temporary directory
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@api_router.post("/import/tse/execute-file")
+async def execute_tse_import_file(
+    file: UploadFile = File(...),
+    campaign_id: str = Form(...),
+    skip_validations: bool = Query(False),
+    current_user: dict = Depends(get_current_user)
+):
+    """Execute TSE import from uploaded file"""
+    if not TSE_IMPORT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="TSE import module not available")
+
+    temp_dir = None
+    try:
+        # Create temporary directory
+        temp_dir = tempfile.mkdtemp()
+
+        # Handle ZIP file extraction
+        if file.filename.lower().endswith('.zip'):
+            file_content = await file.read()
+            with zipfile.ZipFile(io.BytesIO(file_content)) as zip_ref:
+                zip_ref.extractall(temp_dir)
+        else:
+            raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados no momento")
+
+        # Find the folder
+        temp_path = Path(temp_dir)
+        folders = [f for f in temp_path.iterdir() if f.is_dir()]
+
+        if not folders:
+            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas")
+
+        extract_folder = str(folders[0])
+
+        # Validate campaign exists
+        campaign = await db.campaigns.find_one({"_id": campaign_id})
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+        # Validate folder structure
+        if not skip_validations:
+            manager = TSEImportManager(extract_folder)
+            is_valid, errors = manager.validate()
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=f"Pasta inválida: {', '.join(errors)}")
+
+        # Start import process
+        manager = TSEImportManager(extract_folder)
+        manager.validate()
+        manager.load_metadata()
+
+        # Extract all data
+        receitas, despesas, bank_data = manager.extract_all_data()
+
+        # Format and import to MongoDB
+        importer = DatabaseImporter(db, campaign_id)
+
+        # Import receitas
+        receitas_formatted = []
+        for receita in receitas:
+            msg = receita.copy()
+            msg['campaign_id'] = campaign_id
+            receitas_formatted.append(msg)
+        await importer.import_receitas(receitas_formatted)
+
+        # Import despesas
+        despesas_formatted = []
+        for despesa in despesas:
+            msg = despesa.copy()
+            msg['campaign_id'] = campaign_id
+            despesas_formatted.append(msg)
+        await importer.import_despesas(despesas_formatted)
+
+        # Store bank data
+        for stmt in bank_data:
+            await importer.import_banco([{
+                "account_name": f"Account {stmt.get('filename', 'Unknown')}",
+                "account_type": "or",
+                "bank": "Banco do Brasil",
+                "transactions": [],
+                "filename": stmt.get("filename", "")
+            }])
+
+        # Store representantes
+        manager.load_representantes()
+        upload_dir = Path(os.environ.get("UPLOAD_DIR", ROOT_DIR / "uploads"))
+        await importer.store_representantes(manager.representantes_data, upload_dir)
+
+        # Return summary
+        summary = importer.get_summary()
+        summary["message"] = "Importação concluída com sucesso"
+
+        return summary
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao executar import: {str(e)}")
+    finally:
+        # Clean up temporary directory
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 # Include router - AFTER all route definitions
 app.include_router(api_router)

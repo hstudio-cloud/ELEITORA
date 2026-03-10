@@ -15,8 +15,8 @@ export function ImportarPrestacaoCont() {
     const navigate = useNavigate();
     const { user, loading } = useAuth();
 
-    const [step, setStep] = useState(1); // 1: Folder selection, 2: Validation, 3: Preview, 4: Confirmation
-    const [folderPath, setFolderPath] = useState('');
+    const [step, setStep] = useState(1);
+    const [selectedFile, setSelectedFile] = useState(null);
     const [validation, setValidation] = useState(null);
     const [preview, setPreview] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -25,20 +25,23 @@ export function ImportarPrestacaoCont() {
     const [importSummary, setImportSummary] = useState(null);
     const [validationErrors, setValidationErrors] = useState([]);
 
-    const handleFolderSelected = (path) => {
-        setFolderPath(path);
+    const handleFileSelected = (file) => {
+        setSelectedFile(file);
     };
 
     const handleValidate = async () => {
-        if (!folderPath.trim()) {
-            toast.error('Por favor, selecione uma pasta');
+        if (!selectedFile) {
+            toast.error('Por favor, selecione um arquivo');
             return;
         }
 
         setIsLoading(true);
         try {
-            const response = await axios.post(`${API}/import/tse/validate`, null, {
-                params: { folder_path: folderPath }
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            const response = await axios.post(`${API}/import/tse/validate-file`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (response.data.valid) {
@@ -48,11 +51,11 @@ export function ImportarPrestacaoCont() {
                 setStep(2);
             } else {
                 setValidationErrors(response.data.errors || []);
-                toast.error('Pasta inválida');
+                toast.error('Arquivo inválido');
                 setValidation(response.data);
             }
         } catch (error) {
-            const message = error.response?.data?.detail || 'Erro ao validar pasta';
+            const message = error.response?.data?.detail || 'Erro ao validar arquivo';
             toast.error(message);
             console.error(error);
         } finally {
@@ -63,8 +66,11 @@ export function ImportarPrestacaoCont() {
     const handlePreview = async () => {
         setIsLoading(true);
         try {
-            const response = await axios.post(`${API}/import/tse/preview`, null, {
-                params: { folder_path: folderPath }
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            const response = await axios.post(`${API}/import/tse/preview-file`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             if (response.data.valid) {
@@ -89,16 +95,22 @@ export function ImportarPrestacaoCont() {
             return;
         }
 
+        if (!selectedFile) {
+            toast.error('Por favor, selecione um arquivo');
+            return;
+        }
+
         setIsImporting(true);
         setStep(4);
 
         try {
-            setCurrentStep('Validando estrutura');
-            const response = await axios.post(`${API}/import/tse/execute`, null, {
-                params: {
-                    folder_path: folderPath,
-                    campaign_id: user.id
-                }
+            setCurrentStep('Descompactando arquivo');
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('campaign_id', user.id);
+
+            const response = await axios.post(`${API}/import/tse/execute-file`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             setImportSummary(response.data);
@@ -198,22 +210,22 @@ export function ImportarPrestacaoCont() {
                     <div className="space-y-6">
                         <div>
                             <h2 className="text-xl font-semibold mb-2 text-foreground">
-                                Selecione a Pasta TSE
+                                Selecione o Arquivo TSE
                             </h2>
                             <p className="text-muted-foreground mb-4">
-                                Especifique o caminho da pasta que contém a prestação de contas do TSE
+                                Anexe o arquivo ZIP que contém a prestação de contas do TSE
                             </p>
                         </div>
 
                         <TaxFileUploadZone
-                            onFolderSelected={handleFolderSelected}
+                            onFileSelected={handleFileSelected}
                             isLoading={isLoading}
                         />
 
-                        {folderPath && (
+                        {selectedFile && (
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                                 <p className="text-sm text-blue-800">
-                                    Pasta selecionada: {folderPath}
+                                    Arquivo selecionado: {selectedFile.name}
                                 </p>
                             </div>
                         )}
@@ -389,7 +401,7 @@ export function ImportarPrestacaoCont() {
                 {step === 1 && (
                     <Button
                         onClick={handleValidate}
-                        disabled={!folderPath || isLoading}
+                        disabled={!selectedFile || isLoading}
                         className="ml-auto"
                     >
                         Próximo

@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Upload, X } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Upload, X, FileArchive } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 
-export function TaxFileUploadZone({ onFolderSelected, isLoading }) {
+export function TaxFileUploadZone({ onFileSelected, isLoading }) {
     const [dragActive, setDragActive] = useState(false);
-    const [selectedPath, setSelectedPath] = useState('');
+    const [selectedFile, setSelectedFile] = useState(null);
+    const fileInputRef = useRef(null);
 
     const handleDrag = (e) => {
         e.preventDefault();
@@ -17,26 +18,61 @@ export function TaxFileUploadZone({ onFolderSelected, isLoading }) {
         }
     };
 
+    const validateFile = (file) => {
+        const validExtensions = ['.zip', '.rar', '.7z'];
+        const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+        if (!validExtensions.includes(fileExtension)) {
+            toast.error('Tipos aceitos: ZIP, RAR ou 7Z');
+            return false;
+        }
+
+        // Max 500MB
+        if (file.size > 500 * 1024 * 1024) {
+            toast.error('Arquivo muito grande (máx 500MB)');
+            return false;
+        }
+
+        return true;
+    };
+
     const handleDrop = (e) => {
         e.preventDefault();
         e.stopPropagation();
         setDragActive(false);
 
-        // Note: Due to browser security, we cannot access local file paths directly
-        // User must manually enter the path or use the file input
-        toast.info('Por favor, use o campo de entrada para especificar o caminho da pasta');
-    };
-
-    const handleChange = (e) => {
-        const value = e.target.value;
-        setSelectedPath(value);
-        if (value.trim()) {
-            onFolderSelected(value.trim());
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (validateFile(file)) {
+                setSelectedFile(file);
+                onFileSelected(file);
+                toast.success(`Arquivo selecionado: ${file.name}`);
+            }
         }
     };
 
-    const clearPath = () => {
-        setSelectedPath('');
+    const handleChange = (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            if (validateFile(file)) {
+                setSelectedFile(file);
+                onFileSelected(file);
+                toast.success(`Arquivo selecionado: ${file.name}`);
+            }
+        }
+    };
+
+    const handleClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const clearFile = () => {
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
     };
 
     return (
@@ -47,67 +83,67 @@ export function TaxFileUploadZone({ onFolderSelected, isLoading }) {
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                onClick={handleClick}
+                className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors cursor-pointer ${
                     dragActive
                         ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
+                        : 'border-border hover:border-primary/50 hover:bg-muted/30'
                 }`}
             >
                 <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-lg font-medium mb-2">Selecione a pasta TSE</p>
+                <p className="text-lg font-medium mb-2">Selecione o arquivo TSE</p>
                 <p className="text-sm text-muted-foreground mb-4">
-                    Arraste a pasta aqui ou use o campo abaixo para especificar o caminho
+                    Clique para escolher ou arraste e solte o arquivo aqui
                 </p>
                 <p className="text-xs text-muted-foreground">
-                    Esperado: ATSEPJE_XXXXX/
+                    Formatos aceitos: ZIP, RAR, 7Z (máx 500MB)
                 </p>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleChange}
+                    disabled={isLoading}
+                    accept=".zip,.rar,.7z"
+                    className="hidden"
+                />
             </div>
 
-            {/* Path Input */}
-            <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                    Caminho da Pasta
-                </label>
-                <div className="flex gap-2">
-                    <input
-                        type="text"
-                        value={selectedPath}
-                        onChange={handleChange}
-                        disabled={isLoading}
-                        placeholder="Ex: C:\Users\You\Desktop\ATSEPJE_000131116918RN4058977_PFR"
-                        className="flex-1 px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-                    />
-                    {selectedPath && (
+            {/* Selected File Display */}
+            {selectedFile && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <FileArchive className="h-5 w-5 text-blue-600" />
+                            <div>
+                                <p className="text-sm font-medium text-blue-900">{selectedFile.name}</p>
+                                <p className="text-xs text-blue-700">
+                                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                            </div>
+                        </div>
                         <Button
                             variant="ghost"
                             size="icon"
-                            onClick={clearPath}
+                            onClick={clearFile}
                             disabled={isLoading}
+                            className="text-blue-600 hover:text-blue-700"
                         >
                             <X className="h-4 w-4" />
                         </Button>
-                    )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                    Digite o caminho completo da pasta que contém os arquivos TSE
-                </p>
-            </div>
-
-            {/* Example Path */}
-            <div className="bg-muted/50 rounded-md p-4 border border-border">
-                <p className="text-sm font-medium mb-2 text-foreground">Exemplos de caminho:</p>
-                <ul className="text-xs space-y-1 text-muted-foreground font-mono">
-                    <li>• Windows: C:\Users\Seu Usuário\Desktop\ATSEPJE_000131116918RN4058977_PFR</li>
-                    <li>• Mac/Linux: /home/usuario/Downloads/ATSEPJE_000131116918RN4058977_PFR</li>
-                </ul>
-            </div>
-
-            {/* Status Message */}
-            {selectedPath && (
-                <div className="bg-blue-500/10 border border-blue-500/30 rounded-md p-3 text-sm text-blue-700">
-                    Pasta selecionada ✓
+                    </div>
                 </div>
             )}
+
+            {/* Instructions */}
+            <div className="bg-muted/50 rounded-md p-4 border border-border">
+                <p className="text-sm font-medium mb-2 text-foreground">Como funciona:</p>
+                <ul className="text-xs space-y-1 text-muted-foreground">
+                    <li>✓ Faça download da prestação de contas do portal TSE</li>
+                    <li>✓ O arquivo virá em ZIP ou RAR com a pasta ATSEPJE_XXXXX</li>
+                    <li>✓ Selecione o arquivo ZIP/RAR aqui ou arraste para esta área</li>
+                    <li>✓ O sistema irá descompactar e processar automaticamente</li>
+                </ul>
+            </div>
         </div>
     );
 }
