@@ -61,7 +61,7 @@ try:
 except ImportError:
     OFX_AVAILABLE = False
 
-# TSE Import system
+# TSE Import system - Force rebuild 2025-03-10
 try:
     from tse_import import TSEImportManager, DatabaseImporter, DataMapper
     TSE_IMPORT_AVAILABLE = True
