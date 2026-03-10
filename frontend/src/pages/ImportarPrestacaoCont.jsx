@@ -13,7 +13,7 @@ const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
 export function ImportarPrestacaoCont() {
     const navigate = useNavigate();
-    const { campaign } = useAuth();
+    const { user, loading } = useAuth();
 
     const [step, setStep] = useState(1); // 1: Folder selection, 2: Validation, 3: Preview, 4: Confirmation
     const [folderPath, setFolderPath] = useState('');
@@ -84,8 +84,8 @@ export function ImportarPrestacaoCont() {
     };
 
     const handleExecuteImport = async () => {
-        if (!campaign?._id) {
-            toast.error('Campanha não encontrada');
+        if (!user?.id) {
+            toast.error('Usuário não encontrado');
             return;
         }
 
@@ -97,7 +97,7 @@ export function ImportarPrestacaoCont() {
             const response = await axios.post(`${API}/import/tse/execute`, null, {
                 params: {
                     folder_path: folderPath,
-                    campaign_id: campaign._id
+                    campaign_id: user.id
                 }
             });
 
@@ -128,10 +128,11 @@ export function ImportarPrestacaoCont() {
         navigate(-1);
     };
 
-    if (!campaign) {
+    // Show loading while user is being fetched
+    if (loading) {
         return (
             <div className="p-8 text-center">
-                <p className="text-muted-foreground">Carregando informações da campanha...</p>
+                <p className="text-muted-foreground">Carregando...</p>
             </div>
         );
     }
