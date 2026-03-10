@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
-import { ChevronRight, ChevronLeft, FolderOpen } from 'lucide-react';
+import { ChevronRight, FolderOpen, FileArchive } from 'lucide-react';
 import { TaxFileUploadZone } from '../components/TaxFileUploadZone';
 import { ImportProgressBar } from '../components/ImportProgressBar';
 import { ImportSummary } from '../components/ImportSummary';
@@ -15,9 +15,7 @@ export function ImportarPrestacaoCont() {
     const navigate = useNavigate();
     const { user, loading } = useAuth();
 
-    const [step, setStep] = useState(1);
     const [selectedFile, setSelectedFile] = useState(null);
-    const [validation, setValidation] = useState(null);
     const [preview, setPreview] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
@@ -27,47 +25,15 @@ export function ImportarPrestacaoCont() {
 
     const handleFileSelected = (file) => {
         setSelectedFile(file);
+        // Automatically load preview when file is selected
+        loadPreview(file);
     };
 
-    const handleValidate = async () => {
-        if (!selectedFile) {
-            toast.error('Por favor, selecione um arquivo');
-            return;
-        }
-
+    const loadPreview = async (file) => {
         setIsLoading(true);
         try {
             const formData = new FormData();
-            formData.append('file', selectedFile);
-
-            const response = await axios.post(`${API}/import/tse/validate-file`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            if (response.data.valid) {
-                setValidation(response.data);
-                setValidationErrors([]);
-                toast.success('Estrutura TSE validada com sucesso!');
-                setStep(2);
-            } else {
-                setValidationErrors(response.data.errors || []);
-                toast.error('Arquivo inválido');
-                setValidation(response.data);
-            }
-        } catch (error) {
-            const message = error.response?.data?.detail || 'Erro ao validar arquivo';
-            toast.error(message);
-            console.error(error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handlePreview = async () => {
-        setIsLoading(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', selectedFile);
+            formData.append('file', file);
 
             const response = await axios.post(`${API}/import/tse/preview-file`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
@@ -75,15 +41,20 @@ export function ImportarPrestacaoCont() {
 
             if (response.data.valid) {
                 setPreview(response.data.preview);
-                toast.success('Preview carregado com sucesso!');
-                setStep(3);
+                setValidationErrors([]);
+                toast.success('Arquivo validado com sucesso!');
             } else {
-                toast.error('Erro ao carregar preview');
+                setValidationErrors(response.data.errors || []);
+                toast.error('Arquivo inválido');
+                setPreview(null);
+                setSelectedFile(null);
             }
         } catch (error) {
-            const message = error.response?.data?.detail || 'Erro ao carregar preview';
+            const message = error.response?.data?.detail || 'Erro ao validar arquivo';
             toast.error(message);
             console.error(error);
+            setSelectedFile(null);
+            setPreview(null);
         } finally {
             setIsLoading(false);
         }
@@ -101,7 +72,6 @@ export function ImportarPrestacaoCont() {
         }
 
         setIsImporting(true);
-        setStep(4);
 
         try {
             setCurrentStep('Descompactando arquivo');
@@ -119,14 +89,12 @@ export function ImportarPrestacaoCont() {
             const message = error.response?.data?.detail || 'Erro ao executar importação';
             toast.error(message);
             console.error(error);
-            setStep(3); // Back to preview
         } finally {
             setIsImporting(false);
         }
     };
 
     const handleViewRecords = () => {
-        // Navigate to the appropriate page based on what was imported
         if (importSummary?.receitas_created > 0) {
             navigate('/receitas');
         } else if (importSummary?.despesas_created > 0) {
@@ -140,11 +108,59 @@ export function ImportarPrestacaoCont() {
         navigate(-1);
     };
 
+    const handleClearFile = () => {
+        setSelectedFile(null);
+        setPreview(null);
+        setValidationErrors([]);
+        setImportSummary(null);
+    };
+
     // Show loading while user is being fetched
     if (loading) {
         return (
             <div className="p-8 text-center">
                 <p className="text-muted-foreground">Carregando...</p>
+            </div>
+        );
+    }
+
+    // Show import results
+    if (importSummary) {
+        return (
+            <div className="space-y-8 max-w-4xl mx-auto">
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                        <FolderOpen className="h-5 w-5" />
+                        <h1 className="text-3xl font-bold text-foreground">Importação Concluída</h1>
+                    </div>
+                </div>
+
+                <ImportSummary
+                    summary={importSummary}
+                    onClose={handleClose}
+                    onViewRecords={handleViewRecords}
+                />
+            </div>
+        );
+    }
+
+    // Show import progress
+    if (isImporting) {
+        return (
+            <div className="space-y-8 max-w-4xl mx-auto">
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                        <FolderOpen className="h-5 w-5" />
+                        <h1 className="text-3xl font-bold text-foreground">Importando Dados...</h1>
+                    </div>
+                </div>
+
+                <div className="bg-card rounded-lg border border-border p-8">
+                    <ImportProgressBar
+                        isImporting={isImporting}
+                        currentStep={currentStep}
+                    />
+                </div>
             </div>
         );
     }
@@ -162,58 +178,17 @@ export function ImportarPrestacaoCont() {
                 </p>
             </div>
 
-            {/* Step Indicator */}
-            <div className="flex items-center justify-between">
-                {[1, 2, 3, 4].map((s) => (
-                    <div key={s} className="flex items-center">
-                        <div
-                            className={`flex items-center justify-center w-10 h-10 rounded-full font-medium ${
-                                s <= step
-                                    ? s === step
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-green-600 text-white'
-                                    : 'bg-muted text-muted-foreground'
-                            }`}
-                        >
-                            {s < step ? '✓' : s}
-                        </div>
-                        {s < 4 && (
-                            <div
-                                className={`h-1 w-16 mx-2 ${
-                                    s < step ? 'bg-green-600' : 'bg-muted'
-                                }`}
-                            />
-                        )}
-                    </div>
-                ))}
-            </div>
-
-            {/* Step Labels */}
-            <div className="grid grid-cols-4 gap-4 text-center text-xs font-medium">
-                <div className={step >= 1 ? 'text-foreground' : 'text-muted-foreground'}>
-                    Selecionar Pasta
-                </div>
-                <div className={step >= 2 ? 'text-foreground' : 'text-muted-foreground'}>
-                    Validar
-                </div>
-                <div className={step >= 3 ? 'text-foreground' : 'text-muted-foreground'}>
-                    Visualizar
-                </div>
-                <div className={step >= 4 ? 'text-foreground' : 'text-muted-foreground'}>
-                    Importar
-                </div>
-            </div>
-
-            {/* Content */}
+            {/* Main Content */}
             <div className="bg-card rounded-lg border border-border p-8">
-                {step === 1 && (
+                {!selectedFile ? (
+                    // File not selected - show upload zone
                     <div className="space-y-6">
                         <div>
                             <h2 className="text-xl font-semibold mb-2 text-foreground">
-                                Selecione o Arquivo TSE
+                                O arquivo TSE
                             </h2>
                             <p className="text-muted-foreground mb-4">
-                                Anexe o arquivo ZIP que contém a prestação de contas do TSE
+                                Arraste ou clique para selecionar o arquivo ZIP com a prestação de contas
                             </p>
                         </div>
 
@@ -222,114 +197,97 @@ export function ImportarPrestacaoCont() {
                             isLoading={isLoading}
                         />
 
-                        {selectedFile && (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                <p className="text-sm text-blue-800">
-                                    Arquivo selecionado: {selectedFile.name}
+                        {validationErrors.length > 0 && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                <p className="text-sm font-medium text-red-900 mb-2">
+                                    Erros de Validação:
                                 </p>
+                                <ul className="space-y-1">
+                                    {validationErrors.map((error, idx) => (
+                                        <li key={idx} className="text-sm text-red-800">
+                                            • {error}
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
                         )}
                     </div>
-                )}
-
-                {step === 2 && (
+                ) : (
+                    // File selected - show preview
                     <div className="space-y-6">
                         <div>
                             <h2 className="text-xl font-semibold mb-2 text-foreground">
-                                Validar Estrutura
-                            </h2>
-                            <p className="text-muted-foreground">
-                                Validando a estrutura da pasta TSE...
-                            </p>
-                        </div>
-
-                        {validation && (
-                            <div>
-                                {validation.valid ? (
-                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                        <p className="text-sm font-medium text-green-900 mb-2">
-                                            ✓ Validação Bem-Sucedida
-                                        </p>
-                                        <p className="text-sm text-green-800">
-                                            A pasta contém todos os arquivos necessários para importação.
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                                        <p className="text-sm font-medium text-red-900 mb-2">
-                                            Erros de Validação:
-                                        </p>
-                                        <ul className="space-y-1">
-                                            {(validation.errors || validationErrors).map((error, idx) => (
-                                                <li key={idx} className="text-sm text-red-800">
-                                                    • {error}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div>
-                            <p className="text-sm font-medium text-foreground mb-2">
-                                Estrutura Esperada:
-                            </p>
-                            <ul className="text-sm text-muted-foreground space-y-1 font-mono">
-                                <li>├── dados.info</li>
-                                <li>├── RECEITAS/</li>
-                                <li>├── DESPESAS/</li>
-                                <li>├── EXTRATOS_BANCARIOS/</li>
-                                <li>├── REPRESENTANTES/</li>
-                                <li>└── [Other folders...]</li>
-                            </ul>
-                        </div>
-                    </div>
-                )}
-
-                {step === 3 && preview && (
-                    <div className="space-y-6">
-                        <div>
-                            <h2 className="text-xl font-semibold mb-2 text-foreground">
-                                Visualizar Importação
+                                Revisar Dados
                             </h2>
                             <p className="text-muted-foreground">
                                 Verifique os dados que serão importados
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                            <div className="bg-muted/50 rounded-lg p-4 border border-border">
-                                <p className="text-2xl font-bold text-primary">
-                                    {preview.receitas_count || 0}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">Receitas</p>
-                            </div>
-                            <div className="bg-muted/50 rounded-lg p-4 border border-border">
-                                <p className="text-2xl font-bold text-primary">
-                                    {preview.despesas_count || 0}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">Despesas</p>
-                            </div>
-                            <div className="bg-muted/50 rounded-lg p-4 border border-border">
-                                <p className="text-2xl font-bold text-primary">
-                                    {preview.banco_count || 0}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">Extratos</p>
-                            </div>
-                            <div className="bg-muted/50 rounded-lg p-4 border border-border">
-                                <p className="text-2xl font-bold text-primary">
-                                    {preview.representantes ? Object.keys(preview.representantes).length : 0}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">Representantes</p>
+                        {/* Selected File Display */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <FileArchive className="h-5 w-5 text-blue-600" />
+                                    <div>
+                                        <p className="text-sm font-medium text-blue-900">{selectedFile.name}</p>
+                                        <p className="text-xs text-blue-700">
+                                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                        </p>
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleClearFile}
+                                    disabled={isLoading}
+                                >
+                                    Trocar arquivo
+                                </Button>
                             </div>
                         </div>
 
-                        {preview.receitas_sample && preview.receitas_sample.length > 0 && (
+                        {/* Preview Data */}
+                        {preview && (
+                            <div>
+                                <p className="text-sm font-medium text-foreground mb-3">
+                                    Resumo dos dados:
+                                </p>
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                    <div className="bg-muted/50 rounded-lg p-3 border border-border">
+                                        <p className="text-2xl font-bold text-primary">
+                                            {preview.receitas_count || 0}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">Receitas</p>
+                                    </div>
+                                    <div className="bg-muted/50 rounded-lg p-3 border border-border">
+                                        <p className="text-2xl font-bold text-primary">
+                                            {preview.despesas_count || 0}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">Despesas</p>
+                                    </div>
+                                    <div className="bg-muted/50 rounded-lg p-3 border border-border">
+                                        <p className="text-2xl font-bold text-primary">
+                                            {preview.banco_count || 0}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">Extratos</p>
+                                    </div>
+                                    <div className="bg-muted/50 rounded-lg p-3 border border-border">
+                                        <p className="text-2xl font-bold text-primary">
+                                            {preview.representantes ? Object.keys(preview.representantes).length : 0}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">Representantes</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Samples */}
+                        {preview?.receitas_sample && preview.receitas_sample.length > 0 && (
                             <div>
                                 <p className="text-sm font-medium text-foreground mb-2">Amostra de Receitas:</p>
                                 <div className="bg-muted/30 rounded-md p-3 space-y-1">
-                                    {preview.receitas_sample.map((file, idx) => (
+                                    {preview.receitas_sample.slice(0, 3).map((file, idx) => (
                                         <p key={idx} className="text-xs text-muted-foreground font-mono">
                                             {file}
                                         </p>
@@ -338,11 +296,11 @@ export function ImportarPrestacaoCont() {
                             </div>
                         )}
 
-                        {preview.despesas_sample && preview.despesas_sample.length > 0 && (
+                        {preview?.despesas_sample && preview.despesas_sample.length > 0 && (
                             <div>
                                 <p className="text-sm font-medium text-foreground mb-2">Amostra de Despesas:</p>
                                 <div className="bg-muted/30 rounded-md p-3 space-y-1">
-                                    {preview.despesas_sample.map((file, idx) => (
+                                    {preview.despesas_sample.slice(0, 3).map((file, idx) => (
                                         <p key={idx} className="text-xs text-muted-foreground font-mono">
                                             {file}
                                         </p>
@@ -350,97 +308,30 @@ export function ImportarPrestacaoCont() {
                                 </div>
                             </div>
                         )}
-                    </div>
-                )}
-
-                {step === 4 && (
-                    <div className="space-y-6">
-                        {isImporting ? (
-                            <>
-                                <div>
-                                    <h2 className="text-xl font-semibold mb-2 text-foreground">
-                                        Importando Dados...
-                                    </h2>
-                                </div>
-                                <ImportProgressBar
-                                    isImporting={isImporting}
-                                    currentStep={currentStep}
-                                />
-                            </>
-                        ) : importSummary ? (
-                            <>
-                                <div>
-                                    <h2 className="text-xl font-semibold mb-2 text-foreground">
-                                        Resultado da Importação
-                                    </h2>
-                                </div>
-                                <ImportSummary
-                                    summary={importSummary}
-                                    onClose={handleClose}
-                                    onViewRecords={handleViewRecords}
-                                />
-                            </>
-                        ) : null}
                     </div>
                 )}
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 flex-wrap">
-                {step > 1 && step < 4 && (
+            {selectedFile && !isImporting && !importSummary && (
+                <div className="flex gap-3 flex-wrap justify-end">
                     <Button
                         variant="outline"
-                        onClick={() => setStep(step - 1)}
+                        onClick={handleClearFile}
                         disabled={isLoading}
                     >
-                        <ChevronLeft className="h-4 w-4 mr-2" />
-                        Voltar
+                        Cancelar
                     </Button>
-                )}
-
-                {step === 1 && (
-                    <Button
-                        onClick={handleValidate}
-                        disabled={!selectedFile || isLoading}
-                        className="ml-auto"
-                    >
-                        Próximo
-                        <ChevronRight className="h-4 w-4 ml-2" />
-                    </Button>
-                )}
-
-                {step === 2 && validation && validation.valid && (
-                    <Button
-                        onClick={handlePreview}
-                        disabled={isLoading}
-                        className="ml-auto"
-                    >
-                        Visualizar
-                        <ChevronRight className="h-4 w-4 ml-2" />
-                    </Button>
-                )}
-
-                {step === 3 && preview && (
                     <Button
                         onClick={handleExecuteImport}
-                        disabled={isImporting}
-                        className="ml-auto bg-green-600 hover:bg-green-700"
+                        disabled={isLoading || !preview}
+                        className="bg-green-600 hover:bg-green-700"
                     >
                         Importar Agora
                         <ChevronRight className="h-4 w-4 ml-2" />
                     </Button>
-                )}
-
-                {step === 4 && importSummary && !isImporting && (
-                    <Button
-                        variant="outline"
-                        onClick={handleClose}
-                        className="ml-auto"
-                    >
-                        Fechar
-                    </Button>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 }
