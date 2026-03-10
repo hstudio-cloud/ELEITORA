@@ -24,9 +24,9 @@ export function ImportarPrestacaoCont() {
     const [validationErrors, setValidationErrors] = useState([]);
 
     const handleFileSelected = (file) => {
-        // Validate file size (500MB max)
-        if (file.size > 500 * 1024 * 1024) {
-            toast.error('Arquivo muito grande (máx 500MB)');
+        // Validate file size (2GB max)
+        if (file.size > 2 * 1024 * 1024 * 1024) {
+            toast.error('Arquivo muito grande (máx 2GB)');
             return;
         }
 

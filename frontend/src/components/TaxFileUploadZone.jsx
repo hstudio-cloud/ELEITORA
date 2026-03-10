@@ -60,7 +60,7 @@ export function TaxFileUploadZone({ onFileSelected, isLoading }) {
                     Clique para escolher ou arraste e solte o arquivo aqui
                 </p>
                 <p className="text-xs text-muted-foreground">
-                    Formato: ZIP ou RAR (máx 500MB)
+                    Formato: ZIP ou RAR (máx 2GB)
                 </p>
                 <input
                     ref={fileInputRef}
