@@ -13,13 +13,17 @@ node_modules/
 .env.local
 .env.*.local
 
-# Legacy or deprecated files
+# Legacy or deprecated files and directories
 **/componentes/
 **/Componentes/
+**/componente/
+**/component-old/
 src/componentes/
 src/Componentes/
 **/*FlutuanteFlora*
 **/*flutuanteFlora*
+**/*Flutuante*
+**/*flutuante*
 
 # Generated files
 *.min.js
