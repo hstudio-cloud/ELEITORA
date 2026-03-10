@@ -404,6 +404,34 @@ app = FastAPI(title="Eleitora 360 API", version="1.0.0")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
+# Health check endpoint to diagnose module loading
+@app.get("/api/health")
+async def health_check():
+    """Check API health and module availability"""
+    diagnostics = {
+        "status": "ok",
+        "modules": {
+            "pdf": PDF_AVAILABLE,
+            "pdf_text_extraction": PDF_TEXT_EXTRACTION_AVAILABLE,
+            "resend": RESEND_AVAILABLE,
+            "ofx": OFX_AVAILABLE,
+            "tse_import": TSE_IMPORT_AVAILABLE
+        }
+    }
+
+    # Try to import tse_import if it failed
+    if not TSE_IMPORT_AVAILABLE:
+        try:
+            from tse_import import TSEImportManager
+            diagnostics["tse_import_error"] = "Module exists but failed to import"
+        except ImportError as e:
+            diagnostics["tse_import_error"] = f"ImportError: {str(e)}"
+            diagnostics["tse_import_detail"] = "pdfplumber missing or other dependency error"
+        except Exception as e:
+            diagnostics["tse_import_error"] = f"Exception: {str(e)}"
+
+    return diagnostics
+
 # ============== VALIDATION HELPERS ==============
 def validate_cpf(cpf: str) -> bool:
     """Validate Brazilian CPF"""

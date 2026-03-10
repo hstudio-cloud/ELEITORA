@@ -42,7 +42,8 @@ export function ImportarPrestacaoCont() {
             formData.append('file', file);
 
             const response = await axios.post(`${API}/import/tse/preview-file`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers: { 'Content-Type': 'multipart/form-data' },
+                timeout: 60000  // 60 seconds timeout
             });
 
             if (response.data.valid) {
@@ -87,7 +88,8 @@ export function ImportarPrestacaoCont() {
             formData.append('campaign_id', user.id);
 
             const response = await axios.post(`${API}/import/tse/execute-file`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers: { 'Content-Type': 'multipart/form-data' },
+                timeout: 120000  // 120 seconds timeout for actual import
             });
 
             setImportSummary(response.data);
