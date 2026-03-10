@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Production files
+/build/
+/dist/
+
+# Testing
+/coverage/
+
+# Misc
+.env
+.env.local
+.env.*.local
+
+# Legacy or deprecated files
+**/componentes/
+**/Componentes/
+src/componentes/
+src/Componentes/
+**/*FlutuanteFlora*
+**/*flutuanteFlora*
+
+# Generated files
+*.min.js
+*.min.css
