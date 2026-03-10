@@ -1,11 +1,8 @@
 import { useState, useRef } from 'react';
-import { Upload, X, FileArchive } from 'lucide-react';
-import { Button } from './ui/button';
-import { toast } from 'sonner';
+import { Upload } from 'lucide-react';
 
 export function TaxFileUploadZone({ onFileSelected, isLoading }) {
     const [dragActive, setDragActive] = useState(false);
-    const [selectedFile, setSelectedFile] = useState(null);
     const fileInputRef = useRef(null);
 
     const handleDrag = (e) => {
@@ -18,24 +15,6 @@ export function TaxFileUploadZone({ onFileSelected, isLoading }) {
         }
     };
 
-    const validateFile = (file) => {
-        const validExtensions = ['.zip', '.rar', '.7z'];
-        const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-
-        if (!validExtensions.includes(fileExtension)) {
-            toast.error('Tipos aceitos: ZIP, RAR ou 7Z');
-            return false;
-        }
-
-        // Max 500MB
-        if (file.size > 500 * 1024 * 1024) {
-            toast.error('Arquivo muito grande (máx 500MB)');
-            return false;
-        }
-
-        return true;
-    };
-
     const handleDrop = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -44,11 +23,7 @@ export function TaxFileUploadZone({ onFileSelected, isLoading }) {
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
             const file = files[0];
-            if (validateFile(file)) {
-                setSelectedFile(file);
-                onFileSelected(file);
-                toast.success(`Arquivo selecionado: ${file.name}`);
-            }
+            onFileSelected(file);
         }
     };
 
@@ -56,23 +31,12 @@ export function TaxFileUploadZone({ onFileSelected, isLoading }) {
         const files = e.target.files;
         if (files && files.length > 0) {
             const file = files[0];
-            if (validateFile(file)) {
-                setSelectedFile(file);
-                onFileSelected(file);
-                toast.success(`Arquivo selecionado: ${file.name}`);
-            }
+            onFileSelected(file);
         }
     };
 
     const handleClick = () => {
         fileInputRef.current?.click();
-    };
-
-    const clearFile = () => {
-        setSelectedFile(null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
     };
 
     return (
@@ -96,52 +60,25 @@ export function TaxFileUploadZone({ onFileSelected, isLoading }) {
                     Clique para escolher ou arraste e solte o arquivo aqui
                 </p>
                 <p className="text-xs text-muted-foreground">
-                    Formatos aceitos: ZIP, RAR, 7Z (máx 500MB)
+                    Formato: ZIP ou RAR (máx 500MB)
                 </p>
                 <input
                     ref={fileInputRef}
                     type="file"
                     onChange={handleChange}
                     disabled={isLoading}
-                    accept=".zip,.rar,.7z"
                     className="hidden"
                 />
             </div>
-
-            {/* Selected File Display */}
-            {selectedFile && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <FileArchive className="h-5 w-5 text-blue-600" />
-                            <div>
-                                <p className="text-sm font-medium text-blue-900">{selectedFile.name}</p>
-                                <p className="text-xs text-blue-700">
-                                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                                </p>
-                            </div>
-                        </div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={clearFile}
-                            disabled={isLoading}
-                            className="text-blue-600 hover:text-blue-700"
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-            )}
 
             {/* Instructions */}
             <div className="bg-muted/50 rounded-md p-4 border border-border">
                 <p className="text-sm font-medium mb-2 text-foreground">Como funciona:</p>
                 <ul className="text-xs space-y-1 text-muted-foreground">
-                    <li>✓ Faça download da prestação de contas do portal TSE</li>
-                    <li>✓ O arquivo virá em ZIP ou RAR com a pasta ATSEPJE_XXXXX</li>
-                    <li>✓ Selecione o arquivo ZIP/RAR aqui ou arraste para esta área</li>
-                    <li>✓ O sistema irá descompactar e processar automaticamente</li>
+                    <li>✓ Download da prestação de contas do portal TSE</li>
+                    <li>✓ Arquivo virá em ZIP ou RAR com pasta ATSEPJE_XXXXX</li>
+                    <li>✓ Selecione o arquivo ou arraste para esta área</li>
+                    <li>✓ Sistema descompactará e processará automaticamente</li>
                 </ul>
             </div>
         </div>

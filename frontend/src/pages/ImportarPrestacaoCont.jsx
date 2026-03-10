@@ -24,6 +24,12 @@ export function ImportarPrestacaoCont() {
     const [validationErrors, setValidationErrors] = useState([]);
 
     const handleFileSelected = (file) => {
+        // Validate file size (500MB max)
+        if (file.size > 500 * 1024 * 1024) {
+            toast.error('Arquivo muito grande (máx 500MB)');
+            return;
+        }
+
         setSelectedFile(file);
         // Automatically load preview when file is selected
         loadPreview(file);
@@ -42,7 +48,7 @@ export function ImportarPrestacaoCont() {
             if (response.data.valid) {
                 setPreview(response.data.preview);
                 setValidationErrors([]);
-                toast.success('Arquivo validado com sucesso!');
+                toast.success(`Arquivo validado: ${file.name}`);
             } else {
                 setValidationErrors(response.data.errors || []);
                 toast.error('Arquivo inválido');
@@ -72,6 +78,7 @@ export function ImportarPrestacaoCont() {
         }
 
         setIsImporting(true);
+        toast.loading('Importando dados...');
 
         try {
             setCurrentStep('Descompactando arquivo');
@@ -85,6 +92,7 @@ export function ImportarPrestacaoCont() {
 
             setImportSummary(response.data);
             setCurrentStep('Concluído');
+            toast.success('Importação concluída com sucesso!');
         } catch (error) {
             const message = error.response?.data?.detail || 'Erro ao executar importação';
             toast.error(message);
