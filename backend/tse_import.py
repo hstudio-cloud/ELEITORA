@@ -463,79 +463,115 @@ class TSEImportManager:
                 }
 
     def extract_all_data(self) -> Tuple[List[Dict], List[Dict], List[Dict]]:
-        """Extract data from dados.info JSON - documents are stored in PDFs for reference only"""
+        """Extract data from dados.info JSON - best effort approach"""
         import re
 
         receipts = []
         expenses = []
         bank_data = []
+        warnings = []
 
         # Helper to extract amount from description string
         def extract_amount(description: str) -> float:
-            match = re.search(r'R\$\s*(\d+\.?\d*,?\d*)', str(description))
-            if match:
-                amount_str = match.group(1).replace(".", "").replace(",", ".")
-                try:
+            try:
+                match = re.search(r'R\$\s*(\d+\.?\d*,?\d*)', str(description))
+                if match:
+                    amount_str = match.group(1).replace(".", "").replace(",", ".")
                     return float(amount_str)
-                except:
-                    return 0.0
+            except:
+                pass
             return 0.0
 
         # Helper to extract CPF/CNPJ
         def extract_cpf_cnpj(description: str) -> str:
-            cpf_match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', str(description))
-            if cpf_match:
-                return cpf_match.group(1)
-            cnpj_match = re.search(r'(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})', str(description))
-            if cnpj_match:
-                return cnpj_match.group(1)
-            # Try without formatting patterns
-            digits = re.sub(r'\D', '', str(description))
-            if len(digits) >= 11:
-                return digits
+            try:
+                cpf_match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', str(description))
+                if cpf_match:
+                    return cpf_match.group(1)
+                cnpj_match = re.search(r'(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})', str(description))
+                if cnpj_match:
+                    return cnpj_match.group(1)
+                # Extract digits only
+                digits = re.sub(r'\D', '', str(description))
+                if len(digits) >= 11:
+                    return digits
+            except:
+                pass
             return ""
 
-        # Extract receitas from dados.info
-        if "arquivos" in self.metadata and "RECEITAS" in self.metadata["arquivos"]:
-            for receita in self.metadata["arquivos"]["RECEITAS"]:
-                description = receita.get("descricao", "")
-                codigo = receita.get("codigo", "")
+        # Try to extract receitas from dados.info
+        try:
+            if "arquivos" in self.metadata and "RECEITAS" in self.metadata["arquivos"]:
+                for receita in self.metadata["arquivos"]["RECEITAS"]:
+                    try:
+                        description = receita.get("descricao", "")
+                        if not description:
+                            continue
 
-                receipts.append({
-                    "description": description,
-                    "donor_name": description.split("_")[0] if "_" in description else "TSE",
-                    "donor_cpf_cnpj": extract_cpf_cnpj(description),
-                    "amount": extract_amount(description),
-                    "date": "",
-                    "tipo_receita": "outros",
-                    "tipo_doador": "pessoa_fisica",
-                    "forma_recebimento": "deposito"
-                })
+                        receipts.append({
+                            "description": description,
+                            "donor_name": description.split("_")[0] if "_" in description else "TSE",
+                            "donor_cpf_cnpj": extract_cpf_cnpj(description),
+                            "amount": extract_amount(description),
+                            "date": "",
+                            "tipo_receita": "outros",
+                            "tipo_doador": "pessoa_fisica",
+                            "forma_recebimento": "deposito"
+                        })
+                    except Exception as e:
+                        print(f"Aviso ao processar receita: {e}")
+                        continue
+            else:
+                warnings.append("Nenhuma receita encontrada em dados.info")
+        except Exception as e:
+            warnings.append(f"Erro ao processar receitas: {str(e)}")
 
-        # Extract despesas from dados.info
-        if "arquivos" in self.metadata and "DESPESAS" in self.metadata["arquivos"]:
-            for despesa in self.metadata["arquivos"]["DESPESAS"]:
-                description = despesa.get("descricao", "")
-                codigo = despesa.get("codigo", "")
+        # Try to extract despesas from dados.info
+        try:
+            if "arquivos" in self.metadata and "DESPESAS" in self.metadata["arquivos"]:
+                for despesa in self.metadata["arquivos"]["DESPESAS"]:
+                    try:
+                        description = despesa.get("descricao", "")
+                        if not description:
+                            continue
 
-                expenses.append({
-                    "description": description,
-                    "supplier_name": description.split("_")[0] if "_" in description else "TSE",
-                    "supplier_cpf_cnpj": extract_cpf_cnpj(description),
-                    "amount": extract_amount(description),
-                    "date": "",
-                    "payment_status": "pago",
-                    "tipo_pagamento": "transferencia",
-                    "category": "outros"
-                })
+                        expenses.append({
+                            "description": description,
+                            "supplier_name": description.split("_")[0] if "_" in description else "TSE",
+                            "supplier_cpf_cnpj": extract_cpf_cnpj(description),
+                            "amount": extract_amount(description),
+                            "date": "",
+                            "payment_status": "pago",
+                            "tipo_pagamento": "transferencia",
+                            "category": "outros"
+                        })
+                    except Exception as e:
+                        print(f"Aviso ao processar despesa: {e}")
+                        continue
+            else:
+                warnings.append("Nenhuma despesa encontrada em dados.info")
+        except Exception as e:
+            warnings.append(f"Erro ao processar despesas: {str(e)}")
 
-        # Extract banco data
-        if "arquivos" in self.metadata and "EXTRATOS_BANCARIOS" in self.metadata["arquivos"]:
-            for banco in self.metadata["arquivos"]["EXTRATOS_BANCARIOS"]:
-                bank_data.append({
-                    "filename": banco.get("codigo", banco.get("descricao", "extrato.pdf")),
-                    "raw_text": banco.get("descricao", "")
-                })
+        # Try to extract banco data
+        try:
+            if "arquivos" in self.metadata and "EXTRATOS_BANCARIOS" in self.metadata["arquivos"]:
+                for banco in self.metadata["arquivos"]["EXTRATOS_BANCARIOS"]:
+                    try:
+                        bank_data.append({
+                            "filename": banco.get("codigo", banco.get("descricao", "extrato.pdf")),
+                            "raw_text": banco.get("descricao", "")
+                        })
+                    except Exception as e:
+                        print(f"Aviso ao processar banco: {e}")
+                        continue
+            else:
+                warnings.append("Nenhum extrato bancário encontrado em dados.info")
+        except Exception as e:
+            warnings.append(f"Erro ao processar extratos: {str(e)}")
+
+        # Store warnings for reporting
+        self.extraction_warnings = warnings
 
         return receipts, expenses, bank_data
 
