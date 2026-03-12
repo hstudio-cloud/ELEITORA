@@ -145,25 +145,73 @@ class PDFExtractor:
     """Extract structured data from TSE PDF files"""
 
     @staticmethod
+    def parse_amount(value: str) -> float:
+        """Parse amount string to float, handling various formats"""
+        if not value:
+            return 0.0
+        try:
+            # Remove non-numeric characters except comma and dot
+            cleaned = ''.join(c for c in value if c.isdigit() or c in '.,')
+            # Handle both 1,000.00 and 1.000,00 formats
+            if ',' in cleaned and '.' in cleaned:
+                # Both present, determine which is separator
+                if cleaned.rindex(',') > cleaned.rindex('.'):
+                    # Format: 1.000,00 (Brazilian)
+                    cleaned = cleaned.replace('.', '').replace(',', '.')
+                else:
+                    # Format: 1,000.00 (English)
+                    cleaned = cleaned.replace(',', '')
+            elif ',' in cleaned:
+                # Only comma - could be separator or decimal
+                if cleaned.count(',') == 1 and len(cleaned.split(',')[1]) == 2:
+                    # Likely decimal (ex: 1500,00)
+                    cleaned = cleaned.replace(',', '.')
+                else:
+                    # Likely thousands separator
+                    cleaned = cleaned.replace(',', '')
+            return float(cleaned)
+        except:
+            return 0.0
+
+    @staticmethod
     def extract_receita_data(pdf_path: str) -> List[Dict[str, Any]]:
-        """Extract revenue/donation data from PDF"""
+        """Extract revenue/donation data from PDF with proper structure"""
         receipts = []
 
         try:
             with pdfplumber.open(pdf_path) as pdf:
-                for page in pdf.pages:
-                    text = page.extract_text()
+                for page_num, page in enumerate(pdf.pages):
                     tables = page.extract_tables()
 
                     if tables:
                         for table in tables:
-                            # Parse table data
-                            for row in table[1:]:  # Skip header
-                                if len(row) >= 4:
-                                    receipts.append({
-                                        "text": text,
-                                        "raw_row": row
-                                    })
+                            # Skip header row (usually first row)
+                            header = table[0] if table else []
+                            data_rows = table[1:] if len(table) > 1 else []
+
+                            for row in data_rows:
+                                if not row or len(row) < 3:
+                                    continue
+
+                                # Parse based on typical TSE format: Name, CPF/CNPJ, Amount, Date, Type
+                                try:
+                                    record = {
+                                        "description": str(row[0] or "").strip() if len(row) > 0 else "",
+                                        "donor_name": str(row[0] or "").strip() if len(row) > 0 else "",
+                                        "donor_cpf_cnpj": str(row[1] or "").strip() if len(row) > 1 else "",
+                                        "amount": PDFExtractor.parse_amount(str(row[2] or "") if len(row) > 2 else "0"),
+                                        "date": str(row[3] or "").strip() if len(row) > 3 else "",
+                                        "tipo_receita": "outros",
+                                        "tipo_doador": "pessoa_fisica",
+                                        "forma_recebimento": "deposito"
+                                    }
+
+                                    # Only add if has meaningful data
+                                    if record["amount"] > 0 or record["donor_name"]:
+                                        receipts.append(record)
+                                except Exception as row_error:
+                                    continue
+
         except Exception as e:
             print(f"Error extracting receipts from {pdf_path}: {e}")
 
@@ -171,23 +219,43 @@ class PDFExtractor:
 
     @staticmethod
     def extract_despesa_data(pdf_path: str) -> List[Dict[str, Any]]:
-        """Extract expense data from PDF"""
+        """Extract expense data from PDF with proper structure"""
         expenses = []
 
         try:
             with pdfplumber.open(pdf_path) as pdf:
-                for page in pdf.pages:
-                    text = page.extract_text()
+                for page_num, page in enumerate(pdf.pages):
                     tables = page.extract_tables()
 
                     if tables:
                         for table in tables:
-                            for row in table[1:]:  # Skip header
-                                if len(row) >= 4:
-                                    expenses.append({
-                                        "text": text,
-                                        "raw_row": row
-                                    })
+                            # Skip header row
+                            header = table[0] if table else []
+                            data_rows = table[1:] if len(table) > 1 else []
+
+                            for row in data_rows:
+                                if not row or len(row) < 3:
+                                    continue
+
+                                # Parse based on typical TSE format: Supplier, CPF/CNPJ, Amount, Date, Type
+                                try:
+                                    record = {
+                                        "description": str(row[0] or "").strip() if len(row) > 0 else "",
+                                        "supplier_name": str(row[0] or "").strip() if len(row) > 0 else "",
+                                        "supplier_cpf_cnpj": str(row[1] or "").strip() if len(row) > 1 else "",
+                                        "amount": PDFExtractor.parse_amount(str(row[2] or "") if len(row) > 2 else "0"),
+                                        "date": str(row[3] or "").strip() if len(row) > 3 else "",
+                                        "payment_status": "pago",
+                                        "tipo_pagamento": "transferencia",
+                                        "category": "outros"
+                                    }
+
+                                    # Only add if has meaningful data
+                                    if record["amount"] > 0 or record["supplier_name"]:
+                                        expenses.append(record)
+                                except Exception as row_error:
+                                    continue
+
         except Exception as e:
             print(f"Error extracting expenses from {pdf_path}: {e}")
 
@@ -198,8 +266,11 @@ class PDFExtractor:
         """Extract bank statement data from PDF"""
         try:
             with pdfplumber.open(pdf_path) as pdf:
-                first_page_text = pdf.pages[0].extract_text()
-                return {"raw_text": first_page_text}
+                first_page_text = pdf.pages[0].extract_text() if pdf.pages else ""
+                return {
+                    "filename": Path(pdf_path).name,
+                    "raw_text": first_page_text
+                }
         except Exception as e:
             print(f"Error extracting bank data from {pdf_path}: {e}")
 
