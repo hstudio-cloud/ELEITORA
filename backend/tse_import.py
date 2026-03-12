@@ -175,15 +175,21 @@ class PDFExtractor:
 
     @staticmethod
     def extract_receita_data(pdf_path: str) -> List[Dict[str, Any]]:
-        """Extract revenue/donation data from PDF with proper structure"""
+        """
+        Extract revenue/donation data from PDF.
+        Note: TSE PDFs are often scanned images without extractable text.
+        """
         receipts = []
 
         try:
             with pdfplumber.open(pdf_path) as pdf:
+                tables_found = False
+
                 for page_num, page in enumerate(pdf.pages):
                     tables = page.extract_tables()
 
                     if tables:
+                        tables_found = True
                         for table in tables:
                             # Skip header row (usually first row)
                             header = table[0] if table else []
@@ -193,7 +199,6 @@ class PDFExtractor:
                                 if not row or len(row) < 3:
                                     continue
 
-                                # Parse based on typical TSE format: Name, CPF/CNPJ, Amount, Date, Type
                                 try:
                                     record = {
                                         "description": str(row[0] or "").strip() if len(row) > 0 else "",
@@ -212,6 +217,20 @@ class PDFExtractor:
                                 except Exception as row_error:
                                     continue
 
+                # If no tables found, PDF is likely a scanned image - create placeholder
+                if not tables_found and not receipts:
+                    filename = Path(pdf_path).name
+                    receipts.append({
+                        "description": f"Documento scaneado: {filename}",
+                        "donor_name": "Importado do TSE (documento em imagem)",
+                        "donor_cpf_cnpj": "",
+                        "amount": 0.0,
+                        "date": "",
+                        "tipo_receita": "outros",
+                        "tipo_doador": "pessoa_fisica",
+                        "forma_recebimento": "deposito"
+                    })
+
         except Exception as e:
             print(f"Error extracting receipts from {pdf_path}: {e}")
 
@@ -219,15 +238,21 @@ class PDFExtractor:
 
     @staticmethod
     def extract_despesa_data(pdf_path: str) -> List[Dict[str, Any]]:
-        """Extract expense data from PDF with proper structure"""
+        """
+        Extract expense data from PDF.
+        Note: TSE PDFs are often scanned images without extractable text.
+        """
         expenses = []
 
         try:
             with pdfplumber.open(pdf_path) as pdf:
+                tables_found = False
+
                 for page_num, page in enumerate(pdf.pages):
                     tables = page.extract_tables()
 
                     if tables:
+                        tables_found = True
                         for table in tables:
                             # Skip header row
                             header = table[0] if table else []
@@ -237,7 +262,6 @@ class PDFExtractor:
                                 if not row or len(row) < 3:
                                     continue
 
-                                # Parse based on typical TSE format: Supplier, CPF/CNPJ, Amount, Date, Type
                                 try:
                                     record = {
                                         "description": str(row[0] or "").strip() if len(row) > 0 else "",
@@ -255,6 +279,20 @@ class PDFExtractor:
                                         expenses.append(record)
                                 except Exception as row_error:
                                     continue
+
+                # If no tables found, PDF is likely a scanned image - create placeholder
+                if not tables_found and not expenses:
+                    filename = Path(pdf_path).name
+                    expenses.append({
+                        "description": f"Documento scaneado: {filename}",
+                        "supplier_name": "Importado do TSE (documento em imagem)",
+                        "supplier_cpf_cnpj": "",
+                        "amount": 0.0,
+                        "date": "",
+                        "payment_status": "pago",
+                        "tipo_pagamento": "transferencia",
+                        "category": "outros"
+                    })
 
         except Exception as e:
             print(f"Error extracting expenses from {pdf_path}: {e}")
