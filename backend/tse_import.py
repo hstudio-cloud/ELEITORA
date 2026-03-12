@@ -398,9 +398,15 @@ class TSEImportManager:
             return False, [f"Erro ao ler dados.info: {str(e)}"]
 
     def preview(self, limit: int = 5) -> Dict[str, Any]:
-        """Preview data that will be imported"""
+        """Preview data from dados.info JSON"""
         preview = {
-            "campaign_info": self.metadata.get("candidateInfo", {}),
+            "campaign_info": {
+                "candidate_name": self.metadata.get("nome", ""),
+                "party": self.metadata.get("siglaPartido", ""),
+                "cnpj": self.metadata.get("numeroCnpj", ""),
+                "uf": self.metadata.get("uf", ""),
+                "year": self.metadata.get("anoEleicao", "")
+            },
             "receitas_count": 0,
             "receitas_sample": [],
             "despesas_count": 0,
@@ -412,28 +418,25 @@ class TSEImportManager:
             "total_amount_expenses": 0
         }
 
-        # Count and sample receipts
-        receitas_folder = self.folder_path / "RECEITAS"
-        if receitas_folder.exists():
-            pdf_files = list(receitas_folder.glob("*.pdf"))
-            preview["receitas_count"] = len(pdf_files)
-            preview["receitas_sample"] = [f.name for f in pdf_files[:limit]]
+        # Extract receitas from dados.info
+        if "arquivos" in self.metadata and "RECEITAS" in self.metadata["arquivos"]:
+            receitas_list = self.metadata["arquivos"]["RECEITAS"]
+            preview["receitas_count"] = len(receitas_list)
+            preview["receitas_sample"] = [r.get("descricao", r.get("codigo", ""))[:100] for r in receitas_list[:limit]]
 
-        # Count and sample expenses
-        despesas_folder = self.folder_path / "DESPESAS"
-        if despesas_folder.exists():
-            pdf_files = list(despesas_folder.glob("*.pdf"))
-            preview["despesas_count"] = len(pdf_files)
-            preview["despesas_sample"] = [f.name for f in pdf_files[:limit]]
+        # Extract despesas from dados.info
+        if "arquivos" in self.metadata and "DESPESAS" in self.metadata["arquivos"]:
+            despesas_list = self.metadata["arquivos"]["DESPESAS"]
+            preview["despesas_count"] = len(despesas_list)
+            preview["despesas_sample"] = [d.get("descricao", d.get("codigo", ""))[:100] for d in despesas_list[:limit]]
 
-        # Count bank statements
-        banco_folder = self.folder_path / "EXTRATOS_BANCARIOS"
-        if banco_folder.exists():
-            pdf_files = list(banco_folder.glob("*.pdf"))
-            preview["banco_count"] = len(pdf_files)
-            preview["banco_accounts"] = [f.name for f in pdf_files]
+        # Extract banco info
+        if "arquivos" in self.metadata and "EXTRATOS_BANCARIOS" in self.metadata["arquivos"]:
+            banco_list = self.metadata["arquivos"]["EXTRATOS_BANCARIOS"]
+            preview["banco_count"] = len(banco_list)
+            preview["banco_accounts"] = [b.get("descricao", b.get("codigo", "")) for b in banco_list]
 
-        # Load representantes info
+        # Load representantes
         self.load_representantes()
         preview["representantes"] = self.representantes_data
 
@@ -460,33 +463,78 @@ class TSEImportManager:
                 }
 
     def extract_all_data(self) -> Tuple[List[Dict], List[Dict], List[Dict]]:
-        """Extract all relevant data from PDFs"""
+        """Extract data from dados.info JSON - documents are stored in PDFs for reference only"""
+        import re
+
         receipts = []
         expenses = []
         bank_data = []
 
-        # Extract receipts
-        receitas_folder = self.folder_path / "RECEITAS"
-        if receitas_folder.exists():
-            for pdf in receitas_folder.glob("*.pdf"):
-                data = PDFExtractor.extract_receita_data(str(pdf))
-                receipts.extend(data)
+        # Helper to extract amount from description string
+        def extract_amount(description: str) -> float:
+            match = re.search(r'R\$\s*(\d+\.?\d*,?\d*)', str(description))
+            if match:
+                amount_str = match.group(1).replace(".", "").replace(",", ".")
+                try:
+                    return float(amount_str)
+                except:
+                    return 0.0
+            return 0.0
 
-        # Extract expenses
-        despesas_folder = self.folder_path / "DESPESAS"
-        if despesas_folder.exists():
-            for pdf in despesas_folder.glob("*.pdf"):
-                data = PDFExtractor.extract_despesa_data(str(pdf))
-                expenses.extend(data)
+        # Helper to extract CPF/CNPJ
+        def extract_cpf_cnpj(description: str) -> str:
+            cpf_match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', str(description))
+            if cpf_match:
+                return cpf_match.group(1)
+            cnpj_match = re.search(r'(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})', str(description))
+            if cnpj_match:
+                return cnpj_match.group(1)
+            # Try without formatting patterns
+            digits = re.sub(r'\D', '', str(description))
+            if len(digits) >= 11:
+                return digits
+            return ""
 
-        # Extract bank data
-        banco_folder = self.folder_path / "EXTRATOS_BANCARIOS"
-        if banco_folder.exists():
-            for pdf in banco_folder.glob("*.pdf"):
-                data = PDFExtractor.extract_banco_dados(str(pdf))
+        # Extract receitas from dados.info
+        if "arquivos" in self.metadata and "RECEITAS" in self.metadata["arquivos"]:
+            for receita in self.metadata["arquivos"]["RECEITAS"]:
+                description = receita.get("descricao", "")
+                codigo = receita.get("codigo", "")
+
+                receipts.append({
+                    "description": description,
+                    "donor_name": description.split("_")[0] if "_" in description else "TSE",
+                    "donor_cpf_cnpj": extract_cpf_cnpj(description),
+                    "amount": extract_amount(description),
+                    "date": "",
+                    "tipo_receita": "outros",
+                    "tipo_doador": "pessoa_fisica",
+                    "forma_recebimento": "deposito"
+                })
+
+        # Extract despesas from dados.info
+        if "arquivos" in self.metadata and "DESPESAS" in self.metadata["arquivos"]:
+            for despesa in self.metadata["arquivos"]["DESPESAS"]:
+                description = despesa.get("descricao", "")
+                codigo = despesa.get("codigo", "")
+
+                expenses.append({
+                    "description": description,
+                    "supplier_name": description.split("_")[0] if "_" in description else "TSE",
+                    "supplier_cpf_cnpj": extract_cpf_cnpj(description),
+                    "amount": extract_amount(description),
+                    "date": "",
+                    "payment_status": "pago",
+                    "tipo_pagamento": "transferencia",
+                    "category": "outros"
+                })
+
+        # Extract banco data
+        if "arquivos" in self.metadata and "EXTRATOS_BANCARIOS" in self.metadata["arquivos"]:
+            for banco in self.metadata["arquivos"]["EXTRATOS_BANCARIOS"]:
                 bank_data.append({
-                    "filename": pdf.name,
-                    "data": data
+                    "filename": banco.get("codigo", banco.get("descricao", "extrato.pdf")),
+                    "raw_text": banco.get("descricao", "")
                 })
 
         return receipts, expenses, bank_data
