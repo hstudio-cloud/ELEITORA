@@ -316,7 +316,7 @@ class PDFExtractor:
 
 
 class TSEImportValidator:
-    """Validate TSE import folder structure and content"""
+    """Validate TSE import folder structure and content - best effort mode"""
 
     REQUIRED_FOLDERS = ["RECEITAS", "DESPESAS", "EXTRATOS_BANCARIOS"]
     OPTIONAL_FOLDERS = [
@@ -326,36 +326,45 @@ class TSEImportValidator:
 
     @staticmethod
     def validate_folder_structure(folder_path: Path) -> Tuple[bool, List[str]]:
-        """Validate that TSE folder has correct structure"""
-        errors = []
+        """Validate TSE folder structure - best effort, never fails completely"""
+        warnings = []
 
         if not folder_path.exists():
             return False, [f"Pasta não encontrada: {folder_path}"]
 
-        # Check for dados.info
+        # Check for dados.info (but don't fail if missing)
         if not (folder_path / "dados.info").exists():
-            errors.append("Arquivo dados.info não encontrado")
+            warnings.append("Aviso: Arquivo dados.info não encontrado")
 
-        # Check for at least some required folders
+        # Check for required folders (but don't fail if missing)
         found_folders = [f for f in TSEImportValidator.REQUIRED_FOLDERS
                         if (folder_path / f).exists()]
 
         if not found_folders:
-            errors.append(f"Nenhuma pasta necessária encontrada. Esperado: {', '.join(TSEImportValidator.REQUIRED_FOLDERS)}")
+            warnings.append(f"Aviso: Nenhuma pasta padrão encontrada (esperado: {', '.join(TSEImportValidator.REQUIRED_FOLDERS)})")
+            # Don't return False - still allow import to proceed
 
-        return len(errors) == 0, errors
+        # Always succeed, just return warnings
+        return True, warnings
 
     @staticmethod
     def validate_metadata(metadata: Dict) -> Tuple[bool, List[str]]:
-        """Validate metadata from dados.info"""
-        errors = []
+        """Validate metadata - best effort, accept partial data"""
+        warnings = []
 
-        required_fields = ["electionCode", "candidateName", "candidateCPF"]
-        for field in required_fields:
-            if field not in metadata:
-                errors.append(f"Campo obrigatório faltando: {field}")
+        # Check for TSE standard fields (use actual field names from dados.info)
+        expected_fields = ["nome", "numeroCnpj", "anoEleicao", "arquivos"]
+        found_fields = [f for f in expected_fields if f in metadata]
 
-        return len(errors) == 0, errors
+        if not found_fields:
+            warnings.append("Aviso: Arquivo dados.info pode estar vazio ou inválido")
+
+        # Log what fields were found
+        actual_fields = list(metadata.keys())
+        print(f"Campos encontrados em dados.info: {actual_fields[:10]}")  # Log first 10
+
+        # Always succeed - allow import with whatever data we have
+        return True, warnings
 
 
 class TSEImportManager:
@@ -371,21 +380,25 @@ class TSEImportManager:
         self.representantes_data = {}
 
     def validate(self) -> Tuple[bool, List[str]]:
-        """Validate import folder"""
+        """Validate import folder - best effort mode"""
+        all_warnings = []
+
         # Check folder structure
-        is_valid, errors = TSEImportValidator.validate_folder_structure(self.folder_path)
-        if not is_valid:
-            return False, errors
+        is_valid, warnings = TSEImportValidator.validate_folder_structure(self.folder_path)
+        all_warnings.extend(warnings)
 
-        # Load and validate metadata
+        # Try to load metadata
         metadata_valid, meta_errors = self.load_metadata()
-        if not metadata_valid:
-            return False, meta_errors
+        if metadata_valid:
+            # Validate metadata content
+            is_valid, meta_warnings = TSEImportValidator.validate_metadata(self.metadata)
+            all_warnings.extend(meta_warnings)
+        else:
+            all_warnings.extend(meta_errors)
+            # Don't fail if metadata can't be loaded - we might still have zip contents
 
-        validation_errors, validation_warnings = [], []
-        is_valid, validation_errors = TSEImportValidator.validate_metadata(self.metadata)
-
-        return is_valid, validation_errors + (validation_warnings if not is_valid else [])
+        # Always return True in best-effort mode - return warnings instead of errors
+        return True, all_warnings
 
     def load_metadata(self) -> Tuple[bool, List[str]]:
         """Load and parse dados.info"""
