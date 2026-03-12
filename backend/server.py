@@ -8691,50 +8691,71 @@ def extract_tse_folder_from_zip(temp_dir: str) -> tuple[str, str]:
     temp_path = Path(temp_dir)
 
     # List all items in temp_dir
-    all_items = list(temp_path.iterdir())
-    folders = [f for f in all_items if f.is_dir()]
-    files = [f for f in all_items if f.is_file()]
+    try:
+        all_items = list(temp_path.iterdir())
+        folders = [f for f in all_items if f.is_dir()]
+        files = [f for f in all_items if f.is_file()]
 
-    logging.info(f"ZIP contents: {len(folders)} folders, {len(files)} files")
-    logging.info(f"Folders: {[f.name for f in folders]}")
-    logging.info(f"Files: {[f.name for f in files]}")
+        folder_names = [f.name for f in folders]
+        file_names = [f.name for f in files]
 
-    # Check if temp_dir itself contains required TSE folders
-    tse_required_folders = ["RECEITAS", "DESPESAS"]
-    has_tse_folders = all(
-        (temp_path / folder).exists()
-        for folder in tse_required_folders
-    )
+        logging.info(f"ZIP contents: {len(folders)} pasta(s), {len(files)} arquivo(s)")
+        logging.info(f"Pastas: {folder_names}")
+        logging.info(f"Arquivos: {file_names}")
 
-    if has_tse_folders:
-        # ZIP contains TSE folders directly at root
-        return str(temp_path), "ZIP contém estrutura TSE na raiz"
+        # Check if temp_dir itself contains RECEITAS folder
+        if (temp_path / "RECEITAS").exists():
+            logging.info("Encontrado: RECEITAS na raiz do ZIP")
+            return str(temp_path), "ZIP contém pasta RECEITAS na raiz"
 
-    # Look for ATSEPJE_* folder
-    for folder in folders:
-        if folder.name.upper().startswith("ATSEPJE"):
-            # Check if this folder contains the required subfolders
-            subfolder_list = list(folder.iterdir())
-            subfolder_names = [f.name.upper() for f in subfolder_list if f.is_dir()]
+        # Look for ATSEPJE_* folder (most common case)
+        atsepje_folders = [f for f in folders if f.name.upper().startswith("ATSEPJE")]
 
-            if "RECEITAS" in subfolder_names or "DESPESAS" in subfolder_names:
-                return str(folder), f"Encontrada pasta TSE: {folder.name}"
+        if atsepje_folders:
+            for atsepje_folder in atsepje_folders:
+                logging.info(f"Procurando em pasta ATSEPJE: {atsepje_folder.name}")
 
-    # If no ATSEPJE folder, look for any folder that contains required subfolders
-    for folder in folders:
-        subfolder_list = list(folder.iterdir())
-        subfolder_names = [f.name.upper() for f in subfolder_list if f.is_dir()]
+                try:
+                    subfolder_list = list(atsepje_folder.iterdir())
+                    subfolder_names = [f.name.upper() for f in subfolder_list if f.is_dir()]
 
-        if "RECEITAS" in subfolder_names or "DESPESAS" in subfolder_names:
-            return str(folder), f"Encontrada pasta TSE: {folder.name}"
+                    logging.info(f"Subpastas em {atsepje_folder.name}: {[f.name for f in subfolder_list if f.is_dir()]}")
 
-    # Nothing found - provide detailed error message
-    error_msg = f"Estrutura TSE não encontrada. ZIP contém: {[f.name for f in folders]}"
-    logging.error(error_msg)
-    raise HTTPException(
-        status_code=400,
-        detail=error_msg
-    )
+                    if "RECEITAS" in subfolder_names:
+                        logging.info(f"Encontrado: RECEITAS em {atsepje_folder.name}")
+                        return str(atsepje_folder), f"Encontrada pasta {atsepje_folder.name}"
+                except Exception as e:
+                    logging.warning(f"Erro ao verificar {atsepje_folder.name}: {e}")
+                    continue
+
+        # If no ATSEPJE folder, look for any folder that contains RECEITAS or DESPESAS
+        for folder in folders:
+            try:
+                subfolder_list = list(folder.iterdir())
+                subfolder_names = [f.name.upper() for f in subfolder_list if f.is_dir()]
+
+                if "RECEITAS" in subfolder_names or "DESPESAS" in subfolder_names:
+                    logging.info(f"Encontrado: RECEITAS/DESPESAS em {folder.name}")
+                    return str(folder), f"Encontrada pasta {folder.name}"
+            except Exception as e:
+                logging.warning(f"Erro ao verificar pasta {folder.name}: {e}")
+                continue
+
+        # Nothing found - provide helpful error message
+        error_lines = [
+            "Estrutura TSE nao encontrada no ZIP",
+            f"ZIP contém {len(folders)} pasta(s): {', '.join(folder_names[:5])}",  # Show first 5
+            "Esperado: Pasta contendo RECEITAS e/ou DESPESAS"
+        ]
+        error_msg = " | ".join(error_lines)
+        logging.error(error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Erro ao processar ZIP: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Erro ao processar ZIP: {str(e)}")
 
 @api_router.post("/import/tse/validate-file")
 async def validate_tse_import_file(
