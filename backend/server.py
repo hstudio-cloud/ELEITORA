@@ -8677,6 +8677,65 @@ async def execute_tse_import(
 
 # File-based TSE Import endpoints (accept uploaded ZIP/RAR files)
 
+# ============== TSE IMPORT HELPERS ==============
+def extract_tse_folder_from_zip(temp_dir: str) -> tuple[str, str]:
+    """
+    Extract and locate the TSE folder from ZIP.
+    Handles different ZIP structures:
+    - ATSEPJE_*/RECEITAS, ATSEPJE_*/DESPESAS, etc
+    - Direct RECEITAS, DESPESAS, etc at root
+
+    Returns:
+        Tuple of (folder_path, info_message)
+    """
+    temp_path = Path(temp_dir)
+
+    # List all items in temp_dir
+    all_items = list(temp_path.iterdir())
+    folders = [f for f in all_items if f.is_dir()]
+    files = [f for f in all_items if f.is_file()]
+
+    logging.info(f"ZIP contents: {len(folders)} folders, {len(files)} files")
+    logging.info(f"Folders: {[f.name for f in folders]}")
+    logging.info(f"Files: {[f.name for f in files]}")
+
+    # Check if temp_dir itself contains required TSE folders
+    tse_required_folders = ["RECEITAS", "DESPESAS"]
+    has_tse_folders = all(
+        (temp_path / folder).exists()
+        for folder in tse_required_folders
+    )
+
+    if has_tse_folders:
+        # ZIP contains TSE folders directly at root
+        return str(temp_path), "ZIP contém estrutura TSE na raiz"
+
+    # Look for ATSEPJE_* folder
+    for folder in folders:
+        if folder.name.upper().startswith("ATSEPJE"):
+            # Check if this folder contains the required subfolders
+            subfolder_list = list(folder.iterdir())
+            subfolder_names = [f.name.upper() for f in subfolder_list if f.is_dir()]
+
+            if "RECEITAS" in subfolder_names or "DESPESAS" in subfolder_names:
+                return str(folder), f"Encontrada pasta TSE: {folder.name}"
+
+    # If no ATSEPJE folder, look for any folder that contains required subfolders
+    for folder in folders:
+        subfolder_list = list(folder.iterdir())
+        subfolder_names = [f.name.upper() for f in subfolder_list if f.is_dir()]
+
+        if "RECEITAS" in subfolder_names or "DESPESAS" in subfolder_names:
+            return str(folder), f"Encontrada pasta TSE: {folder.name}"
+
+    # Nothing found - provide detailed error message
+    error_msg = f"Estrutura TSE não encontrada. ZIP contém: {[f.name for f in folders]}"
+    logging.error(error_msg)
+    raise HTTPException(
+        status_code=400,
+        detail=error_msg
+    )
+
 @api_router.post("/import/tse/validate-file")
 async def validate_tse_import_file(
     file: UploadFile = File(...),
@@ -8702,15 +8761,9 @@ async def validate_tse_import_file(
         else:
             raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados no momento")
 
-        # Find the folder (usually ATSEPJE_* folder inside the ZIP)
-        temp_path = Path(temp_dir)
-        folders = [f for f in temp_path.iterdir() if f.is_dir()]
-
-        if not folders:
-            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas. Certifique-se de que baixou o arquivo completo do TSE")
-
-        # Use the first folder found
-        extract_folder = str(folders[0])
+        # Find the TSE folder
+        extract_folder, info_msg = extract_tse_folder_from_zip(temp_dir)
+        logging.info(f"Validation: {info_msg}")
 
         # Validate the folder structure
         manager = TSEImportManager(extract_folder)
@@ -8766,17 +8819,9 @@ async def preview_tse_import_file(
         else:
             raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados no momento")
 
-        # Find the folder
-        temp_path = Path(temp_dir)
-        folders = [f for f in temp_path.iterdir() if f.is_dir()]
-
-        if not folders:
-            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas. Certifique-se de que baixou o arquivo completo do TSE")
-
-        extract_folder = str(folders[0])
-
-        # Log for debugging
-        logging.info(f"Extracted TSE folder: {extract_folder}")
+        # Find the TSE folder
+        extract_folder, info_msg = extract_tse_folder_from_zip(temp_dir)
+        logging.info(f"Preview: {info_msg}")
 
         # Validate folder structure
         manager = TSEImportManager(extract_folder)
@@ -8832,15 +8877,9 @@ async def execute_tse_import_file(
         else:
             raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados no momento")
 
-        # Find the folder
-        temp_path = Path(temp_dir)
-        folders = [f for f in temp_path.iterdir() if f.is_dir()]
-
-        if not folders:
-            raise HTTPException(status_code=400, detail="Arquivo ZIP não contém pastas. Certifique-se de que baixou o arquivo completo do TSE")
-
-        extract_folder = str(folders[0])
-        logging.info(f"Starting TSE import for campaign {campaign_id}")
+        # Find the TSE folder
+        extract_folder, info_msg = extract_tse_folder_from_zip(temp_dir)
+        logging.info(f"Execute: {info_msg} for campaign {campaign_id}")
 
         # Validate campaign exists
         campaign = await db.campaigns.find_one({"_id": campaign_id})
