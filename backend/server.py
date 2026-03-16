@@ -8712,7 +8712,7 @@ def extract_tse_folder_from_zip(temp_dir: str) -> tuple[str, str]:
             logging.info(f"Strategy 2 OK: Pasta ATSEPJE encontrada: {atsepje_folder.name}")
             return str(atsepje_folder), f"Pasta encontrada: {atsepje_folder.name}"
 
-        # Strategy 3: Look for any folder containing dados.info or RECEITAS/DESPESAS
+        # Strategy 3: Look for any folder containing dados.info or RECEITAS/DESPESAS (one level deep)
         for folder in folders:
             try:
                 subfolder_list = list(folder.iterdir())
@@ -8727,13 +8727,35 @@ def extract_tse_folder_from_zip(temp_dir: str) -> tuple[str, str]:
                 logging.debug(f"Verificacao falhou para {folder.name}: {e}")
                 continue
 
-        # Strategy 4: Use first folder with any content
+        # Strategy 4: Recursive search for dados.info (handles nested ZIPs)
+        try:
+            data_files = sorted(temp_path.rglob("dados.info"), key=lambda p: len(p.parts))
+            if data_files:
+                data_parent = data_files[0].parent
+                logging.info(f"Strategy 4 OK: dados.info encontrado em {data_parent}")
+                return str(data_parent), f"dados.info encontrado em {data_parent.name}"
+        except Exception as e:
+            logging.debug(f"Busca recursiva por dados.info falhou: {e}")
+
+        # Strategy 5: Recursive search for marker folders (RECEITAS/DESPESAS/EXTRATOS_BANCARIOS)
+        try:
+            marker_dirs = []
+            for marker in ["RECEITAS", "DESPESAS", "EXTRATOS_BANCARIOS"]:
+                marker_dirs.extend([p for p in temp_path.rglob(marker) if p.is_dir()])
+            if marker_dirs:
+                marker_parent = sorted(marker_dirs, key=lambda p: len(p.parts))[0].parent
+                logging.info(f"Strategy 5 OK: Pasta marcador encontrada em {marker_parent}")
+                return str(marker_parent), f"Pasta encontrada via marcador: {marker_parent.name}"
+        except Exception as e:
+            logging.debug(f"Busca recursiva por pastas marcador falhou: {e}")
+
+        # Strategy 6: Use first folder with any content
         if folders:
             for folder in folders:
                 try:
                     contents = list(folder.iterdir())
                     if contents:  # Has some content
-                        logging.warning(f"Strategy 4 (fallback): Usando pasta {folder.name} (tem conteudo)")
+                        logging.warning(f"Strategy 6 (fallback): Usando pasta {folder.name} (tem conteudo)")
                         return str(folder), f"Pasta encontrada (modo fallback): {folder.name}"
                 except:
                     continue
