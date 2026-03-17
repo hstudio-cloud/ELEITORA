@@ -57,7 +57,7 @@ const TOUR_STEPS = [
             title: 'Bem-vindo ao Eleitora 360',
             description: 'Este tour rápido mostra como organizar sua campanha e evitar erros na prestação de contas.',
             route: '/dashboard',
-            actionLabel: 'Ficar no Dashboard'
+            actionLabel: 'Ficar no Início'
         },
         {
             title: '1) Comece por Configurações',
@@ -104,7 +104,7 @@ const TOUR_STEPS = [
     ];
 
 
-export default function Dashboard() {
+export default function Início() {
     const [stats, setStats] = useState(null);
     const [campaign, setCampaign] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -209,7 +209,7 @@ export default function Dashboard() {
         }));
     };
 
-    const finishTour = () => {
+    const markTourDone = (silent = false) => {
         if (tourStorageKey) {
             localStorage.setItem(tourStorageKey, '1');
         }
@@ -222,20 +222,23 @@ export default function Dashboard() {
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
         }
-        toast.success('Tour concluído. Você pode reabrir quando quiser.');
+        if (!silent) {
+            toast.success('Tour concluído. Você pode reabrir quando quiser.');
+        }
+    };
+
+    const finishTour = () => {
+        markTourDone(false);
     };
 
     const skipTour = () => {
-        finishTour();
+        markTourDone(true);
     };
 
     const openCurrentTourStep = () => {
         const step = TOUR_STEPS[tourStep];
         if (!step?.route) return;
-        if (tourStorageKey) {
-            localStorage.setItem(tourStorageKey, '1');
-        }
-        setShowTour(false);
+        markTourDone(true);
         navigate(step.route);
     };
 
@@ -276,11 +279,11 @@ export default function Dashboard() {
 
     return (
         <Layout>
-            <div className="space-y-8" data-testid="dashboard-page">
+            <div className="space-y-8" data-testid="Início-page">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in">
                     <div>
-                        <h1 className="font-heading text-3xl font-bold">Dashboard</h1>
+                        <h1 className="font-heading text-3xl font-bold">Início</h1>
                         <p className="text-muted-foreground">
                             Campanha de {campaign.candidate_name} - {campaign.party}
                         </p>
@@ -700,7 +703,16 @@ export default function Dashboard() {
                 </Card>
             </div>
 
-            <Dialog open={showTour} onOpenChange={setShowTour}>
+            <Dialog
+                open={showTour}
+                onOpenChange={(open) => {
+                    if (!open && showTour) {
+                        markTourDone(true);
+                        return;
+                    }
+                    setShowTour(open);
+                }}
+            >
                 <DialogContent className="sm:max-w-xl" data-testid="eleitora-onboarding-tour">
                     <DialogHeader>
                         <DialogTitle className="flex items-center justify-between gap-3">
@@ -762,3 +774,8 @@ export default function Dashboard() {
         </Layout>
     );
 }
+
+
+
+
+
