@@ -6076,6 +6076,216 @@ async def get_tse_rules():
 # ============== VOICE ASSISTANT ROUTES ==============
 from voice_assistant import voice_assistant, RESPONSES
 
+async def _execute_voice_command_text(transcribed_text: str, current_user: dict) -> dict:
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
+
+    command, params = voice_assistant.parse_command(transcribed_text)
+
+    response_text = ""
+    action = None
+    action_data = None
+
+    if command == "greeting":
+        role = (current_user.get("role") or "").lower()
+        perfil = "contador" if "contador" in role else "candidato"
+        expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(500)
+        today = datetime.now(timezone.utc).date()
+        pending_expenses = [e for e in expenses if (e.get("payment_status") or "").lower() != "pago"]
+        due_soon = []
+        for e in pending_expenses:
+            try:
+                due = datetime.fromisoformat(str(e.get("date"))).date()
+                if 0 <= (due - today).days <= 7:
+                    due_soon.append(e)
+            except Exception:
+                continue
+        unsigned_contracts = [
+            c for c in contracts
+            if (c.get("status") or "").lower() not in {"assinado", "concluido", "finalizado"}
+        ]
+        response_text = (
+            f"Oi, {perfil}. Sou a Flora. "
+            f"Você tem {len(pending_expenses)} despesa(s) pendente(s), "
+            f"{len(due_soon)} pagamento(s) vencendo nos próximos 7 dias "
+            f"e {len(unsigned_contracts)} contrato(s) para finalizar. "
+            "Quer que eu te ajude a gerar uma despesa, criar um contrato ou revisar os vencimentos agora?"
+        )
+
+    elif command == "help":
+        response_text = RESPONSES["help"]
+
+    elif command == "query_saldo":
+        revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        total_rev = sum(r.get("amount", 0) for r in revenues)
+        total_exp = sum(e.get("amount", 0) for e in expenses)
+        balance = total_rev - total_exp
+        response_text = f"Seu saldo atual é de {voice_assistant.format_currency(balance)}. Total de receitas: {voice_assistant.format_currency(total_rev)}. Total de despesas: {voice_assistant.format_currency(total_exp)}."
+
+    elif command == "query_receitas":
+        revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        total = sum(r.get("amount", 0) for r in revenues)
+        response_text = f"Você tem {len(revenues)} receitas registradas, totalizando {voice_assistant.format_currency(total)}."
+
+    elif command == "query_despesas":
+        expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        total = sum(e.get("amount", 0) for e in expenses)
+        pending = sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pendente")
+        response_text = f"Você tem {len(expenses)} despesas registradas, totalizando {voice_assistant.format_currency(total)}. Despesas pendentes: {voice_assistant.format_currency(pending)}."
+
+    elif command == "query_resumo":
+        campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
+        revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
+
+        total_rev = sum(r.get("amount", 0) for r in revenues)
+        total_exp = sum(e.get("amount", 0) for e in expenses)
+        balance = total_rev - total_exp
+
+        response_text = f"Resumo da campanha de {campaign.get('candidate_name', 'candidato')}. "
+        response_text += f"Receitas: {voice_assistant.format_currency(total_rev)}. "
+        response_text += f"Despesas: {voice_assistant.format_currency(total_exp)}. "
+        response_text += f"Saldo: {voice_assistant.format_currency(balance)}. "
+        response_text += f"Você tem {len(contracts)} contratos registrados."
+
+    elif command == "query_contratos":
+        contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
+        response_text = f"Você tem {len(contracts)} contratos registrados."
+        if contracts:
+            total_value = sum(c.get("value", 0) for c in contracts)
+            response_text += f" Valor total: {voice_assistant.format_currency(total_value)}."
+
+    elif command == "query_pendentes":
+        contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
+        pending_docs = [c for c in contracts if c.get("template_type") and not c.get("attachments")]
+        if pending_docs:
+            response_text = f"Você tem {len(pending_docs)} contratos com documentos pendentes."
+        else:
+            response_text = "Todos os seus contratos têm a documentação completa."
+
+    elif command == "query_alertas":
+        expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        pending_exp = [e for e in expenses if e.get("payment_status") == "pendente"]
+        contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
+        pending_docs = len([c for c in contracts if c.get("template_type") and not c.get("attachments")])
+
+        alerts = []
+        if pending_exp:
+            alerts.append(f"{len(pending_exp)} despesas pendentes de pagamento")
+        if pending_docs:
+            alerts.append(f"{pending_docs} contratos com documentos faltando")
+
+        if alerts:
+            response_text = "Alertas: " + ". ".join(alerts) + "."
+        else:
+            response_text = "Não há alertas no momento. Tudo está em ordem."
+
+    elif command == "query_conformidade":
+        campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
+        expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        total_exp = sum(e.get("amount", 0) for e in expenses)
+        limite = campaign.get("limite_gastos", 0)
+
+        if limite > 0:
+            percentage = (total_exp / limite) * 100
+            if percentage >= 90:
+                response_text = f"Atenção! Seus gastos estão em {percentage:.1f}% do limite permitido. Cuidado para não exceder."
+            elif percentage >= 75:
+                response_text = f"Seus gastos estão em {percentage:.1f}% do limite. Ainda tem margem, mas fique atento."
+            else:
+                response_text = f"Seus gastos estão em {percentage:.1f}% do limite. Você está dentro da conformidade."
+        else:
+            response_text = "O limite de gastos não está configurado. Configure nas configurações para monitorar a conformidade."
+
+    elif command == "add_expense":
+        amount = params.get("amount", 0)
+        category = params.get("category", "outros")
+
+        expense_doc = {
+            "id": str(uuid.uuid4()),
+            "description": "Despesa adicionada por comando de voz",
+            "amount": amount,
+            "category": category,
+            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "payment_status": "pendente",
+            "campaign_id": campaign_id,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.expenses.insert_one(expense_doc)
+
+        response_text = f"Despesa de {voice_assistant.format_currency(amount)} adicionada com sucesso na categoria {category}."
+        action = "expense_added"
+        action_data = {"expense_id": expense_doc["id"], "amount": amount}
+
+    elif command == "add_revenue":
+        amount = params.get("amount", 0)
+
+        revenue_doc = {
+            "id": str(uuid.uuid4()),
+            "description": "Receita adicionada por comando de voz",
+            "amount": amount,
+            "category": "recursos_proprios",
+            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "campaign_id": campaign_id,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.revenues.insert_one(revenue_doc)
+
+        response_text = f"Receita de {voice_assistant.format_currency(amount)} adicionada com sucesso."
+        action = "revenue_added"
+        action_data = {"revenue_id": revenue_doc["id"], "amount": amount}
+
+    elif command == "navigate":
+        route = params.get("route", "/dashboard")
+        response_text = f"Navegando para {route.replace('/', '')}."
+        action = "navigate"
+        action_data = {"route": route}
+
+    elif command == "ai_chat":
+        message = params.get("message", transcribed_text)
+        campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
+        revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+        expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
+
+        campaign_context = {
+            "campaign_id": campaign_id,
+            "candidate_name": campaign.get("candidate_name", ""),
+            "party": campaign.get("party", ""),
+            "total_revenues": sum(r.get("amount", 0) for r in revenues),
+            "total_expenses": sum(e.get("amount", 0) for e in expenses),
+            "balance": sum(r.get("amount", 0) for r in revenues) - sum(e.get("amount", 0) for e in expenses),
+            "limite_gastos": campaign.get("limite_gastos", 0)
+        }
+
+        ai_response = await assistant.chat(
+            session_id=f"voice_{campaign_id}",
+            message=message,
+            campaign_context=campaign_context
+        )
+
+        response_text = ai_response[:1000] if len(ai_response) > 1000 else ai_response
+
+    else:
+        response_text = RESPONSES["not_understood"]
+
+    try:
+        audio_base64 = await voice_assistant.generate_speech_base64(response_text)
+    except Exception:
+        audio_base64 = None
+
+    return {
+        "command": command,
+        "response_text": response_text,
+        "audio_response": audio_base64,
+        "action": action,
+        "action_data": action_data,
+        "success": True
+    }
+
 @api_router.post("/voice/transcribe")
 async def voice_transcribe(
     audio: UploadFile = File(...),
@@ -6131,236 +6341,15 @@ async def voice_command(
     current_user: dict = Depends(get_current_user)
 ):
     """Process voice command: transcribe, parse, execute, and respond with voice"""
-    campaign_id = current_user.get("campaign_id")
-    if not campaign_id:
-        raise HTTPException(status_code=400, detail="Configure uma campanha primeiro")
-    
     # Read audio file
     contents = await audio.read()
     
     try:
         # Step 1: Transcribe audio
         transcribed_text = await voice_assistant.transcribe_audio(contents, audio.filename or "audio.webm")
-        
-        # Step 2: Parse command
-        command, params = voice_assistant.parse_command(transcribed_text)
-        
-        # Step 3: Execute command and generate response
-        response_text = ""
-        action = None
-        action_data = None
-        
-        if command == "greeting":
-            role = (current_user.get("role") or "").lower()
-            perfil = "contador" if "contador" in role else "candidato"
-            expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(500)
-            today = datetime.now(timezone.utc).date()
-            pending_expenses = [e for e in expenses if (e.get("payment_status") or "").lower() != "pago"]
-            due_soon = []
-            for e in pending_expenses:
-                try:
-                    due = datetime.fromisoformat(str(e.get("date"))).date()
-                    if 0 <= (due - today).days <= 7:
-                        due_soon.append(e)
-                except Exception:
-                    continue
-            unsigned_contracts = [
-                c for c in contracts
-                if (c.get("status") or "").lower() not in {"assinado", "concluido", "finalizado"}
-            ]
-            response_text = (
-                f"Oi, {perfil}. Sou a Flora. "
-                f"Você tem {len(pending_expenses)} despesa(s) pendente(s), "
-                f"{len(due_soon)} pagamento(s) vencendo nos próximos 7 dias "
-                f"e {len(unsigned_contracts)} contrato(s) para finalizar. "
-                "Quer que eu te ajude a gerar uma despesa, criar um contrato ou revisar os vencimentos agora?"
-            )
-        
-        elif command == "help":
-            response_text = RESPONSES["help"]
-        
-        elif command == "query_saldo":
-            # Get financial data
-            revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            total_rev = sum(r.get("amount", 0) for r in revenues)
-            total_exp = sum(e.get("amount", 0) for e in expenses)
-            balance = total_rev - total_exp
-            response_text = f"Seu saldo atual é de {voice_assistant.format_currency(balance)}. Total de receitas: {voice_assistant.format_currency(total_rev)}. Total de despesas: {voice_assistant.format_currency(total_exp)}."
-        
-        elif command == "query_receitas":
-            revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            total = sum(r.get("amount", 0) for r in revenues)
-            response_text = f"VocÃª tem {len(revenues)} receitas registradas, totalizando {voice_assistant.format_currency(total)}."
-        
-        elif command == "query_despesas":
-            expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            total = sum(e.get("amount", 0) for e in expenses)
-            pending = sum(e.get("amount", 0) for e in expenses if e.get("payment_status") == "pendente")
-            response_text = f"VocÃª tem {len(expenses)} despesas registradas, totalizando {voice_assistant.format_currency(total)}. Despesas pendentes: {voice_assistant.format_currency(pending)}."
-        
-        elif command == "query_resumo":
-            campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
-            revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
-            
-            total_rev = sum(r.get("amount", 0) for r in revenues)
-            total_exp = sum(e.get("amount", 0) for e in expenses)
-            balance = total_rev - total_exp
-            
-            response_text = f"Resumo da campanha de {campaign.get('candidate_name', 'candidato')}. "
-            response_text += f"Receitas: {voice_assistant.format_currency(total_rev)}. "
-            response_text += f"Despesas: {voice_assistant.format_currency(total_exp)}. "
-            response_text += f"Saldo: {voice_assistant.format_currency(balance)}. "
-            response_text += f"VocÃª tem {len(contracts)} contratos registrados."
-        
-        elif command == "query_contratos":
-            contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
-            response_text = f"VocÃª tem {len(contracts)} contratos registrados."
-            if contracts:
-                total_value = sum(c.get("value", 0) for c in contracts)
-                response_text += f" Valor total: {voice_assistant.format_currency(total_value)}."
-        
-        elif command == "query_pendentes":
-            contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
-            pending_docs = [c for c in contracts if c.get("template_type") and not c.get("attachments")]
-            if pending_docs:
-                response_text = f"VocÃª tem {len(pending_docs)} contratos com documentos pendentes."
-            else:
-                response_text = "Todos os seus contratos têm a documentaÃ§Ã£o completa."
-        
-        elif command == "query_alertas":
-            expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            pending_exp = [e for e in expenses if e.get("payment_status") == "pendente"]
-            contracts = await db.contracts.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(100)
-            pending_docs = len([c for c in contracts if c.get("template_type") and not c.get("attachments")])
-            
-            alerts = []
-            if pending_exp:
-                alerts.append(f"{len(pending_exp)} despesas pendentes de pagamento")
-            if pending_docs:
-                alerts.append(f"{pending_docs} contratos com documentos faltando")
-            
-            if alerts:
-                response_text = "Alertas: " + ". ".join(alerts) + "."
-            else:
-                response_text = "NÃ£o hÃ¡ alertas no momento. Tudo estÃ¡ em ordem."
-        
-        elif command == "query_conformidade":
-            # Use AI for compliance check
-            campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
-            revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            
-            total_exp = sum(e.get("amount", 0) for e in expenses)
-            limite = campaign.get("limite_gastos", 0)
-            
-            if limite > 0:
-                percentage = (total_exp / limite) * 100
-                if percentage >= 90:
-                    response_text = f"AtenÃ§Ã£o! Seus gastos estÃ£o em {percentage:.1f}% do limite permitido. Cuidado para nÃ£o exceder."
-                elif percentage >= 75:
-                    response_text = f"Seus gastos estÃ£o em {percentage:.1f}% do limite. Ainda tem margem, mas fique atento."
-                else:
-                    response_text = f"Seus gastos estÃ£o em {percentage:.1f}% do limite. VocÃª estÃ¡ dentro da conformidade."
-            else:
-                response_text = "O limite de gastos nÃ£o estÃ¡ configurado. Configure nas configuraÃ§Ãµes para monitorar a conformidade."
-        
-        elif command == "add_expense":
-            amount = params.get("amount", 0)
-            category = params.get("category", "outros")
-            
-            # Create expense
-            expense_doc = {
-                "id": str(uuid.uuid4()),
-                "description": f"Despesa adicionada por comando de voz",
-                "amount": amount,
-                "category": category,
-                "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                "payment_status": "pendente",
-                "campaign_id": campaign_id,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.expenses.insert_one(expense_doc)
-            
-            response_text = f"Despesa de {voice_assistant.format_currency(amount)} adicionada com sucesso na categoria {category}."
-            action = "expense_added"
-            action_data = {"expense_id": expense_doc["id"], "amount": amount}
-        
-        elif command == "add_revenue":
-            amount = params.get("amount", 0)
-            
-            # Create revenue
-            revenue_doc = {
-                "id": str(uuid.uuid4()),
-                "description": f"Receita adicionada por comando de voz",
-                "amount": amount,
-                "category": "recursos_proprios",
-                "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                "campaign_id": campaign_id,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.revenues.insert_one(revenue_doc)
-            
-            response_text = f"Receita de {voice_assistant.format_currency(amount)} adicionada com sucesso."
-            action = "revenue_added"
-            action_data = {"revenue_id": revenue_doc["id"], "amount": amount}
-        
-        elif command == "navigate":
-            route = params.get("route", "/dashboard")
-            response_text = f"Navegando para {route.replace('/', '')}."
-            action = "navigate"
-            action_data = {"route": route}
-        
-        elif command == "ai_chat":
-            # Send to AI assistant for complex queries
-            message = params.get("message", transcribed_text)
-            
-            # Get campaign context
-            campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
-            revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
-            
-            campaign_context = {
-                "campaign_id": campaign_id,
-                "candidate_name": campaign.get("candidate_name", ""),
-                "party": campaign.get("party", ""),
-                "total_revenues": sum(r.get("amount", 0) for r in revenues),
-                "total_expenses": sum(e.get("amount", 0) for e in expenses),
-                "balance": sum(r.get("amount", 0) for r in revenues) - sum(e.get("amount", 0) for e in expenses),
-                "limite_gastos": campaign.get("limite_gastos", 0)
-            }
-            
-            # Get AI response
-            ai_response = await assistant.chat(
-                session_id=f"voice_{campaign_id}",
-                message=message,
-                campaign_context=campaign_context
-            )
-            
-            # Limit response for TTS
-            response_text = ai_response[:1000] if len(ai_response) > 1000 else ai_response
-        
-        else:
-            response_text = RESPONSES["not_understood"]
-        
-        # Step 4: Generate voice response
-        try:
-            audio_base64 = await voice_assistant.generate_speech_base64(response_text)
-        except:
-            audio_base64 = None
-        
-        return {
-            "transcribed_text": transcribed_text,
-            "command": command,
-            "response_text": response_text,
-            "audio_response": audio_base64,
-            "action": action,
-            "action_data": action_data,
-            "success": True
-        }
+        result = await _execute_voice_command_text(transcribed_text, current_user)
+        result["transcribed_text"] = transcribed_text
+        return result
         
     except Exception as e:
         # Generate error response
@@ -6380,6 +6369,23 @@ async def voice_command(
             "success": False,
             "error": str(e)
         }
+
+
+class VoiceTextCommand(BaseModel):
+    text: str
+
+
+@api_router.post("/voice/text-command")
+async def voice_text_command(
+    payload: VoiceTextCommand,
+    current_user: dict = Depends(get_current_user)
+):
+    text = (payload.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Texto vazio")
+    result = await _execute_voice_command_text(text, current_user)
+    result["transcribed_text"] = text
+    return result
 
 @api_router.get("/voice/greeting")
 async def voice_greeting(current_user: dict = Depends(get_current_user)):

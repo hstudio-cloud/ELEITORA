@@ -23,10 +23,10 @@ except ImportError:
 # Voice configuration
 VOICE_CONFIG = {
     "name": "Flora",
-    "voice": "alloy",  # More natural feminine voice - best for Portuguese
+    "voice": "nova",  # Feminine voice
     "model_tts": "tts-1-hd",  # Higher quality audio
     "model_stt": "whisper-1",
-    "speed": 0.9,  # Slower for clarity and naturalness
+    "speed": 0.85,  # Slower for clarity and diction
     "language": "pt",
 }
 

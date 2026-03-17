@@ -67,6 +67,8 @@ export default function Assistente() {
     const audioRef = useRef(null);
     const recognitionRef = useRef(null);
     const wakeCooldownRef = useRef(0);
+    const wakePendingRef = useRef(false);
+    const wakeTimeoutRef = useRef(null);
 
     useEffect(() => {
         fetchChatHistory();
@@ -469,13 +471,14 @@ export default function Assistente() {
             const utterance = new SpeechSynthesisUtterance(text.substring(0, 500));
             const voices = window.speechSynthesis.getVoices();
             const preferredVoice =
-                voices.find(v => /pt-BR/i.test(v.lang) && /female|mulher|google|microsoft/i.test(v.name)) ||
+                voices.find(v => /pt-BR/i.test(v.lang) && /luciana|maria|francisca|google|microsoft|female|mulher/i.test(v.name)) ||
                 voices.find(v => /pt-BR/i.test(v.lang)) ||
                 voices[0];
             if (preferredVoice) utterance.voice = preferredVoice;
             utterance.lang = 'pt-BR';
-            utterance.rate = 1.0;
-            utterance.pitch = 1.1;
+            utterance.rate = 0.95;
+            utterance.pitch = 1.05;
+            utterance.volume = 1.0;
             utterance.onend = () => setIsSpeaking(false);
             utterance.onerror = () => setIsSpeaking(false);
             window.speechSynthesis.cancel();
@@ -512,26 +515,13 @@ export default function Assistente() {
         const command = (wakeMatch[1] || '').trim();
         setWakePhrase(spokenText);
         if (command) {
-            sendMessage(command);
+            clearWakePending();
+            processVoiceTextCommand(command);
             return;
         }
-        const isContador = String(user?.role || '').toLowerCase().includes('contador');
-        const pending = proactiveSummary?.pendingExpensesCount || 0;
-        const dueSoon = proactiveSummary?.dueSoonCount || 0;
-        const unsigned = proactiveSummary?.unsignedContractsCount || 0;
-        const welcome = isContador
-            ? `Oi, contador. Você tem ${pending} despesa(s) pendente(s), ${dueSoon} vencimento(s) próximo(s) e ${unsigned} contrato(s) a finalizar. O que você precisa agora?`
-            : `Oi, candidato. Você tem ${pending} despesa(s) pendente(s), ${dueSoon} vencimento(s) próximo(s) e ${unsigned} contrato(s) a finalizar. O que você quer priorizar agora?`;
-        const assistantMessage = {
-            role: 'assistant',
-            content: welcome,
-            timestamp: new Date().toISOString(),
-            isVoice: true
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-        if (voiceEnabled) {
-            speakText(welcome);
-        }
+        wakePendingRef.current = true;
+        setWakeStatus('aguardando');
+        scheduleWakePrompt();
     };
 
     const stopWakeListener = () => {
@@ -541,6 +531,76 @@ export default function Assistente() {
             recognitionRef.current = null;
         }
         setWakeStatus('inativo');
+    };
+
+    const clearWakePending = () => {
+        wakePendingRef.current = false;
+        if (wakeTimeoutRef.current) {
+            clearTimeout(wakeTimeoutRef.current);
+            wakeTimeoutRef.current = null;
+        }
+    };
+
+    const scheduleWakePrompt = () => {
+        if (wakeTimeoutRef.current) {
+            clearTimeout(wakeTimeoutRef.current);
+        }
+        wakeTimeoutRef.current = setTimeout(() => {
+            if (wakePendingRef.current && voiceEnabled) {
+                speakText('O que precisa candidato');
+            }
+        }, 5000);
+    };
+
+    const processVoiceTextCommand = async (text) => {
+        const cleanText = (text || '').trim();
+        if (!cleanText) return;
+
+        setIsProcessingVoice(true);
+
+        try {
+            const response = await axios.post(`${API}/voice/text-command`, { text: cleanText });
+            const { transcribed_text, response_text, audio_response, action, action_data, success } = response.data;
+
+            setLastTranscription(transcribed_text);
+
+            if (transcribed_text) {
+                const userMessage = {
+                    role: 'user',
+                    content: `🎤 ${transcribed_text}`,
+                    timestamp: new Date().toISOString(),
+                    isVoice: true
+                };
+                setMessages(prev => [...prev, userMessage]);
+            }
+
+            if (response_text) {
+                const assistantMessage = {
+                    role: 'assistant',
+                    content: response_text,
+                    timestamp: new Date().toISOString(),
+                    isVoice: true
+                };
+                setMessages(prev => [...prev, assistantMessage]);
+            }
+
+            if (audio_response && voiceEnabled) {
+                playAudioResponse(audio_response);
+            }
+
+            if (action && action_data) {
+                handleVoiceAction(action, action_data);
+            }
+
+            if (!success) {
+                toast.error('Não consegui entender o comando');
+            }
+        } catch (error) {
+            toast.error('Erro ao processar comando de voz');
+            console.error('Voice text command error:', error);
+        } finally {
+            setIsProcessingVoice(false);
+        }
     };
 
     const requestMicrophoneAccess = async () => {
@@ -572,7 +632,16 @@ export default function Assistente() {
                 if (!result || !result[0]) continue;
                 const transcript = (result[0].transcript || '').trim();
                 if (transcript) {
-                    processWakePhrase(transcript);
+                    if (wakePendingRef.current) {
+                        clearWakePending();
+                        if (/flora/i.test(transcript)) {
+                            processWakePhrase(transcript);
+                        } else {
+                            processVoiceTextCommand(transcript);
+                        }
+                    } else {
+                        processWakePhrase(transcript);
+                    }
                 }
             }
         };
@@ -964,3 +1033,4 @@ export default function Assistente() {
         </Layout>
     );
 }
+
