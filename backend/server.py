@@ -121,6 +121,7 @@ BB_PIX_AVAILABLE = bool(BB_APP_KEY and BB_CLIENT_ID and BB_CLIENT_SECRET)
 UPLOAD_DIR = ROOT_DIR / 'uploads'
 UPLOAD_DIR.mkdir(exist_ok=True)
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+TSE_IMPORT_MAX_FILE_SIZE = int(os.environ.get("TSE_IMPORT_MAX_FILE_SIZE", 50 * 1024 * 1024))  # 50MB
 
 # ============== BANCO DO BRASIL PIX INTEGRATION ==============
 class BancoDoBrasilPIX:
@@ -8578,7 +8579,7 @@ async def preview_tse_import(
 @api_router.post("/import/tse/execute")
 async def execute_tse_import(
     folder_path: str = Query(...),
-    campaign_id: str = Query(...),
+    campaign_id: Optional[str] = Query(None),
     skip_validations: bool = Query(False),
     current_user: dict = Depends(get_current_user)
 ):
@@ -8591,8 +8592,12 @@ async def execute_tse_import(
         if not folder.exists():
             raise HTTPException(status_code=400, detail=f"Pasta não encontrada: {folder_path}")
 
+        campaign_id = campaign_id or current_user.get("campaign_id")
+        if not campaign_id:
+            raise HTTPException(status_code=400, detail="Campanha não encontrada")
+
         # Validate campaign exists
-        campaign = await db.campaigns.find_one({"_id": campaign_id})
+        campaign = await db.campaigns.find_one({"id": campaign_id})
         if not campaign:
             raise HTTPException(status_code=404, detail="Campanha não encontrada")
 
@@ -8678,6 +8683,70 @@ async def execute_tse_import(
 # File-based TSE Import endpoints (accept uploaded ZIP/RAR files)
 
 # ============== TSE IMPORT HELPERS ==============
+def _guess_content_type(file_path: Path) -> Optional[str]:
+    ext = file_path.suffix.lower()
+    if ext in (".pdf",):
+        return "application/pdf"
+    if ext in (".jpg", ".jpeg"):
+        return "image/jpeg"
+    if ext in (".png",):
+        return "image/png"
+    return None
+
+
+def _find_tse_file(root: Path, category: str, code: str) -> Optional[Path]:
+    if not code:
+        return None
+    direct = root / category / code
+    if direct.exists():
+        return direct
+    try:
+        matches = list(root.rglob(code))
+        if matches:
+            return matches[0]
+    except Exception:
+        return None
+    return None
+
+
+async def _save_tse_attachment(file_path: Path, campaign_id: str, uploaded_by: str) -> tuple[Optional[str], Optional[str]]:
+    content_type = _guess_content_type(file_path)
+    if not content_type:
+        return None, f"Tipo de arquivo não suportado: {file_path.name}"
+
+    try:
+        size = file_path.stat().st_size
+    except Exception:
+        return None, f"Não foi possível acessar o arquivo: {file_path.name}"
+
+    if size > TSE_IMPORT_MAX_FILE_SIZE:
+        return None, f"Arquivo muito grande para importação: {file_path.name}"
+
+    file_id = str(uuid.uuid4())
+    file_ext = ALLOWED_FILE_TYPES.get(content_type, ".bin")
+    safe_filename = f"{file_id}{file_ext}"
+    dest = UPLOAD_DIR / safe_filename
+
+    try:
+        contents = await asyncio.to_thread(file_path.read_bytes)
+        await asyncio.to_thread(dest.write_bytes, contents)
+    except Exception as e:
+        return None, f"Falha ao salvar arquivo {file_path.name}: {str(e)}"
+
+    attachment_doc = {
+        "id": file_id,
+        "original_name": file_path.name,
+        "filename": safe_filename,
+        "content_type": content_type,
+        "size": len(contents),
+        "campaign_id": campaign_id,
+        "uploaded_by": uploaded_by,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.attachments.insert_one(attachment_doc)
+    return file_id, None
+
+
 def extract_tse_folder_from_zip(temp_dir: str) -> tuple[str, str]:
     """
     Extract and locate the TSE folder from ZIP.
@@ -8886,7 +8955,7 @@ async def preview_tse_import_file(
 @api_router.post("/import/tse/execute-file")
 async def execute_tse_import_file(
     file: UploadFile = File(...),
-    campaign_id: str = Form(...),
+    campaign_id: Optional[str] = Form(None),
     skip_validations: bool = Query(False),
     current_user: dict = Depends(get_current_user)
 ):
@@ -8912,10 +8981,14 @@ async def execute_tse_import_file(
 
         # Find the TSE folder
         extract_folder, info_msg = extract_tse_folder_from_zip(temp_dir)
+
+        campaign_id = campaign_id or current_user.get("campaign_id")
         logging.info(f"Execute: {info_msg} for campaign {campaign_id}")
 
         # Validate campaign exists
-        campaign = await db.campaigns.find_one({"_id": campaign_id})
+        if not campaign_id:
+            raise HTTPException(status_code=400, detail="Campanha não encontrada")
+        campaign = await db.campaigns.find_one({"id": campaign_id})
         if not campaign:
             raise HTTPException(status_code=404, detail="Campanha não encontrada")
 
@@ -8939,6 +9012,44 @@ async def execute_tse_import_file(
 
             # Format and import to MongoDB
             importer = DatabaseImporter(db, campaign_id)
+
+            # Attach original TSE PDFs to receitas/despesas/extratos when available
+            try:
+                root_path = Path(extract_folder)
+                for receita in receitas:
+                    code = receita.get("tse_code")
+                    file_path = _find_tse_file(root_path, "RECEITAS", code)
+                    if file_path:
+                        attachment_id, err = await _save_tse_attachment(file_path, campaign_id, current_user["id"])
+                        if attachment_id:
+                            receita["attachment_id"] = attachment_id
+                            importer.import_summary["files_saved"] += 1
+                        elif err:
+                            importer.import_summary["errors"].append(err)
+
+                for despesa in despesas:
+                    code = despesa.get("tse_code")
+                    file_path = _find_tse_file(root_path, "DESPESAS", code)
+                    if file_path:
+                        attachment_id, err = await _save_tse_attachment(file_path, campaign_id, current_user["id"])
+                        if attachment_id:
+                            despesa["attachment_id"] = attachment_id
+                            importer.import_summary["files_saved"] += 1
+                        elif err:
+                            importer.import_summary["errors"].append(err)
+
+                for stmt in bank_data:
+                    code = stmt.get("tse_code")
+                    file_path = _find_tse_file(root_path, "EXTRATOS_BANCARIOS", code)
+                    if file_path:
+                        attachment_id, err = await _save_tse_attachment(file_path, campaign_id, current_user["id"])
+                        if attachment_id:
+                            stmt["attachment_id"] = attachment_id
+                            importer.import_summary["files_saved"] += 1
+                        elif err:
+                            importer.import_summary["errors"].append(err)
+            except Exception as attach_error:
+                importer.import_summary["errors"].append(f"Erro ao anexar arquivos do TSE: {str(attach_error)}")
 
             # Import receitas
             receitas_formatted = []

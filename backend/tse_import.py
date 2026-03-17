@@ -13,6 +13,20 @@ from enum import Enum
 import uuid
 import pdfplumber
 
+# Optional OCR imports
+try:
+    import pytesseract
+    from pdf2image import convert_from_bytes
+    OCR_AVAILABLE = True
+except Exception:
+    OCR_AVAILABLE = False
+
+TSE_OCR_ENABLED = os.environ.get("TSE_OCR_ENABLED", "true").lower() == "true"
+TSE_OCR_LANG = os.environ.get("TSE_OCR_LANG", "por")
+TSE_OCR_DPI = int(os.environ.get("TSE_OCR_DPI", "200"))
+TSE_OCR_MAX_PAGES = int(os.environ.get("TSE_OCR_MAX_PAGES", "3"))
+TSE_OCR_MAX_CHARS = int(os.environ.get("TSE_OCR_MAX_CHARS", "8000"))
+
 
 class ImportValidationError(Exception):
     """Raised when import validation fails"""
@@ -378,6 +392,73 @@ class TSEImportManager:
         self.despesas_data = []
         self.banco_data = []
         self.representantes_data = {}
+        self.ocr_available = OCR_AVAILABLE and TSE_OCR_ENABLED
+
+    def _find_tse_file(self, category: str, code: str) -> Optional[Path]:
+        if not code:
+            return None
+        direct = self.folder_path / category / code
+        if direct.exists():
+            return direct
+        try:
+            matches = list(self.folder_path.rglob(code))
+            if matches:
+                return matches[0]
+        except Exception:
+            return None
+        return None
+
+    def _extract_text_from_pdf(self, pdf_path: Path) -> str:
+        if not pdf_path.exists():
+            return ""
+        extracted_text = ""
+        try:
+            with pdfplumber.open(str(pdf_path)) as pdf:
+                pages_text = []
+                for page in pdf.pages[:TSE_OCR_MAX_PAGES]:
+                    pages_text.append(page.extract_text() or "")
+            extracted_text = "\n".join(pages_text).strip()
+        except Exception:
+            extracted_text = ""
+
+        if extracted_text:
+            return extracted_text[:TSE_OCR_MAX_CHARS]
+
+        if not self.ocr_available:
+            return ""
+
+        try:
+            pdf_bytes = pdf_path.read_bytes()
+            images = convert_from_bytes(pdf_bytes, dpi=TSE_OCR_DPI, first_page=1, last_page=TSE_OCR_MAX_PAGES)
+            ocr_chunks = []
+            for image in images:
+                text = pytesseract.image_to_string(image, lang=TSE_OCR_LANG) or ""
+                if text:
+                    ocr_chunks.append(text)
+            extracted_text = "\n".join(ocr_chunks).strip()
+        except Exception:
+            extracted_text = ""
+
+        return extracted_text[:TSE_OCR_MAX_CHARS]
+
+    def _extract_amount_from_text(self, text: str) -> float:
+        if not text:
+            return 0.0
+        matches = re.findall(r'R\\$\\s*([0-9\\.]+,[0-9]{2}|[0-9]+\\.[0-9]{2}|[0-9]+)', text)
+        values = []
+        for m in matches:
+            try:
+                amt = m.replace(".", "").replace(",", ".")
+                values.append(float(amt))
+            except Exception:
+                continue
+        return max(values) if values else 0.0
+
+    def _extract_date_from_text(self, text: str) -> str:
+        if not text:
+            return ""
+        match = re.search(r'\\b(\\d{2}/\\d{2}/\\d{4})\\b', text)
+        return match.group(1) if match else ""
 
     def validate(self) -> Tuple[bool, List[str]]:
         """Validate import folder - best effort mode"""
@@ -520,17 +601,30 @@ class TSEImportManager:
                         description = receita.get("descricao", "")
                         if not description:
                             continue
+                        tse_code = receita.get("codigo", "")
+                        ocr_text = ""
+                        ocr_amount = 0.0
+                        ocr_date = ""
+                        file_path = self._find_tse_file("RECEITAS", tse_code)
+                        if file_path and file_path.suffix.lower() == ".pdf":
+                            ocr_text = self._extract_text_from_pdf(file_path)
+                            ocr_amount = self._extract_amount_from_text(ocr_text)
+                            ocr_date = self._extract_date_from_text(ocr_text)
 
                         receipts.append({
                             "description": description,
                             "donor_name": description.split("_")[0] if "_" in description else "TSE",
                             "donor_cpf_cnpj": extract_cpf_cnpj(description),
-                            "amount": extract_amount(description),
-                            "date": "",
+                            "amount": ocr_amount if ocr_amount > 0 else extract_amount(description),
+                            "date": ocr_date or "",
                             "tipo_receita": "outros",
                             "tipo_doador": "pessoa_fisica",
-                            "forma_recebimento": "deposito"
+                            "forma_recebimento": "deposito",
+                            "tse_code": tse_code,
+                            "tse_category": "RECEITAS"
                         })
+                        if ocr_text:
+                            receipts[-1]["ocr_text"] = ocr_text
                     except Exception as e:
                         print(f"Aviso ao processar receita: {e}")
                         continue
@@ -547,17 +641,30 @@ class TSEImportManager:
                         description = despesa.get("descricao", "")
                         if not description:
                             continue
+                        tse_code = despesa.get("codigo", "")
+                        ocr_text = ""
+                        ocr_amount = 0.0
+                        ocr_date = ""
+                        file_path = self._find_tse_file("DESPESAS", tse_code)
+                        if file_path and file_path.suffix.lower() == ".pdf":
+                            ocr_text = self._extract_text_from_pdf(file_path)
+                            ocr_amount = self._extract_amount_from_text(ocr_text)
+                            ocr_date = self._extract_date_from_text(ocr_text)
 
                         expenses.append({
                             "description": description,
                             "supplier_name": description.split("_")[0] if "_" in description else "TSE",
                             "supplier_cpf_cnpj": extract_cpf_cnpj(description),
-                            "amount": extract_amount(description),
-                            "date": "",
+                            "amount": ocr_amount if ocr_amount > 0 else extract_amount(description),
+                            "date": ocr_date or "",
                             "payment_status": "pago",
                             "tipo_pagamento": "transferencia",
-                            "category": "outros"
+                            "category": "outros",
+                            "tse_code": tse_code,
+                            "tse_category": "DESPESAS"
                         })
+                        if ocr_text:
+                            expenses[-1]["ocr_text"] = ocr_text
                     except Exception as e:
                         print(f"Aviso ao processar despesa: {e}")
                         continue
@@ -573,7 +680,9 @@ class TSEImportManager:
                     try:
                         bank_data.append({
                             "filename": banco.get("codigo", banco.get("descricao", "extrato.pdf")),
-                            "raw_text": banco.get("descricao", "")
+                            "raw_text": banco.get("descricao", ""),
+                            "tse_code": banco.get("codigo", ""),
+                            "tse_category": "EXTRATOS_BANCARIOS"
                         })
                     except Exception as e:
                         print(f"Aviso ao processar banco: {e}")
@@ -608,6 +717,18 @@ class DatabaseImporter:
         count = 0
         try:
             for receita in receitas:
+                tse_code = receita.get("tse_code") or None
+                if tse_code:
+                    existing = await self.db.revenues.find_one(
+                        {"campaign_id": self.campaign_id, "tse_code": tse_code}
+                    )
+                    if existing:
+                        if receita.get("attachment_id") and not existing.get("attachment_id"):
+                            await self.db.revenues.update_one(
+                                {"id": existing.get("id")},
+                                {"$set": {"attachment_id": receita.get("attachment_id")}}
+                            )
+                        continue
                 doc = {
                     "id": str(uuid.uuid4()),
                     "campaign_id": self.campaign_id,
@@ -620,6 +741,8 @@ class DatabaseImporter:
                     "tipo_receita": receita.get("tipo_receita", "outros"),
                     "tipo_doador": receita.get("tipo_doador", "pessoa_fisica"),
                     "forma_recebimento": receita.get("forma_recebimento", "deposito"),
+                    "attachment_id": receita.get("attachment_id"),
+                    "tse_code": tse_code,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
 
@@ -637,6 +760,18 @@ class DatabaseImporter:
         count = 0
         try:
             for despesa in despesas:
+                tse_code = despesa.get("tse_code") or None
+                if tse_code:
+                    existing = await self.db.expenses.find_one(
+                        {"campaign_id": self.campaign_id, "tse_code": tse_code}
+                    )
+                    if existing:
+                        if despesa.get("attachment_id") and not existing.get("attachment_id"):
+                            await self.db.expenses.update_one(
+                                {"id": existing.get("id")},
+                                {"$set": {"attachment_id": despesa.get("attachment_id")}}
+                            )
+                        continue
                 doc = {
                     "id": str(uuid.uuid4()),
                     "campaign_id": self.campaign_id,
@@ -648,6 +783,8 @@ class DatabaseImporter:
                     "date": despesa.get("date", datetime.now(timezone.utc).isoformat()),
                     "payment_status": despesa.get("payment_status", "pago"),
                     "tipo_pagamento": despesa.get("tipo_pagamento", "transferencia"),
+                    "attachment_id": despesa.get("attachment_id"),
+                    "tse_code": tse_code,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
 
@@ -665,6 +802,18 @@ class DatabaseImporter:
         count = 0
         try:
             for stmt in banco_data:
+                tse_code = stmt.get("tse_code") or None
+                if tse_code:
+                    existing = await self.db.bank_statements.find_one(
+                        {"campaign_id": self.campaign_id, "tse_code": tse_code}
+                    )
+                    if existing:
+                        if stmt.get("attachment_id") and not existing.get("attachment_id"):
+                            await self.db.bank_statements.update_one(
+                                {"id": existing.get("id")},
+                                {"$set": {"attachment_id": stmt.get("attachment_id")}}
+                            )
+                        continue
                 doc = {
                     "id": str(uuid.uuid4()),
                     "campaign_id": self.campaign_id,
@@ -674,6 +823,8 @@ class DatabaseImporter:
                     "statement_date": datetime.now(timezone.utc).isoformat(),
                     "transactions": stmt.get("transactions", []),
                     "source_file": stmt.get("filename", ""),
+                    "attachment_id": stmt.get("attachment_id"),
+                    "tse_code": tse_code,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
 

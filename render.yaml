@@ -8,6 +8,13 @@ services:
     # Build command - install dependencies in correct order
     buildCommand: |
       set -e
+      echo "Step 0: Installing system dependencies for OCR..."
+      if command -v apt-get >/dev/null 2>&1; then
+        apt-get update
+        apt-get install -y tesseract-ocr poppler-utils
+      else
+        echo "apt-get not available; skipping system deps install"
+      fi
       echo "Step 1: Upgrading pip..."
       pip install --upgrade pip setuptools wheel
 

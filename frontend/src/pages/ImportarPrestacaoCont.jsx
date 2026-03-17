@@ -68,8 +68,8 @@ export function ImportarPrestacaoCont() {
     };
 
     const handleExecuteImport = async () => {
-        if (!user?.id) {
-            toast.error('Usuário não encontrado');
+        if (!user?.campaign_id) {
+            toast.error('Campanha não encontrada. Configure a campanha primeiro.');
             return;
         }
 
@@ -85,7 +85,7 @@ export function ImportarPrestacaoCont() {
             setCurrentStep('Descompactando arquivo');
             const formData = new FormData();
             formData.append('file', selectedFile);
-            formData.append('campaign_id', user.id);
+            formData.append('campaign_id', user.campaign_id);
 
             const response = await axios.post(`${API}/import/tse/execute-file`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
