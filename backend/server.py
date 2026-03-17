@@ -405,6 +405,11 @@ app = FastAPI(title="Eleitora 360 API", version="1.0.0")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
+# Root endpoint for platform health checks
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
 # Health check endpoint to diagnose module loading
 @app.get("/api/health")
 async def health_check():

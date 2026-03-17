@@ -2,7 +2,7 @@ services:
   - type: web
     name: eleitora-backend
     runtime: python
-    pythonVersion: "3.11"
+    pythonVersion: "3.11.9"
     plan: free
 
     # Build command - install dependencies in correct order
@@ -37,6 +37,8 @@ services:
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: PORT
         value: "10000"
 
