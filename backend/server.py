@@ -6245,6 +6245,21 @@ async def _execute_voice_command_text(transcribed_text: str, current_user: dict)
         action = "navigate"
         action_data = {"route": route}
 
+    elif command == "contract_with_expense":
+        response_text = "Vou abrir contratos e preparar a despesa vinculada. Quer que eu siga com o cadastro agora?"
+        action = "navigate"
+        action_data = {"route": "/contratos"}
+
+    elif command == "sign_contract":
+        response_text = "Vou abrir contratos para voce assinar. Quer que eu abra o contrato pendente?"
+        action = "navigate"
+        action_data = {"route": "/contratos"}
+
+    elif command == "upload_documents":
+        response_text = "Vou abrir contratos para voce anexar documentos. Quer ver as pendencias primeiro?"
+        action = "navigate"
+        action_data = {"route": "/contratos"}
+
     elif command == "ai_chat":
         message = params.get("message", transcribed_text)
         campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}

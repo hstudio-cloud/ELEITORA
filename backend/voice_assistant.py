@@ -4,8 +4,10 @@ Integracao com STT/TTS com fallback para SDK OpenAI.
 """
 import os
 import re
+import unicodedata
 import json
 import base64
+import httpx
 from typing import Dict, Any, Tuple
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -28,26 +30,37 @@ VOICE_CONFIG = {
     "model_stt": "whisper-1",
     "speed": 0.85,  # Slower for clarity and diction
     "language": "pt",
+    "tts_provider": os.environ.get("VOICE_TTS_PROVIDER", "openai").lower(),
+    "elevenlabs_voice_id": os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
+    "elevenlabs_model_id": os.environ.get("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"),
 }
 
 # Command patterns for executing actions
 COMMAND_PATTERNS = {
-    "saldo": r"(qual|quanto|meu|ver|mostrar).*(saldo|caixa|dinheiro|dispon[ií]vel)",
-    "receitas": r"(qual|quanto|minhas|total|ver|mostrar).*(receitas|doa[cç][oõ]es|arrecada[cç][aã]o)",
+    "saldo": r"(qual|quanto|meu|ver|mostrar).*(saldo|caixa|dinheiro|disponivel)",
+    "receitas": r"(qual|quanto|minhas|total|ver|mostrar).*(receitas|doacoes|arrecadacao)",
     "despesas": r"(qual|quanto|minhas|total|ver|mostrar).*(despesas|gastos|custos)",
-    "resumo": r"(resumo|vis[aã]o geral|situa[cç][aã]o|como est[aá]).*(financeiro|campanha|conta)",
+    "resumo": r"(resumo|visao geral|situacao|como esta).*(financeiro|campanha|conta)",
     "contratos": r"(quantos|quais|meus|ver|mostrar|listar).*(contratos|acordos)",
     "pendentes": r"(documentos?|anexos?|contratos?).*(pendentes?|faltando|incompletos?)",
-    "adicionar_despesa": r"(adicionar?|criar?|registrar?|lan[cç]ar?).*(despesa|gasto|custo).*(?:de\s+)?(?:R\$\s*)?([\d.,]+)",
-    "adicionar_receita": r"(adicionar?|criar?|registrar?|lan[cç]ar?).*(receita|doa[cç][aã]o).*(?:de\s+)?(?:R\$\s*)?([\d.,]+)",
-    "ir_dashboard": r"(ir|abrir|mostrar|navegar).*(dashboard|painel|in[ií]cio)",
+    "adicionar_despesa": r"(adicionar?|criar?|registrar?|lancar?).*(despesa|gasto|custo).*(?:de\s+)?(?:R\$\s*)?([\d.,]+)",
+    "adicionar_receita": r"(adicionar?|criar?|registrar?|lancar?).*(receita|doacao).*(?:de\s+)?(?:R\$\s*)?([\d.,]+)",
+    "ir_dashboard": r"(ir|abrir|mostrar|navegar).*(dashboard|painel|inicio)",
     "ir_despesas": r"(ir|abrir|mostrar|navegar).*(despesas|gastos)",
-    "ir_receitas": r"(ir|abrir|mostrar|navegar).*(receitas|doa[cç][oõ]es)",
+    "ir_receitas": r"(ir|abrir|mostrar|navegar).*(receitas|doacoes)",
     "ir_contratos": r"(ir|abrir|mostrar|navegar).*(contratos)",
-    "ir_relatorios": r"(ir|abrir|mostrar|navegar).*(relat[oó]rios|exportar)",
-    "ajuda": r"(ajuda|help|o que voc[eê] pode|comandos|como funciona)",
+    "ir_relatorios": r"(ir|abrir|mostrar|navegar).*(relatorios|exportar)",
+    "ir_pagamentos": r"(ir|abrir|mostrar|navegar).*(pagamentos|pix)",
+    "ir_configuracoes": r"(ir|abrir|mostrar|navegar).*(configuracoes|campanha)",
+    "ir_extratos": r"(ir|abrir|mostrar|navegar).*(extratos|banco|extratos bancarios)",
+    "ir_conformidade": r"(ir|abrir|mostrar|navegar).*(conformidade|spce|pre-?check)",
+    "ir_assistente": r"(ir|abrir|mostrar|navegar).*(assistente|flora)",
+    "contrato_despesa": r"(gerar|criar).*(contrato).*(despesa|gasto).*(vinculado?)",
+    "assinar_contrato": r"(assinar).*(contrato)",
+    "enviar_documentos": r"(enviar|anexar|subir).*(documentos?|anexos?)",
+    "ajuda": r"(ajuda|help|o que voce pode|comandos|como funciona)",
     "conformidade": r"(conformidade|irregular|tse|lei|regras|limite)",
-    "alertas": r"(alertas?|avisos?|pend[eê]ncias?|vencimentos?)",
+    "alertas": r"(alertas?|avisos?|pendencias?|vencimentos?)",
 }
 
 # Response templates
@@ -117,6 +130,12 @@ class VoiceAssistant:
             if len(text) > 4000:
                 text = text[:4000] + "..."
 
+            if self.config.get("tts_provider") == "elevenlabs":
+                try:
+                    return await self._generate_speech_elevenlabs(text)
+                except Exception as e:
+                    print(f"ElevenLabs TTS error, falling back: {e}")
+
             if EMERGENT_VOICE_AVAILABLE and self.tts is not None:
                 audio_bytes = await self.tts.generate_speech(
                     text=text,
@@ -146,6 +165,32 @@ class VoiceAssistant:
             print(f"Error generating speech: {e}")
             raise
 
+    async def _generate_speech_elevenlabs(self, text: str) -> bytes:
+        api_key = os.environ.get("ELEVENLABS_API_KEY")
+        if not api_key:
+            raise RuntimeError("ELEVENLABS_API_KEY nao configurada para sintese de voz.")
+
+        voice_id = self.config.get("elevenlabs_voice_id")
+        model_id = self.config.get("elevenlabs_model_id")
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        payload = {
+            "text": text,
+            "model_id": model_id,
+            "voice_settings": {
+                "stability": 0.45,
+                "similarity_boost": 0.8
+            }
+        }
+        headers = {
+            "xi-api-key": api_key,
+            "accept": "audio/mpeg",
+            "content-type": "application/json"
+        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            return response.content
+
     async def generate_speech_base64(self, text: str) -> str:
         """Convert text to speech and return as base64"""
         try:
@@ -158,6 +203,8 @@ class VoiceAssistant:
     def parse_command(self, text: str) -> Tuple[str, Dict[str, Any]]:
         """Parse transcribed text to identify command and extract parameters"""
         text_lower = text.lower()
+        text_lower = unicodedata.normalize("NFD", text_lower)
+        text_lower = "".join(ch for ch in text_lower if unicodedata.category(ch) != "Mn")
         text_lower = re.sub(r"^(oi|ola|hey|ei)?\s*(flora|eleitora)?,?\s*", "", text_lower)
 
         if re.search(r"^(oi|ola|hey|bom dia|boa tarde|boa noite)", text_lower):
@@ -193,6 +240,26 @@ class VoiceAssistant:
                 route = nav_cmd.replace("ir_", "/")
                 return "navigate", {"route": route}
 
+        for nav_cmd in [
+            "ir_pagamentos",
+            "ir_configuracoes",
+            "ir_extratos",
+            "ir_conformidade",
+            "ir_assistente"
+        ]:
+            if re.search(COMMAND_PATTERNS[nav_cmd], text_lower):
+                route = nav_cmd.replace("ir_", "/")
+                return "navigate", {"route": route}
+
+        if re.search(COMMAND_PATTERNS["contrato_despesa"], text_lower):
+            return "contract_with_expense", {}
+
+        if re.search(COMMAND_PATTERNS["assinar_contrato"], text_lower):
+            return "sign_contract", {}
+
+        if re.search(COMMAND_PATTERNS["enviar_documentos"], text_lower):
+            return "upload_documents", {}
+
         for query_cmd in ["saldo", "receitas", "despesas", "resumo", "contratos", "pendentes", "conformidade", "alertas"]:
             if re.search(COMMAND_PATTERNS[query_cmd], text_lower):
                 return f"query_{query_cmd}", {}
@@ -208,3 +275,4 @@ class VoiceAssistant:
 
 # Singleton instance
 voice_assistant = VoiceAssistant()
+
