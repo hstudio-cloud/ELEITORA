@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from './ui/button';
@@ -202,7 +202,7 @@ export function FloraAssistant() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
 
-    const speak = async (text) => {
+    const speak = useCallback(async (text) => {
         if (!voiceEnabled || !text) return;
         try {
             const response = await axios.post(
@@ -221,9 +221,9 @@ export function FloraAssistant() {
         } catch (error) {
             // Fail silently if TTS is unavailable
         }
-    };
+    }, [voiceEnabled]);
 
-    const addAssistantMessage = (content) => {
+    const addAssistantMessage = useCallback((content) => {
         const assistantMessage = {
             role: 'assistant',
             content,
@@ -231,15 +231,15 @@ export function FloraAssistant() {
         };
         setMessages((prev) => [...prev, assistantMessage]);
         speak(content);
-    };
+    }, [speak]);
 
-    const executeCommand = (action) => {
+    const executeCommand = useCallback((action) => {
         if (action?.route) {
             navigate(action.route);
         }
-    };
+    }, [navigate]);
 
-    const sendMessage = async (textInput) => {
+    const sendMessage = useCallback(async (textInput) => {
         const text = (textInput ?? inputMessage).trim();
         if (!text) return;
 
@@ -284,7 +284,11 @@ export function FloraAssistant() {
             setLoading(false);
             inputRef.current?.focus();
         }
-    };
+    }, [
+        inputMessage,
+        addAssistantMessage,
+        executeCommand
+    ]);
 
     useEffect(() => {
         sendMessageRef.current = sendMessage;
