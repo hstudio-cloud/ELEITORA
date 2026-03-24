@@ -153,6 +153,7 @@ export function FloraAssistant() {
     const scrollRef = useRef(null);
     const inputRef = useRef(null);
     const recognitionRef = useRef(null);
+    const sendMessageRef = useRef(null);
     const audioRef = useRef(null);
 
     const greeting = useMemo(
@@ -172,7 +173,7 @@ export function FloraAssistant() {
             recognition.onresult = (event) => {
                 const transcript = event.results?.[0]?.[0]?.transcript;
                 if (transcript) {
-                    sendMessage(transcript);
+                    sendMessageRef.current?.(transcript);
                 }
             };
             recognition.onend = () => setIsListening(false);
@@ -284,6 +285,10 @@ export function FloraAssistant() {
             inputRef.current?.focus();
         }
     };
+
+    useEffect(() => {
+        sendMessageRef.current = sendMessage;
+    }, [sendMessage]);
 
     const handleKeyPress = (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
