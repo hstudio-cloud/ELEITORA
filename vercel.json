@@ -1,0 +1,8 @@
+{
+  "nodeVersion": "20.x",
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/build",
+  "env": {
+    "PYTHONPATH": "/var/task"
+  }
+}
