@@ -168,56 +168,6 @@ export function FloraAssistant() {
         setIsOpen(true);
     }, []);
 
-    const handleWakeTranscript = useCallback((transcript) => {
-        const normalized = normalizeText(transcript);
-        if (!normalized.includes('flora')) return;
-
-        const parts = normalized.split('flora');
-        const afterWake = (parts[1] || '').trim();
-        openPanel();
-        if (afterWake) {
-            sendMessageRef.current?.(afterWake);
-            return;
-        }
-        addAssistantMessage('Ola, em que posso te ajudar agora?');
-    }, [addAssistantMessage, openPanel]);
-
-    useEffect(() => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        setSpeechSupported(Boolean(SpeechRecognition));
-        if (SpeechRecognition) {
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'pt-BR';
-            recognition.interimResults = true;
-            recognition.maxAlternatives = 1;
-            recognition.continuous = true;
-            recognition.onresult = (event) => {
-                const lastResult = event.results?.[event.results.length - 1];
-                const transcript = lastResult?.[0]?.transcript;
-                if (transcript) {
-                    handleWakeTranscript(transcript);
-                }
-            };
-            recognition.onend = () => {
-                setIsListening(false);
-                if (wakeEnabled) {
-                    try {
-                        recognition.start();
-                        setIsListening(true);
-                        setWakeStatus('ouvindo');
-                    } catch {
-                        setWakeStatus('inativo');
-                    }
-                }
-            };
-            recognition.onerror = () => {
-                setIsListening(false);
-                setWakeStatus('inativo');
-            };
-            recognitionRef.current = recognition;
-        }
-    }, [handleWakeTranscript, wakeEnabled]);
-
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -268,6 +218,56 @@ export function FloraAssistant() {
         setMessages((prev) => [...prev, assistantMessage]);
         speak(content);
     }, [speak]);
+
+    const handleWakeTranscript = useCallback((transcript) => {
+        const normalized = normalizeText(transcript);
+        if (!normalized.includes('flora')) return;
+
+        const parts = normalized.split('flora');
+        const afterWake = (parts[1] || '').trim();
+        openPanel();
+        if (afterWake) {
+            sendMessageRef.current?.(afterWake);
+            return;
+        }
+        addAssistantMessage('Ola, em que posso te ajudar agora?');
+    }, [addAssistantMessage, openPanel]);
+
+    useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        setSpeechSupported(Boolean(SpeechRecognition));
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'pt-BR';
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+            recognition.continuous = true;
+            recognition.onresult = (event) => {
+                const lastResult = event.results?.[event.results.length - 1];
+                const transcript = lastResult?.[0]?.transcript;
+                if (transcript) {
+                    handleWakeTranscript(transcript);
+                }
+            };
+            recognition.onend = () => {
+                setIsListening(false);
+                if (wakeEnabled) {
+                    try {
+                        recognition.start();
+                        setIsListening(true);
+                        setWakeStatus('ouvindo');
+                    } catch {
+                        setWakeStatus('inativo');
+                    }
+                }
+            };
+            recognition.onerror = () => {
+                setIsListening(false);
+                setWakeStatus('inativo');
+            };
+            recognitionRef.current = recognition;
+        }
+    }, [handleWakeTranscript, wakeEnabled]);
 
     const executeCommand = useCallback((action) => {
         if (action?.route) {
