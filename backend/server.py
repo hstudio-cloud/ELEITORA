@@ -5784,34 +5784,35 @@ async def list_expenses_filtered(
     return expenses
 
 # ============== AI ASSISTANT ROUTES ==============
-# AI Assistant module temporarily disabled - using fallback implementations
-# from ai_assistant import assistant, get_tse_rules_summary
+try:
+    from ai_assistant import assistant, get_tse_rules_summary
+except Exception as e:
+    logger.warning("Falha ao carregar ai_assistant. Usando fallback local: %s", e)
 
-# Fallback implementations for AI functions
-class AssistantFallback:
-    """Fallback AI assistant when ai_assistant module is not available"""
+    class AssistantFallback:
+        """Fallback AI assistant when ai_assistant module is not available"""
 
-    async def chat(self, message: str, campaign_context: dict) -> str:
-        """Fallback chat - returns basic response"""
-        return f"Recebi sua mensagem: {message}. Por favor, use a interface principal para operações."
+        async def chat(self, message: str, campaign_context: dict, **kwargs) -> str:
+            """Fallback chat - returns basic response"""
+            return f"Recebi sua mensagem: {message}. Por favor, use a interface principal para operações."
 
-    async def analyze_expenses(self, expenses: list, campaign_context: dict) -> str:
-        """Fallback expense analysis"""
-        total = sum(e.get("amount", 0) for e in expenses)
-        return f"Total de despesas: R$ {total:.2f}"
+        async def analyze_expenses(self, expenses: list, campaign_context: dict) -> str:
+            """Fallback expense analysis"""
+            total = sum(e.get("amount", 0) for e in expenses)
+            return f"Total de despesas: R$ {total:.2f}"
 
-    async def check_compliance(self, campaign_context: dict, contracts: list) -> str:
-        """Fallback compliance check"""
-        return "Conformidade TSE: Sistema verificando dados..."
+        async def check_compliance(self, campaign_context: dict, contracts: list) -> str:
+            """Fallback compliance check"""
+            return "Conformidade TSE: Sistema verificando dados..."
 
-async def get_tse_rules_summary() -> dict:
-    """Fallback TSE rules"""
-    return {
-        "rules": "Consulte as normas TSE no site oficial",
-        "limits": "Limites estão sendo validados pelo sistema"
-    }
+    async def get_tse_rules_summary() -> dict:
+        """Fallback TSE rules"""
+        return {
+            "rules": "Consulte as normas TSE no site oficial",
+            "limits": "Limites estão sendo validados pelo sistema"
+        }
 
-assistant = AssistantFallback()
+    assistant = AssistantFallback()
 
 class ChatMessage(BaseModel):
     message: str
