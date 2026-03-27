@@ -1,17 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Layout } from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle
-} from '../components/ui/dialog';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, categoryLabels } from '../lib/utils';
 import { Badge } from '../components/ui/badge';
@@ -28,12 +20,7 @@ import {
     AlertCircle,
     Bell,
     Clock,
-    AlertTriangle,
-    Sparkles,
-    Volume2,
-    VolumeX,
-    ChevronLeft,
-    ChevronRight
+    AlertTriangle
 } from 'lucide-react';
 import {
     BarChart,
@@ -51,137 +38,19 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const COLORS = ['hsl(217, 91%, 60%)', 'hsl(160, 84%, 39%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(280, 65%, 60%)'];
 
-const TOUR_STEPS = [
-
-        {
-            title: 'Bem-vindo ao Eleitora 360',
-            description: 'Este tour rápido mostra como organizar sua campanha e evitar erros na prestação de contas.',
-            route: '/dashboard',
-            actionLabel: 'Ficar no Início'
-        },
-        {
-            title: '1) Comece por Configurações',
-            description: 'Cadastre dados da campanha, CNPJ, contas bancárias e informações obrigatórias do TSE/SPCE.',
-            route: '/configuracoes',
-            actionLabel: 'Abrir Configurações'
-        },
-        {
-            title: '2) Lance as Receitas',
-            description: 'Registre doações e entradas com CPF/CNPJ do doador e comprovantes.',
-            route: '/receitas',
-            actionLabel: 'Abrir Receitas'
-        },
-        {
-            title: '3) Lance as Despesas',
-            description: 'Cadastre gastos com categoria, fornecedor e documentos para manter conformidade.',
-            route: '/despesas',
-            actionLabel: 'Abrir Despesas'
-        },
-        {
-            title: '4) Gere Contratos',
-            description: 'Ao criar contrato, o sistema já pode gerar as despesas vinculadas automaticamente.',
-            route: '/contratos',
-            actionLabel: 'Abrir Contratos'
-        },
-        {
-            title: '5) Agende Pagamentos PIX',
-            description: 'Use a área de Pagamentos para agendar e acompanhar execução das despesas da campanha.',
-            route: '/pagamentos',
-            actionLabel: 'Abrir Pagamentos'
-        },
-        {
-            title: '6) Faça o Pré-check SPCE',
-            description: 'Antes de exportar, rode o pré-check SPCE para identificar pendências e evitar rejeição.',
-            route: '/relatorios',
-            actionLabel: 'Abrir Relatórios'
-        },
-        {
-            title: '7) Use o Assistente IA',
-            description: 'A Flora pode te orientar sobre próximos passos, conformidade e dúvidas operacionais.',
-            route: '/assistente',
-            actionLabel: 'Abrir Assistente'
-        }
-    ];
-
-
 export default function Início() {
     const [stats, setStats] = useState(null);
     const [campaign, setCampaign] = useState(null);
     const [loading, setLoading] = useState(true);
     const [alerts, setAlerts] = useState({ alerts: [], total: 0, overdue_count: 0, due_today: 0 });
     const [tseStatus, setTseStatus] = useState(null);
-    const [showTour, setShowTour] = useState(false);
-    const [tourStep, setTourStep] = useState(0);
-    const [tourSpeakEnabled, setTourSpeakEnabled] = useState(true);
-    const tourAudioRef = useRef(null);
     const { user } = useAuth();
     const navigate = useNavigate();
-
-    const tourStorageKey = user?.id ? `eleitora_tour_done_${user.id}` : null;
 
     useEffect(() => {
         fetchData();
     }, []);
 
-    useEffect(() => {
-        if (!user || loading || !tourStorageKey) return;
-        const alreadyDone = localStorage.getItem(tourStorageKey) === '1';
-        if (!alreadyDone) {
-            setShowTour(true);
-            setTourStep(0);
-        }
-    }, [user, loading, tourStorageKey]);
-
-    const speakTourWithFlora = useCallback(async (text) => {
-        if (!tourSpeakEnabled || !text) return;
-        try {
-            const response = await axios.post(`${API}/voice/speak?text=${encodeURIComponent(text.substring(0, 500))}`);
-            if (response.data?.audio) {
-                if (tourAudioRef.current) {
-                    tourAudioRef.current.pause();
-                    tourAudioRef.current.currentTime = 0;
-                }
-                const audio = new Audio(`data:audio/mp3;base64,${response.data.audio}`);
-                tourAudioRef.current = audio;
-                audio.play().catch(() => {});
-                return;
-            }
-        } catch (error) {
-            console.error('Erro no voice/speak do tour:', error);
-        }
-
-        if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            const voices = window.speechSynthesis.getVoices();
-            const preferredVoice =
-                voices.find(v => /pt-BR/i.test(v.lang) && /female|mulher|google|microsoft/i.test(v.name)) ||
-                voices.find(v => /pt-BR/i.test(v.lang)) ||
-                voices[0];
-            if (preferredVoice) utterance.voice = preferredVoice;
-            utterance.lang = 'pt-BR';
-            utterance.rate = 1;
-            utterance.pitch = 1.1;
-            window.speechSynthesis.cancel();
-            window.speechSynthesis.speak(utterance);
-        }
-    }, [tourSpeakEnabled]);
-
-    useEffect(() => {
-        if (!showTour || !tourSpeakEnabled) return;
-        const step = TOUR_STEPS[tourStep];
-        if (!step) return;
-        speakTourWithFlora(`${step.title}. ${step.description}`);
-
-        return () => {
-            if (tourAudioRef.current) {
-                tourAudioRef.current.pause();
-                tourAudioRef.current.currentTime = 0;
-            }
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-            }
-        };
-    }, [showTour, tourSpeakEnabled, tourStep, speakTourWithFlora]);
 
     const fetchData = async () => {
         try {
@@ -209,38 +78,6 @@ export default function Início() {
         }));
     };
 
-    const markTourDone = (silent = false) => {
-        if (tourStorageKey) {
-            localStorage.setItem(tourStorageKey, '1');
-        }
-        setShowTour(false);
-        setTourStep(0);
-        if (tourAudioRef.current) {
-            tourAudioRef.current.pause();
-            tourAudioRef.current.currentTime = 0;
-        }
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-        }
-        if (!silent) {
-            toast.success('Tour concluído. Você pode reabrir quando quiser.');
-        }
-    };
-
-    const finishTour = () => {
-        markTourDone(false);
-    };
-
-    const skipTour = () => {
-        markTourDone(true);
-    };
-
-    const openCurrentTourStep = () => {
-        const step = TOUR_STEPS[tourStep];
-        if (!step?.route) return;
-        markTourDone(true);
-        navigate(step.route);
-    };
 
     if (loading) {
         return (
@@ -289,15 +126,6 @@ export default function Início() {
                         </p>
                     </div>
                     <div className="flex gap-3">
-                        <Button
-                            variant="secondary"
-                            onClick={() => setShowTour(true)}
-                            className="gap-2"
-                            data-testid="open-guided-tour-btn"
-                        >
-                            <Sparkles className="h-4 w-4" />
-                            Tour da Flora
-                        </Button>
                         <Button
                             variant="outline"
                             onClick={() => navigate('/receitas')}
@@ -703,74 +531,6 @@ export default function Início() {
                 </Card>
             </div>
 
-            <Dialog
-                open={showTour}
-                onOpenChange={(open) => {
-                    if (!open && showTour) {
-                        markTourDone(true);
-                        return;
-                    }
-                    setShowTour(open);
-                }}
-            >
-                <DialogContent className="sm:max-w-xl" data-testid="eleitora-onboarding-tour">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-2">
-                                <Sparkles className="h-5 w-5 text-primary" />
-                                {TOUR_STEPS[tourStep]?.title}
-                            </span>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setTourSpeakEnabled((prev) => !prev)}
-                                aria-label="Alternar voz do tour"
-                            >
-                                {tourSpeakEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                            </Button>
-                        </DialogTitle>
-                        <DialogDescription>
-                            {TOUR_STEPS[tourStep]?.description}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">
-                            Etapa {tourStep + 1} de {TOUR_STEPS.length}
-                        </span>
-                        <Badge variant="outline">Onboarding IA</Badge>
-                    </div>
-
-                    <DialogFooter className="gap-2">
-                        <Button variant="ghost" onClick={skipTour}>
-                            Pular tour
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => setTourStep((prev) => Math.max(0, prev - 1))}
-                            disabled={tourStep === 0}
-                            className="gap-2"
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                            Anterior
-                        </Button>
-                        <Button variant="outline" onClick={openCurrentTourStep}>
-                            {TOUR_STEPS[tourStep]?.actionLabel}
-                        </Button>
-                        {tourStep < TOUR_STEPS.length - 1 ? (
-                            <Button
-                                onClick={() => setTourStep((prev) => Math.min(TOUR_STEPS.length - 1, prev + 1))}
-                                className="gap-2"
-                            >
-                                Próximo
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        ) : (
-                            <Button onClick={finishTour}>Concluir tour</Button>
-                        )}
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </Layout>
     );
 }
