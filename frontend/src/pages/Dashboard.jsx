@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Layout } from '../components/Layout';
@@ -38,7 +38,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const COLORS = ['hsl(217, 91%, 60%)', 'hsl(160, 84%, 39%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(280, 65%, 60%)'];
 
-export default function In�cio() {
+export default function Inicio() {
     const [stats, setStats] = useState(null);
     const [campaign, setCampaign] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -98,7 +98,7 @@ export default function In�cio() {
                     </div>
                     <h2 className="font-heading text-3xl font-bold mb-4">Configure sua Campanha</h2>
                     <p className="text-muted-foreground mb-8">
-                        Para começar a usar o sistema, você precisa configurar os dados da sua campanha eleitoral.
+                        Para comeÃ§ar a usar o sistema, vocÃª precisa configurar os dados da sua campanha eleitoral.
                     </p>
                     <Button
                         size="lg"
@@ -116,11 +116,11 @@ export default function In�cio() {
 
     return (
         <Layout>
-            <div className="space-y-8" data-testid="In�cio-page">
+            <div className="space-y-8" data-testid="Inicio-page">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in">
                     <div>
-                        <h1 className="font-heading text-3xl font-bold">In�cio</h1>
+                        <h1 className="font-heading text-3xl font-bold">Inicio</h1>
                         <p className="text-muted-foreground">
                             Campanha de {campaign.candidate_name} - {campaign.party}
                         </p>
@@ -201,7 +201,7 @@ export default function In�cio() {
                         <CardContent className="p-6">
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <p className="text-sm text-muted-foreground mb-1">Pendências</p>
+                                    <p className="text-sm text-muted-foreground mb-1">PendÃªncias</p>
                                     <div className="flex items-baseline gap-4">
                                         <div>
                                             <span className="font-heading text-2xl font-bold text-accent">
@@ -251,8 +251,8 @@ export default function In�cio() {
                                             'secondary'
                                         }>
                                             {tseStatus.status === 'excedido' ? 'EXCEDIDO' :
-                                             tseStatus.status === 'critico' ? 'CRÍTICO' :
-                                             tseStatus.status === 'atencao' ? 'ATENÇÃO' : 'OK'}
+                                             tseStatus.status === 'critico' ? 'CRÃTICO' :
+                                             tseStatus.status === 'atencao' ? 'ATENÃ‡ÃƒO' : 'OK'}
                                         </Badge>
                                     </div>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -265,7 +265,7 @@ export default function In�cio() {
                                             <p className="font-semibold text-destructive">{tseStatus.spending?.total_gasto_formatado}</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-muted-foreground">Disponível</p>
+                                            <p className="text-xs text-muted-foreground">DisponÃ­vel</p>
                                             <p className={`font-semibold ${tseStatus.spending?.saldo_disponivel >= 0 ? 'text-secondary' : 'text-destructive'}`}>
                                                 {tseStatus.spending?.saldo_formatado}
                                             </p>
@@ -465,7 +465,7 @@ export default function In�cio() {
                                                 <p className="font-medium text-sm">{alert.description}</p>
                                                 <p className="text-xs text-muted-foreground">
                                                     {alert.is_overdue 
-                                                        ? `Vencido há ${Math.abs(alert.days_until_due)} dia${Math.abs(alert.days_until_due) > 1 ? 's' : ''}`
+                                                        ? `Vencido hÃ¡ ${Math.abs(alert.days_until_due)} dia${Math.abs(alert.days_until_due) > 1 ? 's' : ''}`
                                                         : alert.days_until_due === 0 
                                                             ? 'Vence hoje!'
                                                             : `Vence em ${alert.days_until_due} dia${alert.days_until_due > 1 ? 's' : ''}`
@@ -486,7 +486,7 @@ export default function In�cio() {
                 {/* Quick Actions */}
                 <Card className="animate-fade-in-up" data-testid="quick-actions">
                     <CardHeader>
-                        <CardTitle className="font-heading">Ações Rápidas</CardTitle>
+                        <CardTitle className="font-heading">AÃ§Ãµes RÃ¡pidas</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -524,7 +524,7 @@ export default function In�cio() {
                                 data-testid="quick-relatorios-btn"
                             >
                                 <CreditCard className="h-6 w-6 text-accent" />
-                                <span>Relatórios</span>
+                                <span>RelatÃ³rios</span>
                             </Button>
                         </div>
                     </CardContent>
@@ -534,6 +534,7 @@ export default function In�cio() {
         </Layout>
     );
 }
+
 
 
 
