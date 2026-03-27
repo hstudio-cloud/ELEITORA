@@ -66,6 +66,8 @@ export default function Despesas() {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [uploadingId, setUploadingId] = useState(null);
+    const [categoryTouched, setCategoryTouched] = useState(false);
+    const [saveAsTemplate, setSaveAsTemplate] = useState(false);
 
     useEffect(() => {
         fetchExpenses();
@@ -82,8 +84,29 @@ export default function Despesas() {
         }
     };
 
+    const suggestCategory = (text) => {
+        const normalized = (text || '').toLowerCase();
+        if (/(facebook|meta|instagram|google|ads|impulsionamento|publicidade|anuncio|midia)/i.test(normalized)) return 'publicidade';
+        if (/(grafico|impress|panfleto|santinho|banner)/i.test(normalized)) return 'material_grafico';
+        if (/(combustivel|posto|transporte|uber|taxi|carro|veiculo)/i.test(normalized)) return 'transporte';
+        if (/(alimentacao|refeicao|lanche|restaurante|comida|coffee)/i.test(normalized)) return 'alimentacao';
+        if (/(equipe|salario|pessoal|rh|colaborador)/i.test(normalized)) return 'pessoal';
+        if (/(evento|palco|sonorizacao|tenda|estrutura)/i.test(normalized)) return 'eventos';
+        if (/(servico|consultoria|assessoria|terceir)/i.test(normalized)) return 'servicos_terceiros';
+        return null;
+    };
+
     const handleChange = (field, value) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        setFormData(prev => {
+            const updated = { ...prev, [field]: value };
+            if ((field === 'description' || field === 'supplier_name') && !categoryTouched) {
+                const suggestion = suggestCategory(`${updated.description} ${updated.supplier_name}`);
+                if (suggestion) {
+                    updated.category = suggestion;
+                }
+            }
+            return updated;
+        });
     };
 
     const handleSubmit = async (e) => {
@@ -104,9 +127,14 @@ export default function Despesas() {
                 toast.success('Despesa cadastrada!');
             }
 
+            if (saveAsTemplate && !editingId) {
+                localStorage.setItem('expense_template', JSON.stringify(formData));
+                setSaveAsTemplate(false);
+            }
             setDialogOpen(false);
             setEditingId(null);
             setFormData(emptyForm);
+            setCategoryTouched(false);
             fetchExpenses();
         } catch (error) {
             toast.error(error.response?.data?.detail || 'Erro ao salvar despesa');
@@ -130,6 +158,7 @@ export default function Despesas() {
             numero_documento_fiscal: expense.numero_documento_fiscal || '',
             data_pagamento: expense.data_pagamento || ''
         });
+        setCategoryTouched(true);
         setEditingId(expense.id);
         setDialogOpen(true);
     };
@@ -189,6 +218,23 @@ export default function Despesas() {
     };
 
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const pendingExpenses = filteredExpenses.filter(e => (e.payment_status || '').toLowerCase() !== 'pago');
+    const missingReceipts = filteredExpenses.filter(e =>
+        !e.attachment_id &&
+        !e.numero_documento_fiscal &&
+        !e.invoice_number
+    );
+
+    const openTemplate = () => {
+        const template = localStorage.getItem('expense_template');
+        if (!template) {
+            toast.info('Nenhum modelo salvo ainda.');
+            return;
+        }
+        const parsed = JSON.parse(template);
+        setFormData({ ...emptyForm, ...parsed, date: new Date().toISOString().split('T')[0] });
+        setDialogOpen(true);
+    };
 
     return (
         <Layout>
@@ -204,13 +250,25 @@ export default function Despesas() {
                         if (!open) {
                             setEditingId(null);
                             setFormData(emptyForm);
+                            setCategoryTouched(false);
                         }
                     }}>
                         <DialogTrigger asChild>
-                            <Button className="gap-2" data-testid="add-expense-btn">
-                                <Plus className="h-4 w-4" />
-                                Nova Despesa
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant="outline"
+                                    className="gap-2"
+                                    onClick={openTemplate}
+                                    data-testid="use-expense-template-btn"
+                                >
+                                    <FileText className="h-4 w-4" />
+                                    Usar modelo
+                                </Button>
+                                <Button className="gap-2" data-testid="add-expense-btn">
+                                    <Plus className="h-4 w-4" />
+                                    Nova Despesa
+                                </Button>
+                            </div>
                         </DialogTrigger>
                         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
@@ -245,7 +303,10 @@ export default function Despesas() {
                                         <Label>Categoria *</Label>
                                         <Select
                                             value={formData.category}
-                                            onValueChange={(value) => handleChange('category', value)}
+                                            onValueChange={(value) => {
+                                                setCategoryTouched(true);
+                                                handleChange('category', value);
+                                            }}
                                         >
                                             <SelectTrigger data-testid="expense-category-select">
                                                 <SelectValue />
@@ -350,6 +411,19 @@ export default function Despesas() {
                                             data-testid="expense-notes-input"
                                         />
                                     </div>
+                                    {!editingId && (
+                                        <div className="flex items-center gap-2 md:col-span-2">
+                                            <input
+                                                id="save-template"
+                                                type="checkbox"
+                                                checked={saveAsTemplate}
+                                                onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                                            />
+                                            <Label htmlFor="save-template" className="text-sm">
+                                                Salvar como modelo de despesa
+                                            </Label>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex justify-end gap-3 pt-4">
                                     <Button
@@ -371,7 +445,7 @@ export default function Despesas() {
                 {/* Summary Card */}
                 <Card data-testid="expense-summary-card">
                     <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div className="flex items-center gap-4">
                                 <div className="w-14 h-14 rounded-xl bg-destructive/20 flex items-center justify-center">
                                     <TrendingDown className="h-7 w-7 text-destructive" />
@@ -383,9 +457,17 @@ export default function Despesas() {
                                     </p>
                                 </div>
                             </div>
-                            <Badge variant="destructive" className="text-lg px-4 py-2">
-                                {filteredExpenses.length} registros
-                            </Badge>
+                            <div className="flex flex-wrap gap-2">
+                                <Badge variant="destructive" className="text-sm px-3 py-1">
+                                    {filteredExpenses.length} registros
+                                </Badge>
+                                <Badge variant="outline" className="text-amber-500 border-amber-500/40">
+                                    {pendingExpenses.length} pendentes
+                                </Badge>
+                                <Badge variant="outline" className="text-amber-500 border-amber-500/40">
+                                    {missingReceipts.length} sem comprovante
+                                </Badge>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -478,6 +560,11 @@ export default function Despesas() {
                                                         {expense.contract_id && (
                                                             <Badge variant="secondary" className="text-xs">
                                                                 Contrato
+                                                            </Badge>
+                                                        )}
+                                                        {!expense.attachment_id && !expense.numero_documento_fiscal && !expense.invoice_number && (
+                                                            <Badge variant="outline" className="text-amber-500 border-amber-500/40 text-xs">
+                                                                Sem comprovante
                                                             </Badge>
                                                         )}
                                                     </div>

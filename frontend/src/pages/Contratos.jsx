@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Layout } from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -136,11 +136,23 @@ export default function Contratos() {
     const [selectedContractAttachments, setSelectedContractAttachments] = useState(null);
     const [uploadingAttachmentKey, setUploadingAttachmentKey] = useState(null);
     const [contadores, setContadores] = useState([]);
+    const [openWithExpense, setOpenWithExpense] = useState(false);
 
     useEffect(() => {
         fetchContracts();
         fetchContadores();
     }, []);
+
+    const contractStats = useMemo(() => {
+        const pendingSignature = contracts.filter(c => pendingSignatureStatuses.includes(c.status));
+        const missingAttachments = contracts.filter(c => c.template_type && (!c.attachments || Object.keys(c.attachments || {}).length === 0));
+        const totalValue = contracts.reduce((sum, c) => sum + Number(c.value || 0), 0);
+        return {
+            pendingSignature,
+            missingAttachments,
+            totalValue
+        };
+    }, [contracts]);
 
     const fetchContracts = async () => {
         try {
@@ -215,11 +227,14 @@ export default function Contratos() {
                 toast.success('Contrato atualizado!');
             } else {
                 await axios.post(`${API}/contracts`, payload);
-                toast.success('Contrato criado! Despesas geradas automaticamente.');
+                toast.success(payload.gerar_despesas !== false
+                    ? 'Contrato criado! Despesas geradas automaticamente.'
+                    : 'Contrato criado com sucesso.');
             }
 
             setDialogOpen(false);
             setEditingId(null);
+            setOpenWithExpense(false);
             setFormData(emptyForm);
             fetchContracts();
         } catch (error) {
@@ -394,6 +409,17 @@ export default function Contratos() {
             }
         };
         input.click();
+    };
+
+    const openContractWithExpenseDialog = () => {
+        setEditingId(null);
+        setFormData({
+            ...emptyForm,
+            gerar_despesas: true,
+            num_parcelas: 1
+        });
+        setOpenWithExpense(true);
+        setDialogOpen(true);
     };
 
     const fetchContadores = async () => {
@@ -658,15 +684,26 @@ export default function Contratos() {
                         }
                     }}>
                         <DialogTrigger asChild>
-                            <Button className="gap-2" data-testid="add-contract-btn">
-                                <Plus className="h-4 w-4" />
-                                Novo Contrato
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant="secondary"
+                                    className="gap-2"
+                                    onClick={openContractWithExpenseDialog}
+                                    data-testid="add-contract-expense-btn"
+                                >
+                                    <DollarSign className="h-4 w-4" />
+                                    Contrato + Despesa
+                                </Button>
+                                <Button className="gap-2" data-testid="add-contract-btn">
+                                    <Plus className="h-4 w-4" />
+                                    Novo Contrato
+                                </Button>
+                            </div>
                         </DialogTrigger>
                         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle className="font-heading">
-                                    {editingId ? 'Editar Contrato' : 'Novo Contrato'}
+                                    {editingId ? 'Editar Contrato' : openWithExpense ? 'Novo Contrato com Despesa' : 'Novo Contrato'}
                                 </DialogTitle>
                                 <DialogDescription>
                                     Preencha os dados do contrato. Os dados do candidato (locatário) serão preenchidos automaticamente.
@@ -974,6 +1011,39 @@ export default function Contratos() {
                     </Dialog>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                        <CardContent className="p-4">
+                            <p className="text-xs text-muted-foreground">Total de Contratos</p>
+                            <p className="text-2xl font-heading font-bold">{contracts.length}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-4">
+                            <p className="text-xs text-muted-foreground">Pendentes de Assinatura</p>
+                            <p className="text-2xl font-heading font-bold text-accent">
+                                {contractStats.pendingSignature.length}
+                            </p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-4">
+                            <p className="text-xs text-muted-foreground">Sem Anexos</p>
+                            <p className="text-2xl font-heading font-bold text-amber-500">
+                                {contractStats.missingAttachments.length}
+                            </p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-4">
+                            <p className="text-xs text-muted-foreground">Valor Total</p>
+                            <p className="text-2xl font-heading font-bold">
+                                {formatCurrency(contractStats.totalValue)}
+                            </p>
+                        </CardContent>
+                    </Card>
+                </div>
+
                 {/* Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card data-testid="contract-total-card">
@@ -1071,6 +1141,18 @@ export default function Contratos() {
                                                                 {contractTemplates.find(t => t.value === contract.template_type)?.label}
                                                             </div>
                                                         )}
+                                                        <div className="mt-2 flex flex-wrap gap-1">
+                                                            {pendingSignatureStatuses.includes(contract.status) && (
+                                                                <Badge variant="outline" className="text-accent border-accent/40">
+                                                                    Assinatura pendente
+                                                                </Badge>
+                                                            )}
+                                                            {contract.template_type && (!contract.attachments || Object.keys(contract.attachments || {}).length === 0) && (
+                                                                <Badge variant="outline" className="text-amber-500 border-amber-500/40">
+                                                                    Sem anexos
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-muted-foreground">
