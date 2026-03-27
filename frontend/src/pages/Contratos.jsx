@@ -18,7 +18,6 @@ import {
     CheckCircle, Clock, FileSignature, Download, Upload, DollarSign,
     AlertTriangle, FileCheck, Loader2
 } from 'lucide-react';
-import { Checkbox } from '../components/ui/checkbox';
 import { Progress } from '../components/ui/progress';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -136,7 +135,6 @@ export default function Contratos() {
     const [selectedContractAttachments, setSelectedContractAttachments] = useState(null);
     const [uploadingAttachmentKey, setUploadingAttachmentKey] = useState(null);
     const [contadores, setContadores] = useState([]);
-    const [openWithExpense, setOpenWithExpense] = useState(false);
 
     useEffect(() => {
         fetchContracts();
@@ -219,7 +217,7 @@ export default function Contratos() {
                 ...formData,
                 value: parseFloat(formData.value),
                 num_parcelas: parseInt(formData.num_parcelas) || 1,
-                gerar_despesas: formData.gerar_despesas !== false // Default to true
+                gerar_despesas: true
             };
 
             if (editingId) {
@@ -227,9 +225,7 @@ export default function Contratos() {
                 toast.success('Contrato atualizado!');
             } else {
                 await axios.post(`${API}/contracts`, payload);
-                toast.success(payload.gerar_despesas !== false
-                    ? 'Contrato criado! Despesas geradas automaticamente.'
-                    : 'Contrato criado com sucesso.');
+                toast.success('Contrato criado! Despesas geradas automaticamente.');
             }
 
             setDialogOpen(false);
@@ -411,16 +407,6 @@ export default function Contratos() {
         input.click();
     };
 
-    const openContractWithExpenseDialog = () => {
-        setEditingId(null);
-        setFormData({
-            ...emptyForm,
-            gerar_despesas: true,
-            num_parcelas: 1
-        });
-        setOpenWithExpense(true);
-        setDialogOpen(true);
-    };
 
     const fetchContadores = async () => {
         try {
@@ -684,26 +670,15 @@ export default function Contratos() {
                         }
                     }}>
                         <DialogTrigger asChild>
-                            <div className="flex flex-wrap gap-2">
-                                <Button
-                                    variant="secondary"
-                                    className="gap-2"
-                                    onClick={openContractWithExpenseDialog}
-                                    data-testid="add-contract-expense-btn"
-                                >
-                                    <DollarSign className="h-4 w-4" />
-                                    Contrato + Despesa
-                                </Button>
-                                <Button className="gap-2" data-testid="add-contract-btn">
-                                    <Plus className="h-4 w-4" />
-                                    Novo Contrato
-                                </Button>
-                            </div>
+                            <Button className="gap-2" data-testid="add-contract-btn">
+                                <Plus className="h-4 w-4" />
+                                Novo Contrato
+                            </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle className="font-heading">
-                                    {editingId ? 'Editar Contrato' : openWithExpense ? 'Novo Contrato com Despesa' : 'Novo Contrato'}
+                                    {editingId ? 'Editar Contrato' : 'Novo Contrato'}
                                 </DialogTitle>
                                 <DialogDescription>
                                     Preencha os dados do contrato. Os dados do candidato (locatário) serão preenchidos automaticamente.
@@ -962,16 +937,8 @@ export default function Contratos() {
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
-                                                    <div className="flex items-center space-x-2 pt-6">
-                                                        <Checkbox
-                                                            id="gerar_despesas"
-                                                            checked={formData.gerar_despesas}
-                                                            onCheckedChange={(checked) => handleChange('gerar_despesas', checked)}
-                                                            data-testid="contract-gerar-despesas-checkbox"
-                                                        />
-                                                        <Label htmlFor="gerar_despesas" className="text-sm">
-                                                            Gerar despesas automaticamente (status: pendente)
-                                                        </Label>
+                                                    <div className="flex items-center space-x-2 pt-6 text-sm text-muted-foreground">
+                                                        As despesas são geradas automaticamente ao salvar o contrato.
                                                     </div>
                                                 </div>
                                                 {formData.num_parcelas > 1 && formData.value && (
