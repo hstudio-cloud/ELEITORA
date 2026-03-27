@@ -150,6 +150,8 @@ export function FloraAssistant() {
     const [voiceEnabled, setVoiceEnabled] = useState(true);
     const [isListening, setIsListening] = useState(false);
     const [speechSupported, setSpeechSupported] = useState(false);
+    const [wakeEnabled, setWakeEnabled] = useState(true);
+    const [wakeStatus, setWakeStatus] = useState('inativo');
     const scrollRef = useRef(null);
     const inputRef = useRef(null);
     const recognitionRef = useRef(null);
@@ -162,25 +164,59 @@ export function FloraAssistant() {
         []
     );
 
+    const openPanel = useCallback(() => {
+        setIsOpen(true);
+    }, []);
+
+    const handleWakeTranscript = useCallback((transcript) => {
+        const normalized = normalizeText(transcript);
+        if (!normalized.includes('flora')) return;
+
+        const parts = normalized.split('flora');
+        const afterWake = (parts[1] || '').trim();
+        openPanel();
+        if (afterWake) {
+            sendMessageRef.current?.(afterWake);
+            return;
+        }
+        addAssistantMessage('Ola, em que posso te ajudar agora?');
+    }, [addAssistantMessage, openPanel]);
+
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         setSpeechSupported(Boolean(SpeechRecognition));
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
             recognition.lang = 'pt-BR';
-            recognition.interimResults = false;
+            recognition.interimResults = true;
             recognition.maxAlternatives = 1;
+            recognition.continuous = true;
             recognition.onresult = (event) => {
-                const transcript = event.results?.[0]?.[0]?.transcript;
+                const lastResult = event.results?.[event.results.length - 1];
+                const transcript = lastResult?.[0]?.transcript;
                 if (transcript) {
-                    sendMessageRef.current?.(transcript);
+                    handleWakeTranscript(transcript);
                 }
             };
-            recognition.onend = () => setIsListening(false);
-            recognition.onerror = () => setIsListening(false);
+            recognition.onend = () => {
+                setIsListening(false);
+                if (wakeEnabled) {
+                    try {
+                        recognition.start();
+                        setIsListening(true);
+                        setWakeStatus('ouvindo');
+                    } catch {
+                        setWakeStatus('inativo');
+                    }
+                }
+            };
+            recognition.onerror = () => {
+                setIsListening(false);
+                setWakeStatus('inativo');
+            };
             recognitionRef.current = recognition;
         }
-    }, []);
+    }, [handleWakeTranscript, wakeEnabled]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -301,16 +337,34 @@ export function FloraAssistant() {
         }
     };
 
-    const toggleListening = () => {
+    const startWakeListening = useCallback(async () => {
         if (!speechSupported || !recognitionRef.current) return;
-        if (isListening) {
+        try {
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+            recognitionRef.current.start();
+            setIsListening(true);
+            setWakeStatus('ouvindo');
+        } catch {
+            setWakeStatus('bloqueado');
+        }
+    }, [speechSupported]);
+
+    const stopWakeListening = useCallback(() => {
+        if (recognitionRef.current) {
             recognitionRef.current.stop();
-            setIsListening(false);
+        }
+        setIsListening(false);
+        setWakeStatus('inativo');
+    }, []);
+
+    useEffect(() => {
+        if (!speechSupported) return;
+        if (wakeEnabled) {
+            startWakeListening();
             return;
         }
-        setIsListening(true);
-        recognitionRef.current.start();
-    };
+        stopWakeListening();
+    }, [wakeEnabled, speechSupported, startWakeListening, stopWakeListening]);
 
     return (
         <>
@@ -353,17 +407,22 @@ export function FloraAssistant() {
                                 <Button
                                     size="icon"
                                     variant="ghost"
-                                    onClick={toggleListening}
+                                    onClick={() => setWakeEnabled((prev) => !prev)}
                                     className="text-white hover:bg-white/20"
-                                    aria-label="Falar com a Flora"
+                                    aria-label="Ativar escuta por palavra-chave"
                                     disabled={!speechSupported}
                                 >
-                                    {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                                    {wakeEnabled ? <MicOff size={16} /> : <Mic size={16} />}
                                 </Button>
                             </div>
                         </div>
                         {!speechSupported && (
                             <p className="text-[11px] text-blue-100 mt-2">Microfone indisponivel neste navegador.</p>
+                        )}
+                        {speechSupported && (
+                            <p className="text-[11px] text-blue-100 mt-2">
+                                Escuta por \"flora\": {wakeEnabled ? wakeStatus : 'desligada'}
+                            </p>
                         )}
                     </div>
 

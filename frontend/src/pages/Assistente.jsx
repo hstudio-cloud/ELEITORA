@@ -40,6 +40,7 @@ const voiceExamples = [
 export default function Assistente() {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const perfil = String(user?.role || '').toLowerCase().includes('contador') ? 'contador' : 'candidato';
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
     const [loading, setLoading] = useState(false);
@@ -102,9 +103,11 @@ export default function Assistente() {
             localStorage.setItem(tourKey, '1');
             setTourShown(true);
 
+            const role = String(user?.role || '').toLowerCase();
+            const perfil = role.includes('contador') ? 'contador' : 'candidato';
             const tourMessage = {
                 role: 'assistant',
-                content: `👋 Olá! Sou a Flora, sua assistente inteligente de campanha!\n\nPosso ajudá-lo com:\n\n📊 **Finanças**: Saldo, receitas, despesas, pix\n📋 **Contratos**: Criar, assinar, acompanhar\n✅ **Conformidade TSE**: Verificar regras eleitorais\n⏰ **Vencimentos**: Alertas de pagamentos\n📁 **Documentos**: Gerenciar anexos\n\nApenas diga o que precisa! 😊`,
+                content: `Ola ${perfil}, em que posso te ajudar hoje?`,
                 timestamp: new Date().toISOString(),
                 isTour: true
             };
@@ -939,7 +942,7 @@ export default function Assistente() {
                                         <Mic className="h-6 w-6 text-accent absolute -right-2 -bottom-2" />
                                     </div>
                                     <p className="text-lg font-medium text-foreground">
-                                        Olá! Sou a Flora
+                                        Ola {perfil}, em que posso te ajudar hoje?
                                     </p>
                                     <p className="text-sm text-muted-foreground mt-1">
                                         Sua assistente de campanha com voz

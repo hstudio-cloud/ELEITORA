@@ -25,10 +25,10 @@ except ImportError:
 # Voice configuration
 VOICE_CONFIG = {
     "name": "Flora",
-    "voice": "nova",  # Feminine voice
+    "voice": "shimmer",  # Feminine voice
     "model_tts": "tts-1-hd",  # Higher quality audio
     "model_stt": "whisper-1",
-    "speed": 0.85,  # Slower for clarity and diction
+    "speed": 1.0,  # Natural pace
     "language": "pt",
     "tts_provider": os.environ.get("VOICE_TTS_PROVIDER", "openai").lower(),
     "elevenlabs_voice_id": os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),

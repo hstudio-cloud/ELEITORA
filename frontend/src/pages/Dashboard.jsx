@@ -38,7 +38,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const COLORS = ['hsl(217, 91%, 60%)', 'hsl(160, 84%, 39%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(280, 65%, 60%)'];
 
-export default function In√≠cio() {
+export default function InÌcio() {
     const [stats, setStats] = useState(null);
     const [campaign, setCampaign] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -116,11 +116,11 @@ export default function In√≠cio() {
 
     return (
         <Layout>
-            <div className="space-y-8" data-testid="In√≠cio-page">
+            <div className="space-y-8" data-testid="InÌcio-page">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in">
                     <div>
-                        <h1 className="font-heading text-3xl font-bold">In√≠cio</h1>
+                        <h1 className="font-heading text-3xl font-bold">InÌcio</h1>
                         <p className="text-muted-foreground">
                             Campanha de {campaign.candidate_name} - {campaign.party}
                         </p>
@@ -534,6 +534,7 @@ export default function In√≠cio() {
         </Layout>
     );
 }
+
 
 
 

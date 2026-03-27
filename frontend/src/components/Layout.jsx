@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-    { path: '/dashboard', label: 'InÃ­cio', icon: LayoutDashboard },
+    { path: '/dashboard', label: 'In�cio', icon: LayoutDashboard },
     { path: '/receitas', label: 'Receitas', icon: TrendingUp },
     { path: '/despesas', label: 'Despesas', icon: TrendingDown },
     { path: '/contratos', label: 'Contratos', icon: FileText },
@@ -174,3 +174,5 @@ export const Layout = ({ children }) => {
         </div>
     );
 };
+
+
