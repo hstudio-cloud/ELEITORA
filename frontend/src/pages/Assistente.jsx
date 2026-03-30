@@ -13,8 +13,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
     Bot, Send, Loader2, Trash2, AlertTriangle, 
     FileText, BarChart3, Shield, Sparkles, MessageSquare,
-    ChevronRight, RefreshCw, Mic, MicOff, Volume2, VolumeX,
-    Radio, Waves, StopCircle
+    ChevronRight, RefreshCw, Mic, Volume2, VolumeX,
+    Radio
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -54,17 +54,15 @@ export default function Assistente() {
     const inputRef = useRef(null);
 
     // Voice state
-    const [isRecording, setIsRecording] = useState(false);
     const [isProcessingVoice, setIsProcessingVoice] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState(true);
-    const [wakeEnabled, setWakeEnabled] = useState(true);
+    const [wakeEnabled] = useState(true);
+    const [wakePermission, setWakePermission] = useState('unknown');
     const [wakeSupported, setWakeSupported] = useState(false);
     const [wakeStatus, setWakeStatus] = useState('inativo');
     const [wakePhrase, setWakePhrase] = useState('');
     const [lastTranscription, setLastTranscription] = useState('');
-    const mediaRecorderRef = useRef(null);
-    const audioChunksRef = useRef([]);
     const audioRef = useRef(null);
     const recognitionRef = useRef(null);
     const wakeCooldownRef = useRef(0);
@@ -82,6 +80,12 @@ export default function Assistente() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         setWakeSupported(Boolean(SpeechRecognition));
     }, []);
+
+    useEffect(() => {
+        if (!wakeSupported) return;
+        requestMicrophoneAccess();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [wakeSupported]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -325,100 +329,8 @@ export default function Assistente() {
     };
 
     // ============== Voice Functions ==============
-    
-    const startRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            mediaRecorderRef.current = mediaRecorder;
-            audioChunksRef.current = [];
 
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    audioChunksRef.current.push(event.data);
-                }
-            };
-
-            mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                stream.getTracks().forEach(track => track.stop());
-                await processVoiceCommand(audioBlob);
-            };
-
-            mediaRecorder.start();
-            setIsRecording(true);
-            toast.info('🎤 Gravando... Fale seu comando');
-        } catch (error) {
-            toast.error('Erro ao acessar microfone. Verifique as permissões.');
-            console.error('Microphone error:', error);
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop();
-            setIsRecording(false);
-        }
-    };
-
-    const processVoiceCommand = async (audioBlob) => {
-        setIsProcessingVoice(true);
-        
-        try {
-            const formData = new FormData();
-            formData.append('audio', audioBlob, 'command.webm');
-
-            const response = await axios.post(`${API}/voice/command`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            const { transcribed_text, response_text, audio_response, action, action_data, success } = response.data;
-
-            setLastTranscription(transcribed_text);
-
-            // Add to chat history
-            if (transcribed_text) {
-                const userMessage = {
-                    role: 'user',
-                    content: `🎤 ${transcribed_text}`,
-                    timestamp: new Date().toISOString(),
-                    isVoice: true
-                };
-                setMessages(prev => [...prev, userMessage]);
-            }
-
-            if (response_text) {
-                const assistantMessage = {
-                    role: 'assistant',
-                    content: response_text,
-                    timestamp: new Date().toISOString(),
-                    isVoice: true
-                };
-                setMessages(prev => [...prev, assistantMessage]);
-            }
-
-            // Play audio response
-            if (audio_response && voiceEnabled) {
-                playAudioResponse(audio_response);
-            }
-
-            // Execute action if any
-            if (action && action_data) {
-                handleVoiceAction(action, action_data);
-            }
-
-            if (!success) {
-                toast.error('Não consegui entender o comando');
-            }
-        } catch (error) {
-            toast.error('Erro ao processar comando de voz');
-            console.error('Voice command error:', error);
-        } finally {
-            setIsProcessingVoice(false);
-        }
-    };
-
-    const handleVoiceAction = (action, data) => {
+const handleVoiceAction = (action, data) => {
         switch (action) {
             case 'navigate':
                 toast.success(`Navegando para ${data.route}`);
@@ -610,10 +522,11 @@ export default function Assistente() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             stream.getTracks().forEach(track => track.stop());
+            setWakePermission('granted');
             return true;
         } catch (error) {
             console.error('Microphone permission error:', error);
-            toast.error('Permita acesso ao microfone para ativar a Flora por nome.');
+            setWakePermission('denied');
             return false;
         }
     };
@@ -651,15 +564,14 @@ export default function Assistente() {
         recognition.onerror = (event) => {
             if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
                 setWakeStatus('permissao-negada');
-                setWakeEnabled(false);
-                toast.error('Ative o microfone para usar a palavra-chave "Flora".');
+                setWakePermission('denied');
                 return;
             }
             setWakeStatus('erro');
         };
         recognition.onend = () => {
             recognitionRef.current = null;
-            if (wakeEnabled && !isRecording && !isProcessingVoice) {
+            if (wakeEnabled && wakePermission !== 'denied' && !isProcessingVoice) {
                 setTimeout(() => startWakeListener(), 500);
             } else {
                 setWakeStatus('inativo');
@@ -671,7 +583,7 @@ export default function Assistente() {
     };
 
     useEffect(() => {
-        if (wakeEnabled && wakeSupported && !isRecording && !isProcessingVoice) {
+        if (wakeEnabled && wakeSupported && wakePermission !== 'denied' && !isProcessingVoice) {
             startWakeListener();
         } else {
             stopWakeListener();
@@ -681,7 +593,7 @@ export default function Assistente() {
             stopWakeListener();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [wakeEnabled, wakeSupported, isRecording, isProcessingVoice]);
+    }, [wakeEnabled, wakeSupported, wakePermission, isProcessingVoice]);
 
     const formatMessage = (content) => {
         return content
@@ -719,23 +631,7 @@ export default function Assistente() {
                             {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                             {voiceEnabled ? 'Voz Ativa' : 'Voz Desativada'}
                         </Button>
-                        <Button
-                            variant={wakeEnabled ? "default" : "outline"}
-                            size="sm"
-                            onClick={async () => {
-                                if (!wakeEnabled) {
-                                    const granted = await requestMicrophoneAccess();
-                                    if (!granted) return;
-                                }
-                                setWakeEnabled(!wakeEnabled);
-                            }}
-                            className="gap-2"
-                            disabled={!wakeSupported}
-                        >
-                            <Radio className="h-4 w-4" />
-                            {wakeEnabled ? 'Flora Sempre Ouvindo' : 'Ativação por Nome'}
-                        </Button>
-                        <Button 
+<Button 
                             variant="outline" 
                             size="sm" 
                             onClick={clearHistory}
@@ -787,68 +683,34 @@ export default function Assistente() {
                 <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-0">
                     {/* Sidebar */}
                     <div className="lg:col-span-1 space-y-4">
-                        {/* Voice Control Card */}
+                        {/* Escuta Ativa */}
                         <Card className="border-accent/30 bg-accent/5">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                                     <Mic className="h-4 w-4 text-accent" />
-                                    Comando de Voz
+                                    Escuta Ativa
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-4">
-                                <Button
-                                    className={`w-full h-20 text-lg gap-3 ${
-                                        isRecording 
-                                            ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                                            : isProcessingVoice 
-                                                ? 'bg-amber-500'
-                                                : 'bg-accent hover:bg-accent/90'
-                                    }`}
-                                    onClick={isRecording ? stopRecording : startRecording}
-                                    disabled={isProcessingVoice}
-                                    data-testid="voice-record-btn"
-                                >
-                                    {isRecording ? (
-                                        <>
-                                            <StopCircle className="h-6 w-6" />
-                                            Parar
-                                        </>
-                                    ) : isProcessingVoice ? (
-                                        <>
-                                            <Loader2 className="h-6 w-6 animate-spin" />
-                                            Processando...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Mic className="h-6 w-6" />
-                                            Falar
-                                        </>
-                                    )}
-                                </Button>
-                                
-                                {isRecording && (
-                                    <div className="flex items-center justify-center gap-2 text-red-400">
-                                        <Waves className="h-4 w-4 animate-pulse" />
-                                        <span className="text-sm">Ouvindo...</span>
-                                    </div>
-                                )}
-
+                            <CardContent className="space-y-3">
                                 <div className="text-xs p-2 rounded bg-muted/40">
-                                    <span className="font-medium">Ativação por nome:</span>{' '}
                                     {!wakeSupported
-                                        ? 'Não suportado no navegador'
-                                        : wakeEnabled
-                                            ? `Ligado (${wakeStatus})`
-                                            : 'Desligado'}
+                                        ? 'N??o suportado no navegador'
+                                        : wakePermission === 'denied'
+                                            ? 'Microfone bloqueado nas permiss??es do navegador'
+                                            : `Diga \"Flora\" para ativar (${wakeStatus})`}
                                 </div>
-
                                 {wakePhrase && (
                                     <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
                                         <span className="font-medium">Frase detectada:</span>
                                         <br />&quot;{wakePhrase}&quot;
                                     </div>
                                 )}
-                                
+                                {lastTranscription && (
+                                    <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
+                                        <span className="font-medium">??ltimo comando:</span>
+                                        <br />&quot;{lastTranscription}&quot;
+                                    </div>
+                                )}
                                 {isSpeaking && (
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-accent">
@@ -862,13 +724,6 @@ export default function Assistente() {
                                         >
                                             <VolumeX className="h-4 w-4" />
                                         </Button>
-                                    </div>
-                                )}
-
-                                {lastTranscription && (
-                                    <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
-                                        <span className="font-medium">Último comando:</span>
-                                        <br />&quot;{lastTranscription}&quot;
                                     </div>
                                 )}
                             </CardContent>
@@ -948,7 +803,7 @@ export default function Assistente() {
                                         Sua assistente de campanha com voz
                                     </p>
                                     <p className="text-xs text-muted-foreground/70 mt-2">
-                                        Clique em &quot;Falar&quot;, diga &quot;Flora&quot; ou digite sua pergunta
+                                        Diga &quot;Flora&quot; ou digite sua pergunta
                                     </p>
                                 </div>
                             ) : (
@@ -998,24 +853,39 @@ export default function Assistente() {
                                 </div>
                             )}
                         </ScrollArea>
-
                         {/* Input Area */}
                         <div className="p-4 border-t">
-                            <div className="flex gap-2">
-                                <Input
-                                    ref={inputRef}
-                                    value={inputMessage}
-                                    onChange={(e) => setInputMessage(e.target.value)}
-                                    onKeyPress={handleKeyPress}
-                                    placeholder="Digite sua pergunta ou use o microfone..."
-                                    disabled={loading || isRecording}
-                                    className="flex-1"
-                                    data-testid="chat-input"
-                                />
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-2">
+                                    <Input
+                                        ref={inputRef}
+                                        value={inputMessage}
+                                        onChange={(e) => setInputMessage(e.target.value)}
+                                        onKeyPress={handleKeyPress}
+                                        placeholder="Digite sua pergunta..."
+                                        disabled={loading}
+                                        className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        data-testid="chat-input"
+                                    />
+                                    {wakeSupported && (
+                                        <div
+                                            className={`h-9 w-9 rounded-full border flex items-center justify-center transition ${
+                                                wakeStatus === 'ouvindo'
+                                                    ? 'border-emerald-400 text-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.15)]'
+                                                    : wakePermission === 'denied'
+                                                        ? 'border-amber-300 text-amber-500'
+                                                        : 'border-slate-200 text-slate-500'
+                                            }`}
+                                            title="Escuta ativa por voz: diga Flora"
+                                        >
+                                            <Mic className="h-4 w-4" />
+                                        </div>
+                                    )}
+                                </div>
                                 <Button 
                                     onClick={() => sendMessage()}
-                                    disabled={loading || !inputMessage.trim() || isRecording}
-                                    className="gap-2"
+                                    disabled={loading || !inputMessage.trim()}
+                                    className="h-10 w-10 rounded-full p-0"
                                     data-testid="send-message-btn"
                                 >
                                     {loading ? (
@@ -1023,11 +893,10 @@ export default function Assistente() {
                                     ) : (
                                         <Send className="h-4 w-4" />
                                     )}
-                                    Enviar
                                 </Button>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
-                                Enter para enviar • Clique em &quot;Falar&quot; ou diga &quot;Flora&quot;
+                                Enter para enviar ??? Diga &quot;Flora&quot; para comandar por voz
                             </p>
                         </div>
                     </Card>
