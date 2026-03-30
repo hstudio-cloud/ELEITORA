@@ -276,7 +276,7 @@ export function FloraAssistant() {
     }, [navigate]);
 
     const sendMessage = useCallback(async (textInput) => {
-        const text = (textInput ?? inputMessage).trim();
+        const text = (textInput ? inputMessage).trim();
         if (!text) return;
 
         const userMessage = {

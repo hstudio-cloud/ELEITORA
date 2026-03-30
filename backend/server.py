@@ -98,6 +98,27 @@ GOVBR_SIGNATURE_URL = os.environ.get('GOVBR_SIGNATURE_URL', 'https://assinador.i
 if RESEND_AVAILABLE and RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
+# WhatsApp Business (Meta Cloud API) Config
+WHATSAPP_TOKEN = os.environ.get('WHATSAPP_TOKEN', '')
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID', '')
+WHATSAPP_API_VERSION = os.environ.get('WHATSAPP_API_VERSION', 'v19.0')
+WHATSAPP_DEFAULT_LANGUAGE = os.environ.get('WHATSAPP_DEFAULT_LANGUAGE', 'pt_BR')
+WHATSAPP_AVAILABLE = bool(WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID)
+
+# WhatsApp Templates (use a default template with a single {{1}} variable)
+WHATSAPP_TEMPLATE_DEFAULT = os.environ.get('WHATSAPP_TEMPLATE_DEFAULT', '')
+WHATSAPP_TEMPLATE_PAYMENT_DUE = os.environ.get('WHATSAPP_TEMPLATE_PAYMENT_DUE', '')
+WHATSAPP_TEMPLATE_CONTRACT_PENDING = os.environ.get('WHATSAPP_TEMPLATE_CONTRACT_PENDING', '')
+WHATSAPP_TEMPLATE_EXPENSE_NO_RECEIPT = os.environ.get('WHATSAPP_TEMPLATE_EXPENSE_NO_RECEIPT', '')
+WHATSAPP_TEMPLATE_TSE_LIMIT = os.environ.get('WHATSAPP_TEMPLATE_TSE_LIMIT', '')
+WHATSAPP_TEMPLATE_REPORT_READY = os.environ.get('WHATSAPP_TEMPLATE_REPORT_READY', '')
+
+# OCR Config (optional)
+OCR_PROVIDER = os.environ.get('OCR_PROVIDER', '').lower()  # "google_vision" or "none"
+GOOGLE_VISION_API_KEY = os.environ.get('GOOGLE_VISION_API_KEY', '')
+if not OCR_PROVIDER and GOOGLE_VISION_API_KEY:
+    OCR_PROVIDER = "google_vision"
+
 # Banco do Brasil PIX API Config
 BB_APP_KEY = os.environ.get('BB_APP_KEY', '')
 BB_CLIENT_ID = os.environ.get('BB_CLIENT_ID', '')
@@ -125,7 +146,7 @@ TSE_IMPORT_MAX_FILE_SIZE = int(os.environ.get("TSE_IMPORT_MAX_FILE_SIZE", 50 * 1
 
 # ============== BANCO DO BRASIL PIX INTEGRATION ==============
 class BancoDoBrasilPIX:
-    """Classe para integraÃ§Ã£o com a API PIX do Banco do Brasil"""
+    """Classe para integração com a API PIX do Banco do Brasil"""
     
     def __init__(self):
         self.app_key = BB_APP_KEY
@@ -298,7 +319,7 @@ class BancoDoBrasilPIX:
         
         async with httpx.AsyncClient(**self._httpx_client_kwargs()) as client:
             try:
-                # Create cobranÃ§a (billing request)
+                # Create cobrança (billing request)
                 response = await client.put(
                     f"{self.api_url}/cobv/{txid}",
                     headers=headers,
@@ -307,7 +328,7 @@ class BancoDoBrasilPIX:
                 response.raise_for_status()
                 
                 result = response.json()
-                logging.info(f"BB PIX: CobranÃ§a criada - txid: {txid}")
+                logging.info(f"BB PIX: Cobrança criada - txid: {txid}")
                 
                 return {
                     "success": True,
@@ -322,7 +343,7 @@ class BancoDoBrasilPIX:
                 
             except httpx.HTTPStatusError as e:
                 error_detail = e.response.text if e.response else str(e)
-                logging.error(f"BB PIX: Erro ao criar cobranÃ§a: {error_detail}")
+                logging.error(f"BB PIX: Erro ao criar cobrança: {error_detail}")
                 return {
                     "success": False,
                     "error": error_detail,
@@ -366,7 +387,7 @@ class BancoDoBrasilPIX:
                 }
     
     async def list_pix_received(self, start_date: str, end_date: str) -> dict:
-        """Lista PIX recebidos em um perÃ­odo"""
+        """Lista PIX recebidos em um período"""
         token = await self.get_access_token()
         
         headers = {
@@ -521,22 +542,22 @@ def validate_and_normalize_document(
         if "cpf" not in allowed_types:
             raise HTTPException(status_code=400, detail=f"{field_name} deve ser CNPJ")
         if not validate_cpf(doc):
-            raise HTTPException(status_code=400, detail=f"{field_name} invÃ¡lido")
+            raise HTTPException(status_code=400, detail=f"{field_name} inválido")
         return doc
 
     if len(doc) == 14:
         if "cnpj" not in allowed_types:
             raise HTTPException(status_code=400, detail=f"{field_name} deve ser CPF")
         if not validate_cnpj(doc):
-            raise HTTPException(status_code=400, detail=f"{field_name} invÃ¡lido")
+            raise HTTPException(status_code=400, detail=f"{field_name} inválido")
         return doc
 
     if allowed_types == ("cpf",):
-        expected = "11 dÃ­gitos (CPF)"
+        expected = "11 dígitos (CPF)"
     elif allowed_types == ("cnpj",):
-        expected = "14 dÃ­gitos (CNPJ)"
+        expected = "14 dígitos (CNPJ)"
     else:
-        expected = "11 dÃ­gitos (CPF) ou 14 dÃ­gitos (CNPJ)"
+        expected = "11 dígitos (CPF) ou 14 dígitos (CNPJ)"
     raise HTTPException(status_code=400, detail=f"{field_name} deve ter {expected}")
 
 # ============== ENUMS ==============
@@ -576,100 +597,100 @@ class ContractTemplateType(str, Enum):
 # Required attachments by contract type
 CONTRACT_REQUIRED_ATTACHMENTS = {
     "veiculo_com_motorista": [
-        {"key": "doc_veiculo", "label": "Documento do VeÃ­culo (CRLV)", "required": True},
-        {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio (RG/CPF)", "required": True},
+        {"key": "doc_veiculo", "label": "Documento do Veículo (CRLV)", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário (RG/CPF)", "required": True},
         {"key": "cnh_motorista", "label": "CNH do Motorista", "required": True},
-        {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "veiculo_sem_motorista": [
-        {"key": "doc_veiculo", "label": "Documento do VeÃ­culo (CRLV)", "required": True},
-        {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio (RG/CPF)", "required": True},
-        {"key": "cnh_proprietario", "label": "CNH do ProprietÃ¡rio", "required": True},
-        {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia", "required": True},
+        {"key": "doc_veiculo", "label": "Documento do Veículo (CRLV)", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário (RG/CPF)", "required": True},
+        {"key": "cnh_proprietario", "label": "CNH do Proprietário", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "imovel": [
         {"key": "doc_imovel", "label": "Documento do Imóvel (Escritura/Contrato)", "required": True},
-        {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/Locador (RG/CPF)", "required": True},
-        {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia do Locador", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário/Locador (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência do Locador", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "bem_movel": [
-        {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio (RG/CPF)", "required": True},
-        {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência", "required": True},
         {"key": "doc_bem", "label": "Documento do Bem (se houver)", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "espaco_evento": [
-        {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/ResponsÃ¡vel (RG/CPF)", "required": True},
-        {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário/Responsável (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência", "required": True},
         {"key": "doc_espaco", "label": "Documento do Espaço (se houver)", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "imovel_comite": [
         {"key": "doc_imovel", "label": "Documento do Imóvel (Escritura/Contrato)", "required": True},
-        {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/Locador (RG/CPF)", "required": True},
-        {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia do Locador", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário/Locador (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência do Locador", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "imovel_evento": [
-        {"key": "doc_proprietario", "label": "Documento do ProprietÃ¡rio/ResponsÃ¡vel (RG/CPF)", "required": True},
-        {"key": "comprovante_residencia", "label": "Comprovante de ResidÃªncia", "required": True},
+        {"key": "doc_proprietario", "label": "Documento do Proprietário/Responsável (RG/CPF)", "required": True},
+        {"key": "comprovante_residencia", "label": "Comprovante de Residência", "required": True},
         {"key": "doc_espaco", "label": "Documento do Espaço (se houver)", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "servico_grafico": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
-        {"key": "proposta_servico", "label": "Proposta/OrÃ§amento do Serviço", "required": True},
-        {"key": "arte_aprovada", "label": "Arte/EspecificaÃ§Ã£o do Material", "required": False},
+        {"key": "proposta_servico", "label": "Proposta/Orçamento do Serviço", "required": True},
+        {"key": "arte_aprovada", "label": "Arte/Especificação do Material", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "servico_publicidade": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
-        {"key": "proposta_servico", "label": "Proposta/Plano de MÃ­dia", "required": True},
-        {"key": "relatorio_entrega", "label": "RelatÃ³rio de Entrega/VeiculaÃ§Ã£o", "required": False},
+        {"key": "proposta_servico", "label": "Proposta/Plano de Mídia", "required": True},
+        {"key": "relatorio_entrega", "label": "Relatório de Entrega/Veiculação", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "servico_pesquisa": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
         {"key": "proposta_servico", "label": "Proposta/Plano de Pesquisa", "required": True},
-        {"key": "relatorio_entrega", "label": "RelatÃ³rio/Resultado da Pesquisa", "required": False},
+        {"key": "relatorio_entrega", "label": "Relatório/Resultado da Pesquisa", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "servico_juridico": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
-        {"key": "doc_oab", "label": "ComprovaÃ§Ã£o de OAB (se aplicÃ¡vel)", "required": False},
+        {"key": "doc_oab", "label": "Comprovação de OAB (se aplicável)", "required": False},
         {"key": "proposta_servico", "label": "Proposta/Objeto do Serviço", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "servico_contabil": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
-        {"key": "doc_crc", "label": "ComprovaÃ§Ã£o de CRC (se aplicÃ¡vel)", "required": False},
+        {"key": "doc_crc", "label": "Comprovação de CRC (se aplicável)", "required": False},
         {"key": "proposta_servico", "label": "Proposta/Objeto do Serviço", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "servico_ti": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
         {"key": "proposta_servico", "label": "Escopo Técnico do Serviço", "required": True},
-        {"key": "relatorio_entrega", "label": "RelatÃ³rio de Entrega", "required": False},
+        {"key": "relatorio_entrega", "label": "Relatório de Entrega", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "producao_audiovisual": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
-        {"key": "proposta_servico", "label": "Roteiro/Escopo da ProduÃ§Ã£o", "required": True},
-        {"key": "relatorio_entrega", "label": "ComprovaÃ§Ã£o de Entrega do Material", "required": False},
+        {"key": "proposta_servico", "label": "Roteiro/Escopo da Produção", "required": True},
+        {"key": "relatorio_entrega", "label": "Comprovação de Entrega do Material", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "impulsionamento": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
         {"key": "proposta_servico", "label": "Plano de Impulsionamento", "required": True},
-        {"key": "relatorio_entrega", "label": "RelatÃ³rio de VeiculaÃ§Ã£o", "required": False},
+        {"key": "relatorio_entrega", "label": "Relatório de Veiculação", "required": False},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ],
     "outros": [
         {"key": "doc_prestador", "label": "Documento do Prestador (RG/CPF ou CNPJ)", "required": True},
-        {"key": "proposta_servico", "label": "DescriÃ§Ã£o/Proposta do Objeto", "required": True},
+        {"key": "proposta_servico", "label": "Descrição/Proposta do Objeto", "required": True},
         {"key": "comprovante_pagamento", "label": "Comprovante de Pagamento", "required": False}
     ]
 }
@@ -729,15 +750,15 @@ class CampaignCreate(BaseModel):
     state: str
     election_year: int
     # TSE Spending Limits
-    eleitores: Optional[int] = None  # NÃºmero de eleitores do municÃ­pio (para cÃ¡lculo do limite TSE)
-    codigo_ibge: Optional[str] = None  # CÃ³digo IBGE do municÃ­pio
+    eleitores: Optional[int] = None  # Número de eleitores do município (para cálculo do limite TSE)
+    codigo_ibge: Optional[str] = None  # Código IBGE do município
     segundo_turno: Optional[bool] = False
     limite_gastos: Optional[float] = None
     limite_fonte: Optional[str] = None
     limite_ano_base: Optional[int] = None
     # SPCE Required Fields
     cnpj: Optional[str] = None  # CNPJ da campanha
-    numero_candidato: Optional[str] = None  # NÃºmero do candidato
+    numero_candidato: Optional[str] = None  # Número do candidato
     # Candidate personal data
     cpf_candidato: Optional[str] = None
     titulo_eleitor: Optional[str] = None
@@ -868,8 +889,8 @@ class RevenueCreate(BaseModel):
     tipo_receita: Optional[TipoReceita] = TipoReceita.DOACAO_FINANCEIRA
     tipo_doador: Optional[TipoDoador] = TipoDoador.PESSOA_FISICA
     forma_recebimento: Optional[FormaRecebimento] = FormaRecebimento.TRANSFERENCIA
-    recibo_eleitoral: Optional[str] = None  # NÃºmero do recibo eleitoral (auto-gerado)
-    donor_titulo_eleitor: Optional[str] = None  # TÃ­tulo de eleitor do doador PF
+    recibo_eleitoral: Optional[str] = None  # Número do recibo eleitoral (auto-gerado)
+    donor_titulo_eleitor: Optional[str] = None  # Título de eleitor do doador PF
 
 class RevenueResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -981,7 +1002,7 @@ class ContractCreate(BaseModel):
     # Motorista fields
     motorista_nome: Optional[str] = None
     motorista_cnh: Optional[str] = None
-    # Reboque/ParedÃ£o fields
+    # Reboque/Paredão fields
     reboque_descricao: Optional[str] = None
     reboque_placa: Optional[str] = None
     reboque_renavam: Optional[str] = None
@@ -1096,7 +1117,7 @@ class ProfessionalCreate(BaseModel):
     crc: Optional[str] = None  # Registro no CRC
     crc_state: Optional[str] = None
     # Advogado fields
-    oab: Optional[str] = None  # NÃºmero OAB
+    oab: Optional[str] = None  # Número OAB
     oab_state: Optional[str] = None
     # Common fields
     cpf: Optional[str] = None
@@ -1175,14 +1196,14 @@ class DashboardStats(BaseModel):
 # ============== BANK STATEMENT MODELS ==============
 class BankTransactionType(str, Enum):
     CREDIT = "credit"  # Entrada (receita)
-    DEBIT = "debit"    # SaÃ­da (despesa)
+    DEBIT = "debit"    # Saída (despesa)
 
 class ReconciliationStatus(str, Enum):
-    PENDING = "pending"           # Aguardando conciliaÃ§Ã£o
+    PENDING = "pending"           # Aguardando conciliação
     RECONCILED = "reconciled"     # Conciliado automaticamente
     MANUAL = "manual"             # Conciliado manualmente
-    DIVERGENT = "divergent"       # DivergÃªncia encontrada
-    IGNORED = "ignored"           # Ignorado pelo usuÃ¡rio
+    DIVERGENT = "divergent"       # Divergência encontrada
+    IGNORED = "ignored"           # Ignorado pelo usuário
 
 class BankStatementCreate(BaseModel):
     bank_name: str
@@ -1209,7 +1230,7 @@ class BankTransactionResponse(BaseModel):
     reconciled_with_id: Optional[str] = None  # ID da receita ou despesa
     reconciled_with_type: Optional[str] = None  # "revenue" ou "expense"
     reconciled_at: Optional[str] = None
-    match_confidence: Optional[float] = None  # 0-100% de confianÃ§a do match
+    match_confidence: Optional[float] = None  # 0-100% de confiança do match
     campaign_id: str
     created_at: str
 
@@ -1252,12 +1273,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0})
         if not user:
-            raise HTTPException(status_code=401, detail="UsuÃ¡rio nÃ£o encontrado")
+            raise HTTPException(status_code=401, detail="Usuário não encontrado")
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Token invÃ¡lido")
+        raise HTTPException(status_code=401, detail="Token inválido")
 
 async def get_current_user_or_contador(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Get current user - accepts both regular user and contador tokens"""
@@ -1275,11 +1296,11 @@ async def get_current_user_or_contador(credentials: HTTPAuthorizationCredentials
         if professional:
             return professional
         
-        raise HTTPException(status_code=401, detail="UsuÃ¡rio nÃ£o encontrado")
+        raise HTTPException(status_code=401, detail="Usuário não encontrado")
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Token invÃ¡lido")
+        raise HTTPException(status_code=401, detail="Token inválido")
 
 # ============== CONTRACT TEMPLATE GENERATORS ==============
 def format_currency(value):
@@ -1292,7 +1313,7 @@ def format_date_br(date_str):
         return ""
     try:
         date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-        months = ['janeiro', 'fevereiro', 'marÃ§o', 'abril', 'maio', 'junho', 
+        months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
                   'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
         return f"{date.day} de {months[date.month-1]} de {date.year}"
     except:
@@ -1336,7 +1357,7 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
     
     # Locatário section (Candidate - auto-filled)
     locatario_section = f"""
-        <p><strong>LOCATÃRIO:</strong></p>
+        <p><strong>LOCATÁRIO:</strong></p>
         <p style="text-align: justify;">
             <strong>Campanha:</strong> ELEIÇÃO {campaign.get('election_year', '2024')} - {campaign.get('candidate_name', '_______________')} - {campaign.get('position', 'VEREADOR').upper()}<br>
             <strong>Partido:</strong> {campaign.get('party', '_______________')}<br>
@@ -1351,7 +1372,7 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
     value_clause = f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO VALOR DO ALUGUEL</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA TERCEIRA.</strong> Pela locação ora ajustada, o LOCATÃRIO pagará a quantia de 
+            <strong>CLÁUSULA TERCEIRA.</strong> Pela locação ora ajustada, o LOCATÁRIO pagará a quantia de 
             <strong>{format_currency(contract_data.get('value', 0))}</strong>, cujo pagamento será efetuado 
             até o dia {format_date_br(contract_data.get('end_date', ''))}.
         </p>
@@ -1360,7 +1381,7 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
     term_clause = f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DA VIGÊNCIA</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA SEGUNDA.</strong> O presente contrato terÃ¡ vigência a partir de 
+            <strong>CLÁUSULA SEGUNDA.</strong> O presente contrato terá vigência a partir de 
             {format_date_br(contract_data.get('start_date', ''))} até {format_date_br(contract_data.get('end_date', ''))}.
         </p>
     """
@@ -1369,7 +1390,7 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
     forum_clause = f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO FORO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA QUARTA.</strong> As partes elegem o Foro da Comarca de 
+            <strong>CLÁUSULA QUARTA.</strong> As partes elegem o Foro da Comarca de 
             {campaign.get('city', '_______________')}/{campaign.get('state', '__')} para dirimir eventuais 
             controvérsias decorrentes deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.
         </p>
@@ -1397,7 +1418,7 @@ def generate_contract_html(contract_data: dict, campaign: dict) -> str:
                 <div style="border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px;">
                     {get_signature_status(contract_data, 'locatario')}
                 </div>
-                <p><strong>{campaign.get('candidate_name', '_______________')}</strong><br>LOCATÃRIO</p>
+                <p><strong>{campaign.get('candidate_name', '_______________')}</strong><br>LOCATÁRIO</p>
             </div>
         </div>
         
@@ -1429,15 +1450,15 @@ def _normalize_contract_template_type(template_type: str) -> str:
 def get_contract_title(template_type: str) -> str:
     normalized = _normalize_contract_template_type(template_type)
     titles = {
-        "veiculo_com_motorista": "VEÃCULO COM MOTORISTA PARA CAMPANHA ELEITORAL",
-        "veiculo_sem_motorista": "VEÃCULO SEM MOTORISTA PARA CAMPANHA ELEITORAL",
+        "veiculo_com_motorista": "VEÍCULO COM MOTORISTA PARA CAMPANHA ELEITORAL",
+        "veiculo_sem_motorista": "VEÍCULO SEM MOTORISTA PARA CAMPANHA ELEITORAL",
         "imovel_comite": "IMÃ“VEL PARA COMITÃŠ DE CAMPANHA",
         "imovel_evento": "IMÃ“VEL/ESPAÇO PARA EVENTO ELEITORAL",
-        "servico_grafico": "SERVIÇOS GRÃFICOS DE CAMPANHA",
+        "servico_grafico": "SERVIÇOS GRÁFICOS DE CAMPANHA",
         "servico_publicidade": "SERVIÇOS DE PUBLICIDADE DE CAMPANHA",
         "servico_pesquisa": "SERVIÇOS DE PESQUISA ELEITORAL",
-        "servico_juridico": "SERVIÇOS JURÃDICOS ELEITORAIS",
-        "servico_contabil": "SERVIÇOS CONTÃBEIS ELEITORAIS",
+        "servico_juridico": "SERVIÇOS JURÍDICOS ELEITORAIS",
+        "servico_contabil": "SERVIÇOS CONTÁBEIS ELEITORAIS",
         "servico_ti": "SERVIÇOS DE TECNOLOGIA DA INFORMAÇÃO",
         "producao_audiovisual": "PRODUÇÃO AUDIOVISUAL DE CAMPANHA",
         "impulsionamento": "IMPULSIONAMENTO DE CONTEÚDO ELEITORAL",
@@ -1452,64 +1473,64 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
-            da campanha eleitoral do LOCATÃRIO, do seguinte bem móvel de propriedade do LOCADOR:
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
+            da campanha eleitoral do LOCATÁRIO, do seguinte bem móvel de propriedade do LOCADOR:
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
         <p style="text-align: justify;">
-            <em>Parágrafo primeiro.</em> O LOCATÃRIO é obrigado a conservar o bem móvel ora alugado, 
-            ficando responsÃ¡vel pelo seu bom estado de conservaÃ§Ã£o.
+            <em>Parágrafo primeiro.</em> O LOCATÁRIO é obrigado a conservar o bem móvel ora alugado, 
+            ficando responsável pelo seu bom estado de conservação.
         </p>
         <p style="text-align: justify;">
             <em>Parágrafo Segundo.</em> São vedados a transferência, a sublocação, a cessão ou o empréstimo, 
-            total ou parcial, do bem locado sem prévia anuÃªncia expressa do LOCADOR.
+            total ou parcial, do bem locado sem prévia anuência expressa do LOCADOR.
         </p>
         """
     elif normalized == "imovel_evento":
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para realizaÃ§Ã£o 
-            de atividade da campanha eleitoral do LOCATÃRIO, do seguinte espaÃ§o de propriedade do LOCADOR:
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para realização 
+            de atividade da campanha eleitoral do LOCATÁRIO, do seguinte espaço de propriedade do LOCADOR:
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
         <p style="text-align: justify;">
-            <em>Parágrafo primeiro.</em> O LOCADOR colocarÃ¡ o espaÃ§o Ã  disposiÃ§Ã£o do LOCATÃRIO entre as 
+            <em>Parágrafo primeiro.</em> O LOCADOR colocará o espaço à disposição do LOCATÁRIO entre as 
             {contract_data.get('evento_horario_inicio', '___')} e {contract_data.get('evento_horario_fim', '___')} horas.
         </p>
         <p style="text-align: justify;">
-            <em>Parágrafo Segundo.</em> O LOCATÃRIO usarÃ¡ com zelo as dependÃªncias, devendo restituÃ­-lo 
-            ao término do perÃ­odo em seu estado inicial.
+            <em>Parágrafo Segundo.</em> O LOCATÁRIO usará com zelo as dependências, devendo restituí-lo 
+            ao término do período em seu estado inicial.
         </p>
         """
     elif normalized == "imovel_comite":
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
-            da campanha eleitoral do LOCATÃRIO, do seguinte bem imóvel de propriedade do LOCADOR:
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação, para uso exclusivo 
+            da campanha eleitoral do LOCATÁRIO, do seguinte bem imóvel de propriedade do LOCADOR:
         </p>
         <p style="margin-left: 40px;">
             <strong>{contract_data.get('imovel_descricao', '_______________')}</strong><br>
             Registro: {contract_data.get('imovel_registro', '_______________')}
         </p>
         <p style="text-align: justify;">
-            <em>Parágrafo primeiro.</em> O LOCATÃRIO é obrigado a conservar o bem imóvel ora alugado, 
-            ficando responsÃ¡vel pelas obras necessÃ¡rias ao seu bom estado de conservaÃ§Ã£o.
+            <em>Parágrafo primeiro.</em> O LOCATÁRIO é obrigado a conservar o bem imóvel ora alugado, 
+            ficando responsável pelas obras necessárias ao seu bom estado de conservação.
         </p>
         <p style="text-align: justify;">
             <em>Parágrafo Segundo.</em> São vedados a transferência, a sublocação, a cessão ou o empréstimo, 
-            total ou parcial, do imóvel locado sem prévia anuÃªncia expressa do LOCADOR.
+            total ou parcial, do imóvel locado sem prévia anuência expressa do LOCADOR.
         </p>
         """
     elif normalized == "veiculo_com_motorista":
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação do veÃ­culo:
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação do veículo:
         </p>
         <p style="margin-left: 40px;">
-            <strong>VeÃ­culo:</strong> {contract_data.get('veiculo_marca', '___')} {contract_data.get('veiculo_modelo', '___')}<br>
+            <strong>Veículo:</strong> {contract_data.get('veiculo_marca', '___')} {contract_data.get('veiculo_modelo', '___')}<br>
             <strong>Ano:</strong> {contract_data.get('veiculo_ano', '___')}<br>
             <strong>Placa:</strong> {contract_data.get('veiculo_placa', '___')}<br>
             <strong>RENAVAM:</strong> {contract_data.get('veiculo_renavam', '___')}
@@ -1519,34 +1540,34 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
             CNH nº {contract_data.get('motorista_cnh', '_______________')}
         </p>
         <p style="text-align: justify;">
-            <strong>Equipamento a ser puxado (se aplicÃ¡vel):</strong><br>
+            <strong>Equipamento a ser puxado (se aplicável):</strong><br>
             {contract_data.get('reboque_descricao', '_______________')}<br>
             Placa: {contract_data.get('reboque_placa', '___')} - RENAVAM: {contract_data.get('reboque_renavam', '___')}
         </p>
         <p style="text-align: justify;">
-            <em>Parágrafo Ãºnico.</em> O LOCATÃRIO deverÃ¡ devolver o veÃ­culo ao LOCADOR nas mesmas condiÃ§Ãµes 
-            em que o recebeu, respondendo por danos ou prejuÃ­zos causados.
+            <em>Parágrafo único.</em> O LOCATÁRIO deverá devolver o veículo ao LOCADOR nas mesmas condições 
+            em que o recebeu, respondendo por danos ou prejuízos causados.
         </p>
         """
     elif normalized == "veiculo_sem_motorista":
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação do veÃ­culo:
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a locação do veículo:
         </p>
         <p style="margin-left: 40px;">
-            <strong>VeÃ­culo:</strong> {contract_data.get('veiculo_marca', '___')} {contract_data.get('veiculo_modelo', '___')}<br>
+            <strong>Veículo:</strong> {contract_data.get('veiculo_marca', '___')} {contract_data.get('veiculo_modelo', '___')}<br>
             <strong>Ano:</strong> {contract_data.get('veiculo_ano', '___')}<br>
             <strong>Placa:</strong> {contract_data.get('veiculo_placa', '___')}<br>
             <strong>RENAVAM:</strong> {contract_data.get('veiculo_renavam', '___')}
         </p>
         <p style="text-align: justify;">
-            <em>Parágrafo primeiro.</em> O automóvel será utilizado exclusivamente pelo LOCATÃRIO ou 
+            <em>Parágrafo primeiro.</em> O automóvel será utilizado exclusivamente pelo LOCATÁRIO ou 
             terceiros sob sua responsabilidade.
         </p>
         <p style="text-align: justify;">
-            <em>Parágrafo segundo.</em> O LOCATÃRIO deverÃ¡ devolver o automóvel ao LOCADOR nas mesmas 
-            condiÃ§Ãµes em que o recebeu, respondendo por danos ou prejuÃ­zos causados.
+            <em>Parágrafo segundo.</em> O LOCATÁRIO deverá devolver o automóvel ao LOCADOR nas mesmas 
+            condições em que o recebeu, respondendo por danos ou prejuízos causados.
         </p>
         """
     elif normalized in {
@@ -1560,43 +1581,43 @@ def generate_object_clause(template_type: str, contract_data: dict) -> str:
         "impulsionamento",
     }:
         service_labels = {
-            "servico_grafico": "serviÃ§os grÃ¡ficos",
-            "servico_publicidade": "serviÃ§os de publicidade",
-            "servico_pesquisa": "serviÃ§os de pesquisa eleitoral",
-            "servico_juridico": "serviÃ§os jurÃ­dicos",
-            "servico_contabil": "serviÃ§os contÃ¡beis",
-            "servico_ti": "serviÃ§os de tecnologia da informaÃ§Ã£o",
-            "producao_audiovisual": "serviÃ§os de produÃ§Ã£o audiovisual",
-            "impulsionamento": "serviÃ§os de impulsionamento de conteÃºdo",
+            "servico_grafico": "serviços gráficos",
+            "servico_publicidade": "serviços de publicidade",
+            "servico_pesquisa": "serviços de pesquisa eleitoral",
+            "servico_juridico": "serviços jurídicos",
+            "servico_contabil": "serviços contábeis",
+            "servico_ti": "serviços de tecnologia da informação",
+            "producao_audiovisual": "serviços de produção audiovisual",
+            "impulsionamento": "serviços de impulsionamento de conteúdo",
         }
-        service_desc = service_labels.get(normalized, "serviÃ§os especializados")
+        service_desc = service_labels.get(normalized, "serviços especializados")
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a prestaÃ§Ã£o de {service_desc}
-            para a campanha eleitoral do LOCATÃRIO, conforme escopo abaixo:
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a prestação de {service_desc}
+            para a campanha eleitoral do LOCATÁRIO, conforme escopo abaixo:
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
         <p style="text-align: justify;">
-            <em>Parágrafo primeiro.</em> O LOCADOR compromete-se a executar os serviÃ§os com observÃ¢ncia Ã  legislaÃ§Ã£o eleitoral,
-            incluindo regras de transparÃªncia e prestaÃ§Ã£o de contas aplicÃ¡veis ao SPCE.
+            <em>Parágrafo primeiro.</em> O LOCADOR compromete-se a executar os serviços com observância à legislação eleitoral,
+            incluindo regras de transparência e prestação de contas aplicáveis ao SPCE.
         </p>
         <p style="text-align: justify;">
-            <em>Parágrafo segundo.</em> O LOCADOR deverÃ¡ entregar comprovantes de execuÃ§Ã£o e documentos fiscais
-            idÃ´neos correspondentes aos serviÃ§os contratados.
+            <em>Parágrafo segundo.</em> O LOCADOR deverá entregar comprovantes de execução e documentos fiscais
+            idôneos correspondentes aos serviços contratados.
         </p>
         """
     else:
         return f"""
         <h3 style="font-size: 12pt; margin-top: 20px;">DO OBJETO</h3>
         <p style="text-align: justify;">
-            <strong>CLÃUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a prestaÃ§Ã£o de serviÃ§os e/ou
-            locação de bens para uso na campanha eleitoral do LOCATÃRIO.
+            <strong>CLÁUSULA PRIMEIRA.</strong> Constitui OBJETO deste contrato a prestação de serviços e/ou
+            locação de bens para uso na campanha eleitoral do LOCATÁRIO.
         </p>
         <p style="margin-left: 40px;"><strong>{contract_data.get('objeto_descricao', '_______________')}</strong></p>
         <p style="text-align: justify;">
-            <em>Parágrafo Ãºnico.</em> Todas as entregas e pagamentos devem possuir comprovaÃ§Ã£o documental
-            para fins de prestaÃ§Ã£o de contas eleitoral.
+            <em>Parágrafo único.</em> Todas as entregas e pagamentos devem possuir comprovação documental
+            para fins de prestação de contas eleitoral.
         </p>
         """
 
@@ -1686,14 +1707,14 @@ async def _get_contador_for_campaign(contador_id: str, campaign_id: str) -> dict
         {"_id": 0, "password_hash": 0}
     )
     if not contador:
-        raise HTTPException(status_code=404, detail="Contador nÃ£o encontrado para esta campanha")
+        raise HTTPException(status_code=404, detail="Contador não encontrado para esta campanha")
     return contador
 
 def _apply_contador_data_to_contract(contract_data: dict, contador: dict) -> dict:
     """Fill contract provider fields from selected contador account."""
     contador_cpf = normalize_document(contador.get("cpf"))
     if not contador_cpf or len(contador_cpf) != 11 or not validate_cpf(contador_cpf):
-        raise HTTPException(status_code=400, detail="Contador selecionado sem CPF vÃ¡lido cadastrado")
+        raise HTTPException(status_code=400, detail="Contador selecionado sem CPF válido cadastrado")
 
     contract_data["contractor_name"] = contador.get("name") or contract_data.get("contractor_name")
     contract_data["contractor_cpf_cnpj"] = contador_cpf
@@ -1737,7 +1758,7 @@ async def _auto_attach_contador_docs(
                 f"CRC: {crc_fmt}",
                 f"Endereço: {contador.get('address', '-')}",
                 f"Cidade/UF: {city_uf}",
-                f"ObservaÃ§Ãµes: {contador.get('notes', '-')}",
+                f"Observações: {contador.get('notes', '-')}",
                 f"Gerado automaticamente em: {now_iso}",
             ],
         ))
@@ -1788,7 +1809,7 @@ async def _auto_attach_contador_docs(
 async def register(user_data: UserCreate):
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
-        raise HTTPException(status_code=400, detail="Email jÃ¡ cadastrado")
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
     
     cpf_normalized = validate_and_normalize_document(
         user_data.cpf, "CPF", allowed_types=("cpf",), required=False
@@ -1817,12 +1838,12 @@ async def login(credentials: UserLogin):
     try:
         user = await db.users.find_one({"email": credentials.email})
         if not user:
-            raise HTTPException(status_code=401, detail="Credenciais invÃ¡lidas")
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
         # Backward compatibility for legacy user documents
         password_hash = user.get("password") or user.get("password_hash")
         if not password_hash:
-            raise HTTPException(status_code=401, detail="Credenciais invÃ¡lidas")
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
         try:
             password_ok = verify_password(credentials.password, password_hash)
@@ -1830,7 +1851,7 @@ async def login(credentials: UserLogin):
             password_ok = False
 
         if not password_ok:
-            raise HTTPException(status_code=401, detail="Credenciais invÃ¡lidas")
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
         user_id = user.get("id") or str(user.get("_id"))
         user_role = user.get("role", "candidate")
@@ -1897,9 +1918,9 @@ async def get_my_campaign(current_user: dict = Depends(get_current_user)):
 async def update_campaign(campaign_id: str, data: CampaignCreate, current_user: dict = Depends(get_current_user)):
     campaign = await db.campaigns.find_one({"id": campaign_id})
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
     if campaign["owner_id"] != current_user["id"] and current_user["role"] != "contador":
-        raise HTTPException(status_code=403, detail="Sem permissÃ£o")
+        raise HTTPException(status_code=403, detail="Sem permissão")
     
     update_data = data.model_dump()
     update_data["cnpj"] = validate_and_normalize_document(
@@ -1978,14 +1999,14 @@ async def list_revenues(current_user: dict = Depends(get_current_user)):
 async def get_revenue(revenue_id: str, current_user: dict = Depends(get_current_user)):
     revenue = await db.revenues.find_one({"id": revenue_id, "campaign_id": current_user.get("campaign_id")}, {"_id": 0})
     if not revenue:
-        raise HTTPException(status_code=404, detail="Receita nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Receita não encontrada")
     return revenue
 
 @api_router.put("/revenues/{revenue_id}", response_model=RevenueResponse)
 async def update_revenue(revenue_id: str, data: RevenueCreate, current_user: dict = Depends(get_current_user)):
     revenue = await db.revenues.find_one({"id": revenue_id, "campaign_id": current_user.get("campaign_id")})
     if not revenue:
-        raise HTTPException(status_code=404, detail="Receita nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Receita não encontrada")
     
     update_data = data.model_dump()
     update_data["donor_cpf_cnpj"] = validate_and_normalize_document(
@@ -1999,8 +2020,8 @@ async def update_revenue(revenue_id: str, data: RevenueCreate, current_user: dic
 async def delete_revenue(revenue_id: str, current_user: dict = Depends(get_current_user)):
     result = await db.revenues.delete_one({"id": revenue_id, "campaign_id": current_user.get("campaign_id")})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Receita nÃ£o encontrada")
-    return {"message": "Receita excluÃ­da"}
+        raise HTTPException(status_code=404, detail="Receita não encontrada")
+    return {"message": "Receita excluída"}
 
 @api_router.get("/revenues/{revenue_id}/recibo-pdf")
 async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_current_user)):
@@ -2013,7 +2034,7 @@ async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_
         {"_id": 0}
     )
     if not revenue:
-        raise HTTPException(status_code=404, detail="Receita nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Receita não encontrada")
     
     campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
     
@@ -2030,14 +2051,14 @@ async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_
     
     # Header
     elements.append(Paragraph("RECIBO ELEITORAL", styles['Title2']))
-    elements.append(Paragraph(f"<b>NÂº {revenue.get('recibo_eleitoral', 'N/A')}</b>", styles['Center']))
+    elements.append(Paragraph(f"<b>Nº {revenue.get('recibo_eleitoral', 'N/A')}</b>", styles['Center']))
     elements.append(Spacer(1, 30))
     
     # Campaign info
     elements.append(Paragraph(f"<b>CANDIDATO(A):</b> {campaign.get('candidate_name', '')}", styles['Normal']))
     elements.append(Paragraph(f"<b>CARGO:</b> {campaign.get('position', '')}", styles['Normal']))
     elements.append(Paragraph(f"<b>PARTIDO:</b> {campaign.get('party', '')}", styles['Normal']))
-    elements.append(Paragraph(f"<b>CNPJ DA CAMPANHA:</b> {campaign.get('cnpj', 'NÃ£o informado')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>CNPJ DA CAMPANHA:</b> {campaign.get('cnpj', 'Não informado')}", styles['Normal']))
     elements.append(Paragraph(f"<b>CIDADE/UF:</b> {campaign.get('city', '')}/{campaign.get('state', '')}", styles['Normal']))
     elements.append(Spacer(1, 20))
     
@@ -2048,30 +2069,30 @@ async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_
     elements.append(Spacer(1, 10))
     
     tipo_receita_labels = {
-        "doacao_financeira": "DoaÃ§Ã£o Financeira",
-        "doacao_estimavel": "DoaÃ§Ã£o EstimÃ¡vel em Dinheiro",
-        "recursos_proprios": "Recursos PrÃ³prios",
-        "fundo_partidario": "Fundo PartidÃ¡rio",
+        "doacao_financeira": "Doação Financeira",
+        "doacao_estimavel": "Doação Estimóvel em Dinheiro",
+        "recursos_proprios": "Recursos Próprios",
+        "fundo_partidario": "Fundo Partidário",
         "fundo_eleitoral": "Fundo Especial de Financiamento de Campanha",
-        "comercializacao": "ComercializaÃ§Ã£o de Bens/Serviços",
-        "rendimento_aplicacao": "Rendimento de AplicaÃ§Ã£o",
+        "comercializacao": "Comercialização de Bens/Serviços",
+        "rendimento_aplicacao": "Rendimento de Aplicação",
         "sobras_campanha": "Sobras de Campanha Anterior",
         "outros": "Outros"
     }
     
     forma_labels = {
         "pix": "PIX",
-        "transferencia": "TransferÃªncia BancÃ¡ria",
-        "deposito": "DepÃ³sito em Conta",
+        "transferencia": "Transferência Bancária",
+        "deposito": "Depósito em Conta",
         "cheque": "Cheque",
         "especie": "Espécie",
-        "cartao_credito": "CartÃ£o de Crédito",
-        "cartao_debito": "CartÃ£o de Débito",
-        "estimavel": "EstimÃ¡vel em Dinheiro"
+        "cartao_credito": "Cartão de Crédito",
+        "cartao_debito": "Cartão de Débito",
+        "estimavel": "Estimóvel em Dinheiro"
     }
     
-    elements.append(Paragraph(f"<b>Tipo de Receita:</b> {tipo_receita_labels.get(revenue.get('tipo_receita'), revenue.get('tipo_receita', 'NÃ£o informado'))}", styles['Normal']))
-    elements.append(Paragraph(f"<b>Forma de Recebimento:</b> {forma_labels.get(revenue.get('forma_recebimento'), revenue.get('forma_recebimento', 'NÃ£o informado'))}", styles['Normal']))
+    elements.append(Paragraph(f"<b>Tipo de Receita:</b> {tipo_receita_labels.get(revenue.get('tipo_receita'), revenue.get('tipo_receita', 'Não informado'))}", styles['Normal']))
+    elements.append(Paragraph(f"<b>Forma de Recebimento:</b> {forma_labels.get(revenue.get('forma_recebimento'), revenue.get('forma_recebimento', 'Não informado'))}", styles['Normal']))
     elements.append(Paragraph(f"<b>Data:</b> {revenue.get('date', '')}", styles['Normal']))
     elements.append(Spacer(1, 10))
     
@@ -2087,22 +2108,22 @@ async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_
     elements.append(Spacer(1, 10))
     
     tipo_doador_labels = {
-        "pessoa_fisica": "Pessoa FÃ­sica",
-        "pessoa_juridica": "Pessoa JurÃ­dica",
-        "partido": "Partido PolÃ­tico",
+        "pessoa_fisica": "Pessoa Física",
+        "pessoa_juridica": "Pessoa Jurídica",
+        "partido": "Partido Político",
         "candidato": "Candidato",
-        "comite": "ComitÃª Financeiro",
-        "fundo_partidario": "Fundo PartidÃ¡rio",
+        "comite": "Comitê Financeiro",
+        "fundo_partidario": "Fundo Partidário",
         "fundo_eleitoral": "Fundo Eleitoral"
     }
     
-    elements.append(Paragraph(f"<b>Nome:</b> {revenue.get('donor_name', 'NÃ£o informado')}", styles['Normal']))
-    elements.append(Paragraph(f"<b>CPF/CNPJ:</b> {revenue.get('donor_cpf_cnpj', 'NÃ£o informado')}", styles['Normal']))
-    elements.append(Paragraph(f"<b>Tipo de Doador:</b> {tipo_doador_labels.get(revenue.get('tipo_doador'), revenue.get('tipo_doador', 'NÃ£o informado'))}", styles['Normal']))
+    elements.append(Paragraph(f"<b>Nome:</b> {revenue.get('donor_name', 'Não informado')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>CPF/CNPJ:</b> {revenue.get('donor_cpf_cnpj', 'Não informado')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>Tipo de Doador:</b> {tipo_doador_labels.get(revenue.get('tipo_doador'), revenue.get('tipo_doador', 'Não informado'))}", styles['Normal']))
     if revenue.get('donor_titulo_eleitor'):
-        elements.append(Paragraph(f"<b>TÃ­tulo de Eleitor:</b> {revenue.get('donor_titulo_eleitor')}", styles['Normal']))
+        elements.append(Paragraph(f"<b>Título de Eleitor:</b> {revenue.get('donor_titulo_eleitor')}", styles['Normal']))
     elements.append(Spacer(1, 10))
-    elements.append(Paragraph(f"<b>DescriÃ§Ã£o:</b> {revenue.get('description', '')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>Descrição:</b> {revenue.get('description', '')}", styles['Normal']))
     elements.append(Spacer(1, 30))
     
     # Footer
@@ -2116,8 +2137,8 @@ async def generate_recibo_pdf(revenue_id: str, current_user: dict = Depends(get_
     elements.append(Spacer(1, 30))
     
     # Legal notice
-    elements.append(Paragraph("<i>Este recibo foi emitido em conformidade com a ResoluÃ§Ã£o TSE nº 23.607/2019</i>", styles['Center']))
-    elements.append(Paragraph(f"<i>Gerado em: {datetime.now().strftime('%d/%m/%Y Ã s %H:%M:%S')}</i>", styles['Center']))
+    elements.append(Paragraph("<i>Este recibo foi emitido em conformidade com a Resolução TSE nº 23.607/2019</i>", styles['Center']))
+    elements.append(Paragraph(f"<i>Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}</i>", styles['Center']))
     
     doc.build(elements)
     buffer.seek(0)
@@ -2163,14 +2184,14 @@ async def list_expenses(current_user: dict = Depends(get_current_user)):
 async def get_expense(expense_id: str, current_user: dict = Depends(get_current_user)):
     expense = await db.expenses.find_one({"id": expense_id, "campaign_id": current_user.get("campaign_id")}, {"_id": 0})
     if not expense:
-        raise HTTPException(status_code=404, detail="Despesa nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Despesa não encontrada")
     return expense
 
 @api_router.put("/expenses/{expense_id}", response_model=ExpenseResponse)
 async def update_expense(expense_id: str, data: ExpenseCreate, current_user: dict = Depends(get_current_user)):
     expense = await db.expenses.find_one({"id": expense_id, "campaign_id": current_user.get("campaign_id")})
     if not expense:
-        raise HTTPException(status_code=404, detail="Despesa nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Despesa não encontrada")
     
     update_data = data.model_dump()
     update_data["supplier_cpf_cnpj"] = validate_and_normalize_document(
@@ -2184,8 +2205,8 @@ async def update_expense(expense_id: str, data: ExpenseCreate, current_user: dic
 async def delete_expense(expense_id: str, current_user: dict = Depends(get_current_user)):
     result = await db.expenses.delete_one({"id": expense_id, "campaign_id": current_user.get("campaign_id")})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Despesa nÃ£o encontrada")
-    return {"message": "Despesa excluÃ­da"}
+        raise HTTPException(status_code=404, detail="Despesa não encontrada")
+    return {"message": "Despesa excluída"}
 
 # ============== CONTRACT ROUTES ==============
 @api_router.post("/contracts", response_model=ContractResponse)
@@ -2317,14 +2338,14 @@ async def list_contracts(current_user: dict = Depends(get_current_user)):
 async def get_contract(contract_id: str, current_user: dict = Depends(get_current_user)):
     contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")}, {"_id": 0})
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     return contract
 
 @api_router.get("/contracts/{contract_id}/html")
 async def get_contract_html(contract_id: str, current_user: dict = Depends(get_current_user)):
     contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")}, {"_id": 0})
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
     html = generate_contract_html(contract, campaign)
@@ -2334,7 +2355,7 @@ async def get_contract_html(contract_id: str, current_user: dict = Depends(get_c
 async def update_contract(contract_id: str, data: ContractCreate, current_user: dict = Depends(get_current_user)):
     contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")})
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
     update_data = data.model_dump()
@@ -2375,8 +2396,8 @@ async def update_contract(contract_id: str, data: ContractCreate, current_user: 
 async def delete_contract(contract_id: str, current_user: dict = Depends(get_current_user)):
     result = await db.contracts.delete_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
-    return {"message": "Contrato excluÃ­do"}
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
+    return {"message": "Contrato excluído"}
 
 # ============== SIGNATURE ROUTES ==============
 class SignatureRequest(BaseModel):
@@ -2391,7 +2412,7 @@ async def request_signature(contract_id: str, data: SignatureRequest, current_us
     """Start external signature flow (download + Gov.br signing)"""
     contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")})
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     now = datetime.now(timezone.utc).isoformat()
     locador_email = (data.locador_email or contract.get("locador_email") or "").strip()
@@ -2428,10 +2449,10 @@ async def request_signature(contract_id: str, data: SignatureRequest, current_us
 
 @api_router.post("/contracts/{contract_id}/sign-locatario")
 async def sign_as_locatario(contract_id: str, data: SignContract, current_user: dict = Depends(get_current_user)):
-    """Sign contract as locatÃ¡rio (candidate)"""
+    """Sign contract as locatário (candidate)"""
     contract = await db.contracts.find_one({"id": contract_id, "campaign_id": current_user.get("campaign_id")})
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     now = datetime.now(timezone.utc).isoformat()
     
@@ -2472,7 +2493,7 @@ async def sign_as_locatario(contract_id: str, data: SignContract, current_user: 
             logging.error(f"Failed to generate contract PDF: {e}")
     
     return {
-        "message": "Contrato assinado pelo locatÃ¡rio",
+        "message": "Contrato assinado pelo locatário",
         "status": update_data["status"],
         "pdf_generated": pdf_generated
     }
@@ -2486,7 +2507,7 @@ async def sign_as_locador(token: str, data: SignContract):
         
         contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
         if not contract:
-            raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+            raise HTTPException(status_code=404, detail="Contrato não encontrado")
         
         now = datetime.now(timezone.utc).isoformat()
         
@@ -2535,7 +2556,7 @@ async def sign_as_locador(token: str, data: SignContract):
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=400, detail="Token expirado")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=400, detail="Token invÃ¡lido")
+        raise HTTPException(status_code=400, detail="Token inválido")
 
 async def generate_and_store_contract_pdf(contract_id: str, contract: dict, campaign: dict) -> str:
     """Generate PDF of signed contract and store it"""
@@ -2584,10 +2605,10 @@ async def generate_and_store_contract_pdf(contract_id: str, contract: dict, camp
     
     # Locatário signature
     if contract.get("locatario_assinatura_hash"):
-        elements.append(Paragraph("<b>LOCATÃRIO / CONTRATANTE:</b>", styles['Normal']))
+        elements.append(Paragraph("<b>LOCATÁRIO / CONTRATANTE:</b>", styles['Normal']))
         elements.append(Paragraph(f"Nome: {campaign.get('candidate_name', 'N/A')}", styles['Normal']))
         elements.append(Paragraph(f"Data da assinatura: {contract.get('locatario_assinatura_data', 'N/A')[:19].replace('T', ' ')}", styles['Normal']))
-        elements.append(Paragraph(f"Hash de validaÃ§Ã£o: {contract.get('locatario_assinatura_hash', '')[:32]}...", styles['Signature']))
+        elements.append(Paragraph(f"Hash de validação: {contract.get('locatario_assinatura_hash', '')[:32]}...", styles['Signature']))
         elements.append(Spacer(1, 20))
     
     # Locador signature
@@ -2596,7 +2617,7 @@ async def generate_and_store_contract_pdf(contract_id: str, contract: dict, camp
         elements.append(Paragraph(f"Nome: {contract.get('locador_nome', 'N/A')}", styles['Normal']))
         elements.append(Paragraph(f"CPF/CNPJ: {contract.get('locador_cpf', 'N/A')}", styles['Normal']))
         elements.append(Paragraph(f"Data da assinatura: {contract.get('locador_assinatura_data', 'N/A')[:19].replace('T', ' ')}", styles['Normal']))
-        elements.append(Paragraph(f"Hash de validaÃ§Ã£o: {contract.get('locador_assinatura_hash', '')[:32]}...", styles['Signature']))
+        elements.append(Paragraph(f"Hash de validação: {contract.get('locador_assinatura_hash', '')[:32]}...", styles['Signature']))
         elements.append(Spacer(1, 20))
     
     # Footer with validation info
@@ -2604,7 +2625,7 @@ async def generate_and_store_contract_pdf(contract_id: str, contract: dict, camp
     elements.append(Paragraph("_" * 60, styles['Center']))
     elements.append(Paragraph("<i>Documento gerado eletronicamente pelo sistema Eleitora 360</i>", styles['Center']))
     elements.append(Paragraph(f"<i>ID do Contrato: {contract_id}</i>", styles['Signature']))
-    elements.append(Paragraph(f"<i>Gerado em: {datetime.now(timezone.utc).strftime('%d/%m/%Y Ã s %H:%M:%S')} UTC</i>", styles['Signature']))
+    elements.append(Paragraph(f"<i>Gerado em: {datetime.now(timezone.utc).strftime('%d/%m/%Y às %H:%M:%S')} UTC</i>", styles['Signature']))
     
     # Build PDF
     doc.build(elements)
@@ -2638,7 +2659,7 @@ async def verify_signature_token(token: str):
         
         contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
         if not contract:
-            raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+            raise HTTPException(status_code=404, detail="Contrato não encontrado")
         
         campaign = await db.campaigns.find_one({"id": contract["campaign_id"]}, {"_id": 0})
         html = generate_contract_html(contract, campaign)
@@ -2656,7 +2677,7 @@ async def verify_signature_token(token: str):
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=400, detail="Token expirado")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=400, detail="Token invÃ¡lido")
+        raise HTTPException(status_code=400, detail="Token inválido")
 
 @api_router.get("/contract-templates")
 async def get_contract_templates():
@@ -2665,28 +2686,28 @@ async def get_contract_templates():
         "templates": [
             {
                 "type": "bem_movel",
-                "name": "LocaÃ§Ã£o de Bem MÃ³vel",
-                "description": "Contrato para locação de equipamentos, rÃ¡dios, etc."
+                "name": "Locação de Bem Móvel",
+                "description": "Contrato para locação de equipamentos, rádios, etc."
             },
             {
                 "type": "espaco_evento",
-                "name": "LocaÃ§Ã£o de Espaço para Evento",
-                "description": "Contrato para locação de espaÃ§o para evento eleitoral"
+                "name": "Locação de Espaço para Evento",
+                "description": "Contrato para locação de espaço para evento eleitoral"
             },
             {
                 "type": "imovel",
-                "name": "LocaÃ§Ã£o de Imóvel",
-                "description": "Contrato para locação de imóvel (comitÃª, escritÃ³rio)"
+                "name": "Locação de Imóvel",
+                "description": "Contrato para locação de imóvel (comitê, escritório)"
             },
             {
                 "type": "veiculo_com_motorista",
-                "name": "LocaÃ§Ã£o de VeÃ­culo com Motorista",
-                "description": "Contrato para veÃ­culo com motorista (carro de som, paredÃ£o)"
+                "name": "Locação de Veículo com Motorista",
+                "description": "Contrato para veículo com motorista (carro de som, paredão)"
             },
             {
                 "type": "veiculo_sem_motorista",
-                "name": "LocaÃ§Ã£o de VeÃ­culo sem Motorista",
-                "description": "Contrato para locação de veÃ­culo sem motorista"
+                "name": "Locação de Veículo sem Motorista",
+                "description": "Contrato para locação de veículo sem motorista"
             }
         ]
     }
@@ -2700,26 +2721,26 @@ async def get_partidos():
             {"sigla": "AGIR", "nome": "Agir", "numero": 36},
             {"sigla": "AVANTE", "nome": "Avante", "numero": 70},
             {"sigla": "CIDADANIA", "nome": "Cidadania", "numero": 23},
-            {"sigla": "DC", "nome": "Democracia CristÃ£", "numero": 27},
-            {"sigla": "MDB", "nome": "Movimento DemocrÃ¡tico Brasileiro", "numero": 15},
+            {"sigla": "DC", "nome": "Democracia Cristã", "numero": 27},
+            {"sigla": "MDB", "nome": "Movimento Democrático Brasileiro", "numero": 15},
             {"sigla": "MOBILIZA", "nome": "Mobiliza", "numero": 33},
             {"sigla": "NOVO", "nome": "Partido Novo", "numero": 30},
             {"sigla": "PATRIOTA", "nome": "Patriota", "numero": 51},
             {"sigla": "PCB", "nome": "Partido Comunista Brasileiro", "numero": 21},
             {"sigla": "PCdoB", "nome": "Partido Comunista do Brasil", "numero": 65},
-            {"sigla": "PCO", "nome": "Partido da Causa OperÃ¡ria", "numero": 29},
-            {"sigla": "PDT", "nome": "Partido DemocrÃ¡tico Trabalhista", "numero": 12},
+            {"sigla": "PCO", "nome": "Partido da Causa Operária", "numero": 29},
+            {"sigla": "PDT", "nome": "Partido Democrático Trabalhista", "numero": 12},
             {"sigla": "PL", "nome": "Partido Liberal", "numero": 22},
             {"sigla": "PMB", "nome": "Partido da Mulher Brasileira", "numero": 35},
-            {"sigla": "PMN", "nome": "Partido da MobilizaÃ§Ã£o Nacional", "numero": 33},
+            {"sigla": "PMN", "nome": "Partido da Mobilização Nacional", "numero": 33},
             {"sigla": "PODE", "nome": "Podemos", "numero": 20},
             {"sigla": "PP", "nome": "Progressistas", "numero": 11},
-            {"sigla": "PRD", "nome": "Partido RenovaÃ§Ã£o DemocrÃ¡tica", "numero": 25},
+            {"sigla": "PRD", "nome": "Partido Renovação Democrática", "numero": 25},
             {"sigla": "PROS", "nome": "Partido Republicano da Ordem Social", "numero": 90},
             {"sigla": "PRTB", "nome": "Partido Renovador Trabalhista Brasileiro", "numero": 28},
             {"sigla": "PSB", "nome": "Partido Socialista Brasileiro", "numero": 40},
-            {"sigla": "PSC", "nome": "Partido Social CristÃ£o", "numero": 20},
-            {"sigla": "PSD", "nome": "Partido Social DemocrÃ¡tico", "numero": 55},
+            {"sigla": "PSC", "nome": "Partido Social Cristão", "numero": 20},
+            {"sigla": "PSD", "nome": "Partido Social Democrático", "numero": 55},
             {"sigla": "PSDB", "nome": "Partido da Social Democracia Brasileira", "numero": 45},
             {"sigla": "PSOL", "nome": "Partido Socialismo e Liberdade", "numero": 50},
             {"sigla": "PSTU", "nome": "Partido Socialista dos Trabalhadores Unificado", "numero": 16},
@@ -2729,7 +2750,7 @@ async def get_partidos():
             {"sigla": "REDE", "nome": "Rede Sustentabilidade", "numero": 18},
             {"sigla": "REPUBLICANOS", "nome": "Republicanos", "numero": 10},
             {"sigla": "SOLIDARIEDADE", "nome": "Solidariedade", "numero": 77},
-            {"sigla": "UNIÃƒO", "nome": "UniÃ£o Brasil", "numero": 44},
+            {"sigla": "UNIÃƒO", "nome": "União Brasil", "numero": 44},
             {"sigla": "UP", "nome": "Unidade Popular", "numero": 80}
         ]
     }
@@ -2741,26 +2762,26 @@ async def get_estados():
         "estados": [
             {"uf": "AC", "nome": "Acre", "regiao": "Norte"},
             {"uf": "AL", "nome": "Alagoas", "regiao": "Nordeste"},
-            {"uf": "AP", "nome": "AmapÃ¡", "regiao": "Norte"},
+            {"uf": "AP", "nome": "Amapá", "regiao": "Norte"},
             {"uf": "AM", "nome": "Amazonas", "regiao": "Norte"},
             {"uf": "BA", "nome": "Bahia", "regiao": "Nordeste"},
-            {"uf": "CE", "nome": "CearÃ¡", "regiao": "Nordeste"},
+            {"uf": "CE", "nome": "Ceará", "regiao": "Nordeste"},
             {"uf": "DF", "nome": "Distrito Federal", "regiao": "Centro-Oeste"},
-            {"uf": "ES", "nome": "EspÃ­rito Santo", "regiao": "Sudeste"},
-            {"uf": "GO", "nome": "GoiÃ¡s", "regiao": "Centro-Oeste"},
-            {"uf": "MA", "nome": "MaranhÃ£o", "regiao": "Nordeste"},
+            {"uf": "ES", "nome": "Espírito Santo", "regiao": "Sudeste"},
+            {"uf": "GO", "nome": "Goiás", "regiao": "Centro-Oeste"},
+            {"uf": "MA", "nome": "Maranhão", "regiao": "Nordeste"},
             {"uf": "MT", "nome": "Mato Grosso", "regiao": "Centro-Oeste"},
             {"uf": "MS", "nome": "Mato Grosso do Sul", "regiao": "Centro-Oeste"},
             {"uf": "MG", "nome": "Minas Gerais", "regiao": "Sudeste"},
-            {"uf": "PA", "nome": "ParÃ¡", "regiao": "Norte"},
-            {"uf": "PB", "nome": "ParaÃ­ba", "regiao": "Nordeste"},
-            {"uf": "PR", "nome": "ParanÃ¡", "regiao": "Sul"},
+            {"uf": "PA", "nome": "Pará", "regiao": "Norte"},
+            {"uf": "PB", "nome": "Paraíba", "regiao": "Nordeste"},
+            {"uf": "PR", "nome": "Paraná", "regiao": "Sul"},
             {"uf": "PE", "nome": "Pernambuco", "regiao": "Nordeste"},
-            {"uf": "PI", "nome": "PiauÃ­", "regiao": "Nordeste"},
+            {"uf": "PI", "nome": "Piauí", "regiao": "Nordeste"},
             {"uf": "RJ", "nome": "Rio de Janeiro", "regiao": "Sudeste"},
             {"uf": "RN", "nome": "Rio Grande do Norte", "regiao": "Nordeste"},
             {"uf": "RS", "nome": "Rio Grande do Sul", "regiao": "Sul"},
-            {"uf": "RO", "nome": "RondÃ´nia", "regiao": "Norte"},
+            {"uf": "RO", "nome": "Rondônia", "regiao": "Norte"},
             {"uf": "RR", "nome": "Roraima", "regiao": "Norte"},
             {"uf": "SC", "nome": "Santa Catarina", "regiao": "Sul"},
             {"uf": "SP", "nome": "São Paulo", "regiao": "Sudeste"},
@@ -2785,9 +2806,9 @@ async def get_bancos():
         "bancos": [
             {"codigo": "001", "nome": "Banco do Brasil"},
             {"codigo": "033", "nome": "Santander"},
-            {"codigo": "104", "nome": "Caixa EconÃ´mica Federal"},
+            {"codigo": "104", "nome": "Caixa Econômica Federal"},
             {"codigo": "237", "nome": "Bradesco"},
-            {"codigo": "341", "nome": "ItaÃº"},
+            {"codigo": "341", "nome": "Itaú"},
             {"codigo": "399", "nome": "HSBC"},
             {"codigo": "422", "nome": "Safra"},
             {"codigo": "745", "nome": "Citibank"},
@@ -3100,7 +3121,7 @@ async def export_spce_doacoes(current_user: dict = Depends(get_current_user)):
     ensure_spce_ready(build_spce_precheck(campaign, revenues=revenues))
     
     if not campaign.get("cnpj"):
-        raise HTTPException(status_code=400, detail="CNPJ da campanha nÃ£o configurado")
+        raise HTTPException(status_code=400, detail="CNPJ da campanha não configurado")
     
     # Generate SPCE format file
     lines = []
@@ -3232,14 +3253,14 @@ async def get_payment_alerts(
 async def get_payment(payment_id: str, current_user: dict = Depends(get_current_user)):
     payment = await db.payments.find_one({"id": payment_id, "campaign_id": current_user.get("campaign_id")}, {"_id": 0})
     if not payment:
-        raise HTTPException(status_code=404, detail="Pagamento nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
     return payment
 
 @api_router.put("/payments/{payment_id}", response_model=PaymentResponse)
 async def update_payment(payment_id: str, data: PaymentCreate, current_user: dict = Depends(get_current_user)):
     payment = await db.payments.find_one({"id": payment_id, "campaign_id": current_user.get("campaign_id")})
     if not payment:
-        raise HTTPException(status_code=404, detail="Pagamento nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
     
     await db.payments.update_one({"id": payment_id}, {"$set": data.model_dump()})
     updated = await db.payments.find_one({"id": payment_id}, {"_id": 0})
@@ -3249,8 +3270,8 @@ async def update_payment(payment_id: str, data: PaymentCreate, current_user: dic
 async def delete_payment(payment_id: str, current_user: dict = Depends(get_current_user)):
     result = await db.payments.delete_one({"id": payment_id, "campaign_id": current_user.get("campaign_id")})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Pagamento nÃ£o encontrado")
-    return {"message": "Pagamento excluÃ­do"}
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
+    return {"message": "Pagamento excluído"}
 
 # ============== DASHBOARD ROUTES ==============
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
@@ -3318,7 +3339,7 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/dashboard/conformidade-tse")
 async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
-    """Dashboard de conformidade TSE - verifica completude dos dados para prestaÃ§Ã£o de contas"""
+    """Dashboard de conformidade TSE - verifica completude dos dados para prestação de contas"""
     campaign_id = current_user.get("campaign_id")
     if not campaign_id:
         return {
@@ -3345,11 +3366,11 @@ async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
         ("position", "Cargo"),
         ("city", "Cidade"),
         ("state", "Estado"),
-        ("election_year", "Ano da EleiÃ§Ã£o"),
+        ("election_year", "Ano da Eleição"),
         ("cnpj", "CNPJ da Campanha"),
-        ("numero_candidato", "NÃºmero do Candidato"),
+        ("numero_candidato", "Número do Candidato"),
         ("cpf_candidato", "CPF do Candidato"),
-        ("eleitores", "NÃºmero de Eleitores")
+        ("eleitores", "Número de Eleitores")
     ]
     
     for campo, label in campos_campanha:
@@ -3388,7 +3409,7 @@ async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
         else:
             receitas_pendentes.append({
                 "id": r.get("id"),
-                "descricao": r.get("description", "Sem descriÃ§Ã£o")[:30],
+                "descricao": r.get("description", "Sem descrição")[:30],
                 "campos_faltando": campos_faltando
             })
     
@@ -3419,7 +3440,7 @@ async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
         else:
             despesas_pendentes.append({
                 "id": e.get("id"),
-                "descricao": e.get("description", "Sem descriÃ§Ã£o")[:30],
+                "descricao": e.get("description", "Sem descrição")[:30],
                 "campos_faltando": campos_faltando
             })
     
@@ -3455,7 +3476,7 @@ async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
         else:
             contratos_pendentes.append({
                 "id": c.get("id"),
-                "titulo": c.get("title", "Sem tÃ­tulo")[:30],
+                "titulo": c.get("title", "Sem título")[:30],
                 "problemas": problemas
             })
     
@@ -3492,7 +3513,7 @@ async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
     perc_docs = (docs_com_anexo / total_docs * 100) if total_docs > 0 else 100
     
     itens.append({
-        "categoria": "Documentos ComprobatÃ³rios",
+        "categoria": "Documentos Comprobatórios",
         "peso": 15,
         "completude": round(perc_docs, 1),
         "completos": docs_com_anexo,
@@ -3508,38 +3529,38 @@ async def get_conformidade_tse(current_user: dict = Depends(get_current_user)):
     # Status geral
     if completude_geral >= 90:
         status = "pronto"
-        message = "Sua prestaÃ§Ã£o de contas estÃ¡ praticamente completa!"
+        message = "Sua prestação de contas está praticamente completa!"
     elif completude_geral >= 70:
         status = "quase_pronto"
-        message = "Alguns ajustes sÃ£o necessÃ¡rios antes de enviar."
+        message = "Alguns ajustes são necessários antes de enviar."
     elif completude_geral >= 50:
         status = "em_andamento"
-        message = "Ainda hÃ¡ campos importantes pendentes de preenchimento."
+        message = "Ainda há campos importantes pendentes de preenchimento."
     else:
         status = "incompleto"
-        message = "Muitos dados obrigatórios estÃ£o faltando."
+        message = "Muitos dados obrigatórios estão faltando."
     
-    # Alertas e sugestÃµes
+    # Alertas e sugestões
     alertas = []
     if not campaign.get("cnpj"):
         alertas.append({
             "tipo": "erro",
-            "mensagem": "CNPJ da campanha nÃ£o configurado - obrigatório para exportaÃ§Ã£o SPCE",
-            "acao": "VÃ¡ em ConfiguraÃ§Ãµes e preencha o CNPJ"
+            "mensagem": "CNPJ da campanha não configurado - obrigatório para exportação SPCE",
+            "acao": "Vá em Configurações e preencha o CNPJ"
         })
     
     if not campaign.get("eleitores"):
         alertas.append({
             "tipo": "aviso",
-            "mensagem": "NÃºmero de eleitores nÃ£o configurado - necessÃ¡rio para cÃ¡lculo de limite TSE",
-            "acao": "VÃ¡ em ConfiguraÃ§Ãµes e informe o nÃºmero de eleitores do municÃ­pio"
+            "mensagem": "Número de eleitores não configurado - necessário para cálculo de limite TSE",
+            "acao": "Vá em Configurações e informe o número de eleitores do município"
         })
     
     receitas_sem_recibo = len([r for r in revenues if not r.get("recibo_eleitoral")])
     if receitas_sem_recibo > 0:
         alertas.append({
             "tipo": "aviso",
-            "mensagem": f"{receitas_sem_recibo} receita(s) sem nÃºmero de recibo eleitoral",
+            "mensagem": f"{receitas_sem_recibo} receita(s) sem número de recibo eleitoral",
             "acao": "Edite as receitas e gere os recibos eleitorais"
         })
     
@@ -3625,12 +3646,12 @@ async def export_spce_zip(current_user: dict = Depends(get_current_user)):
     
     campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
     
     # Validate required SPCE fields
     cnpj = campaign.get("cnpj", "").replace(".", "").replace("/", "").replace("-", "")
     if not cnpj or len(cnpj) != 14:
-        raise HTTPException(status_code=400, detail="CNPJ da campanha invÃ¡lido ou nÃ£o configurado")
+        raise HTTPException(status_code=400, detail="CNPJ da campanha inválido ou não configurado")
     
     # Get all data
     revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
@@ -3688,12 +3709,12 @@ Partido: {campaign.get('party', '')}
 Doador: {rev.get('donor_name', '')}
 CPF/CNPJ: {rev.get('donor_cpf_cnpj', '')}
 
-DescriÃ§Ã£o: {rev.get('description', '')}
+Descrição: {rev.get('description', '')}
 Valor: R$ {rev.get('amount', 0):,.2f}
 Data: {rev.get('date', '')}
 Categoria: {rev.get('category', '')}
 
-NÃºmero do Recibo: {i + 1}
+Número do Recibo: {i + 1}
 """
             zf.writestr(f"RECEITAS/{filename}", receipt_content.encode('utf-8'))
             
@@ -3775,7 +3796,7 @@ NÃºmero do Recibo: {i + 1}
         total_despesas = sum(e.get("amount", 0) for e in expenses)
         saldo = total_receitas - total_despesas
         
-        # RelatÃ³rio de Receitas e Despesas
+        # Relatório de Receitas e Despesas
         rel_content = f"""DEMONSTRATIVO DE RECEITAS E DESPESAS
 Campanha: {campaign.get('candidate_name', '')}
 CNPJ: {cnpj}
@@ -3801,7 +3822,7 @@ RECEITAS DETALHADAS
         zf.writestr(f"DEMONSTRATIVOS/{rel_filename}", rel_content.encode('utf-8'))
         demonstrativos_arquivos.append({"codigo": rel_filename, "descricao": rel_filename})
         
-        # RelatÃ³rio de Despesas Efetuadas
+        # Relatório de Despesas Efetuadas
         desp_efetuadas = f"""RELATÃ“RIO DE DESPESAS EFETUADAS
 Campanha: {campaign.get('candidate_name', '')}
 CNPJ: {cnpj}
@@ -3903,13 +3924,13 @@ async def upload_file(
     if file.content_type not in ALLOWED_FILE_TYPES:
         raise HTTPException(
             status_code=400, 
-            detail=f"Tipo de arquivo nÃ£o permitido. Use: JPEG, PNG ou PDF"
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
         )
     
     # Check file size
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Arquivo muito grande (mÃ¡ximo 10MB)")
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
     
     # Generate unique filename
     file_id = str(uuid.uuid4())
@@ -3948,19 +3969,19 @@ async def attach_expense_receipt(
         {"id": expense_id, "campaign_id": current_user.get("campaign_id")}
     )
     if not expense:
-        raise HTTPException(status_code=404, detail="Despesa nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Despesa não encontrada")
     
     # Validate file type
     if file.content_type not in ALLOWED_FILE_TYPES:
         raise HTTPException(
             status_code=400, 
-            detail=f"Tipo de arquivo nÃ£o permitido. Use: JPEG, PNG ou PDF"
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
         )
     
     # Upload file
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Arquivo muito grande (mÃ¡ximo 10MB)")
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
     
     file_id = str(uuid.uuid4())
     file_ext = ALLOWED_FILE_TYPES.get(file.content_type, '.bin')
@@ -4008,19 +4029,19 @@ async def attach_revenue_receipt(
         {"id": revenue_id, "campaign_id": current_user.get("campaign_id")}
     )
     if not revenue:
-        raise HTTPException(status_code=404, detail="Receita nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Receita não encontrada")
     
     # Validate file type
     if file.content_type not in ALLOWED_FILE_TYPES:
         raise HTTPException(
             status_code=400, 
-            detail=f"Tipo de arquivo nÃ£o permitido. Use: JPEG, PNG ou PDF"
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
         )
     
     # Upload file
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Arquivo muito grande (mÃ¡ximo 10MB)")
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
     
     file_id = str(uuid.uuid4())
     file_ext = ALLOWED_FILE_TYPES.get(file.content_type, '.bin')
@@ -4067,19 +4088,19 @@ async def attach_contract_document(
         {"id": contract_id, "campaign_id": current_user.get("campaign_id")}
     )
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     # Validate file type
     if file.content_type not in ALLOWED_FILE_TYPES:
         raise HTTPException(
             status_code=400, 
-            detail=f"Tipo de arquivo nÃ£o permitido. Use: JPEG, PNG ou PDF"
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
         )
     
     # Upload file
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Arquivo muito grande (mÃ¡ximo 10MB)")
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
     
     file_id = str(uuid.uuid4())
     file_ext = ALLOWED_FILE_TYPES.get(file.content_type, '.bin')
@@ -4126,17 +4147,17 @@ async def upload_signed_contract_document(
         {"id": contract_id, "campaign_id": current_user.get("campaign_id")}
     )
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
 
     if file.content_type not in ALLOWED_FILE_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="Tipo de arquivo nÃ£o permitido. Use: JPEG, PNG ou PDF"
+            detail="Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
         )
 
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Arquivo muito grande (mÃ¡ximo 10MB)")
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
 
     file_id = str(uuid.uuid4())
     file_ext = ALLOWED_FILE_TYPES.get(file.content_type, ".bin")
@@ -4184,7 +4205,7 @@ async def get_contract_expenses(contract_id: str, current_user: dict = Depends(g
         {"_id": 0}
     )
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     expenses = await db.expenses.find(
         {"contract_id": contract_id, "campaign_id": current_user.get("campaign_id")},
@@ -4213,7 +4234,7 @@ async def get_contract_required_attachments(contract_id: str, current_user: dict
         {"_id": 0}
     )
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     template_type = contract.get("template_type")
     required_list = CONTRACT_REQUIRED_ATTACHMENTS.get(template_type, [])
@@ -4259,25 +4280,25 @@ async def upload_contract_attachment(
         {"id": contract_id, "campaign_id": current_user.get("campaign_id")}
     )
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     # Validate attachment key
     template_type = contract.get("template_type")
     valid_keys = [a["key"] for a in CONTRACT_REQUIRED_ATTACHMENTS.get(template_type, [])]
     if attachment_key not in valid_keys:
-        raise HTTPException(status_code=400, detail=f"Tipo de anexo invÃ¡lido. VÃ¡lidos: {', '.join(valid_keys)}")
+        raise HTTPException(status_code=400, detail=f"Tipo de anexo inválido. Válidos: {', '.join(valid_keys)}")
     
     # Validate file type
     if file.content_type not in ALLOWED_FILE_TYPES:
         raise HTTPException(
             status_code=400, 
-            detail=f"Tipo de arquivo nÃ£o permitido. Use: JPEG, PNG ou PDF"
+            detail=f"Tipo de arquivo não permitido. Use: JPEG, PNG ou PDF"
         )
     
     # Upload file
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Arquivo muito grande (mÃ¡ximo 10MB)")
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 10MB)")
     
     file_id = str(uuid.uuid4())
     file_ext = ALLOWED_FILE_TYPES.get(file.content_type, '.bin')
@@ -4340,7 +4361,7 @@ async def get_attachment(attachment_id: str, current_user: dict = Depends(get_cu
         {"_id": 0}
     )
     if not attachment:
-        raise HTTPException(status_code=404, detail="Arquivo nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
     return attachment
 
 @api_router.get("/attachments/{attachment_id}/download")
@@ -4351,11 +4372,11 @@ async def download_attachment(attachment_id: str, current_user: dict = Depends(g
         {"_id": 0}
     )
     if not attachment:
-        raise HTTPException(status_code=404, detail="Arquivo nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
     
     file_path = UPLOAD_DIR / attachment["filename"]
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Arquivo nÃ£o encontrado no servidor")
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado no servidor")
     
     return StreamingResponse(
         open(file_path, 'rb'),
@@ -4370,7 +4391,7 @@ async def delete_attachment(attachment_id: str, current_user: dict = Depends(get
         {"id": attachment_id, "campaign_id": current_user.get("campaign_id")}
     )
     if not attachment:
-        raise HTTPException(status_code=404, detail="Arquivo nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
     
     # Delete file
     file_path = UPLOAD_DIR / attachment["filename"]
@@ -4380,7 +4401,7 @@ async def delete_attachment(attachment_id: str, current_user: dict = Depends(get
     # Delete from DB
     await db.attachments.delete_one({"id": attachment_id})
     
-    return {"message": "Arquivo excluÃ­do"}
+    return {"message": "Arquivo excluído"}
 
 # ============== VALIDATION ROUTES ==============
 @api_router.post("/validate/cpf")
@@ -4439,7 +4460,7 @@ async def generate_pdf_report(current_user: dict = Depends(get_current_user)):
         <b>Partido:</b> {campaign.get('party', '')} - {campaign.get('position', '')}<br/>
         <b>Cidade/UF:</b> {campaign.get('city', '')}/{campaign.get('state', '')}<br/>
         <b>Ano:</b> {campaign.get('election_year', '')}<br/>
-        <b>CNPJ:</b> {campaign.get('cnpj', 'NÃ£o informado')}
+        <b>CNPJ:</b> {campaign.get('cnpj', 'Não informado')}
         """
         elements.append(Paragraph(info_text, styles['Normal']))
         elements.append(Spacer(1, 30))
@@ -4473,7 +4494,7 @@ async def generate_pdf_report(current_user: dict = Depends(get_current_user)):
     # Revenues table
     if revenues:
         elements.append(Paragraph("<b>RECEITAS</b>", styles['Heading2']))
-        revenue_data = [["Data", "DescriÃ§Ã£o", "Categoria", "Valor"]]
+        revenue_data = [["Data", "Descrição", "Categoria", "Valor"]]
         for r in revenues[:50]:  # Limit to 50 items
             revenue_data.append([
                 r.get("date", "")[:10],
@@ -4497,7 +4518,7 @@ async def generate_pdf_report(current_user: dict = Depends(get_current_user)):
     # Expenses table
     if expenses:
         elements.append(Paragraph("<b>DESPESAS</b>", styles['Heading2']))
-        expense_data = [["Data", "DescriÃ§Ã£o", "Categoria", "Valor"]]
+        expense_data = [["Data", "Descrição", "Categoria", "Valor"]]
         for e in expenses[:50]:
             expense_data.append([
                 e.get("date", "")[:10],
@@ -4520,7 +4541,7 @@ async def generate_pdf_report(current_user: dict = Depends(get_current_user)):
     # Footer
     elements.append(Spacer(1, 40))
     elements.append(Paragraph(
-        f"RelatÃ³rio gerado em {datetime.now().strftime('%d/%m/%Y Ã s %H:%M')}",
+        f"Relatório gerado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}",
         styles['Normal']
     ))
     
@@ -4590,7 +4611,7 @@ async def generate_contract_pdf(contract_id: str, current_user: dict = Depends(g
         {"_id": 0}
     )
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
     
@@ -4650,14 +4671,14 @@ async def download_signed_contract_pdf(contract_id: str, current_user: dict = De
         {"_id": 0}
     )
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     # Check if contract has a stored PDF
     pdf_id = contract.get("pdf_path")
     if not pdf_id:
         # Check if contract is fully signed
         if not (contract.get("locatario_assinatura_hash") and contract.get("locador_assinatura_hash")):
-            raise HTTPException(status_code=400, detail="Contrato nÃ£o estÃ¡ completamente assinado")
+            raise HTTPException(status_code=400, detail="Contrato não está completamente assinado")
         
         # Generate PDF now
         campaign = await db.campaigns.find_one({"id": contract["campaign_id"]}, {"_id": 0})
@@ -4671,7 +4692,7 @@ async def download_signed_contract_pdf(contract_id: str, current_user: dict = De
     # Get PDF from database
     pdf_doc = await db.contract_pdfs.find_one({"id": pdf_id})
     if not pdf_doc:
-        raise HTTPException(status_code=404, detail="PDF nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="PDF não encontrado")
     
     buffer = BytesIO(pdf_doc["data"])
     
@@ -4854,6 +4875,227 @@ async def send_email_async(to_email: str, subject: str, html_content: str, reply
                 logging.error(f"Failed to send email after {max_retries} attempts: {to_email}")
                 return False
 
+# ============== WHATSAPP BUSINESS + NOTIFICATIONS ==============
+class NotificationEvent(str, Enum):
+    PAYMENT_DUE = "pagamento_vencendo"
+    CONTRACT_PENDING = "contrato_pendente_assinatura"
+    EXPENSE_NO_RECEIPT = "despesa_sem_comprovante"
+    TSE_LIMIT_NEAR = "limite_tse_proximo"
+    REPORT_READY = "relatorio_gerado"
+
+class NotificationDispatchRequest(BaseModel):
+    event: NotificationEvent
+    report_name: Optional[str] = None
+    days_ahead: Optional[int] = 7
+    channels: Optional[List[str]] = None  # ["whatsapp", "email"]
+
+def _normalize_phone_e164(phone: Optional[str]) -> Optional[str]:
+    if not phone:
+        return None
+    digits = re.sub(r"\D", "", phone)
+    if not digits:
+        return None
+    if digits.startswith("55"):
+        return f"+{digits}"
+    if len(digits) in (10, 11):
+        return f"+55{digits}"
+    if digits.startswith("0"):
+        digits = digits.lstrip("0")
+        return f"+{digits}"
+    return f"+{digits}"
+
+def _parse_date(date_str: str) -> Optional[datetime]:
+    if not date_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(date_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        try:
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+
+def _resolve_whatsapp_template(event: NotificationEvent) -> str:
+    mapping = {
+        NotificationEvent.PAYMENT_DUE: WHATSAPP_TEMPLATE_PAYMENT_DUE,
+        NotificationEvent.CONTRACT_PENDING: WHATSAPP_TEMPLATE_CONTRACT_PENDING,
+        NotificationEvent.EXPENSE_NO_RECEIPT: WHATSAPP_TEMPLATE_EXPENSE_NO_RECEIPT,
+        NotificationEvent.TSE_LIMIT_NEAR: WHATSAPP_TEMPLATE_TSE_LIMIT,
+        NotificationEvent.REPORT_READY: WHATSAPP_TEMPLATE_REPORT_READY,
+    }
+    return mapping.get(event) or WHATSAPP_TEMPLATE_DEFAULT
+
+async def send_whatsapp_template(to_phone: str, template_name: str, body_parameters: Optional[List[str]] = None, language: str = None) -> bool:
+    if not WHATSAPP_AVAILABLE or not template_name or not to_phone:
+        logging.warning("WhatsApp not configured or missing template/phone")
+        return False
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_phone,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": language or WHATSAPP_DEFAULT_LANGUAGE},
+        }
+    }
+    if body_parameters:
+        payload["template"]["components"] = [
+            {
+                "type": "body",
+                "parameters": [{"type": "text", "text": p} for p in body_parameters]
+            }
+        ]
+
+    url = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}"}
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.post(url, json=payload, headers=headers)
+            if response.status_code >= 400:
+                logging.error(f"WhatsApp send failed ({response.status_code}): {response.text}")
+                return False
+            return True
+    except Exception as e:
+        logging.error(f"WhatsApp send error: {e}")
+        return False
+
+async def _should_send_notification(campaign_id: str, event: NotificationEvent, channel: str, cooldown_hours: int = 24) -> bool:
+    now = datetime.now(timezone.utc)
+    last = await db.notification_logs.find_one(
+        {"campaign_id": campaign_id, "event": event, "channel": channel},
+        sort=[("sent_at", -1)]
+    )
+    if not last:
+        return True
+    last_at = _parse_date(last.get("sent_at", "")) or now
+    return (now - last_at) > timedelta(hours=cooldown_hours)
+
+async def _log_notification(campaign_id: str, event: NotificationEvent, channel: str):
+    await db.notification_logs.insert_one({
+        "id": str(uuid.uuid4()),
+        "campaign_id": campaign_id,
+        "event": event,
+        "channel": channel,
+        "sent_at": datetime.now(timezone.utc).isoformat()
+    })
+
+def _build_notification_message(event: NotificationEvent, campaign: dict, context: dict) -> Dict[str, str]:
+    candidate = campaign.get("candidate_name", "Candidato")
+    if event == NotificationEvent.PAYMENT_DUE:
+        count = context.get("count", 0)
+        next_date = context.get("next_due_date", "")
+        subject = "Pagamento vencendo"
+        message = f"{candidate}, você tem {count} pagamento(s) vencendo. Próximo vencimento: {next_date}."
+    elif event == NotificationEvent.CONTRACT_PENDING:
+        count = context.get("count", 0)
+        subject = "Contrato pendente de assinatura"
+        message = f"{candidate}, há {count} contrato(s) pendentes de assinatura."
+    elif event == NotificationEvent.EXPENSE_NO_RECEIPT:
+        count = context.get("count", 0)
+        subject = "Despesa sem comprovante"
+        message = f"{candidate}, há {count} despesa(s) sem comprovante."
+    elif event == NotificationEvent.TSE_LIMIT_NEAR:
+        percent = context.get("percent", 0)
+        subject = "Limite TSE perto de estourar"
+        message = f"{candidate}, seus gastos chegaram a {percent:.1f}% do limite TSE."
+    else:
+        report_name = context.get("report_name", "Relatório")
+        subject = "Relatório gerado"
+        message = f"{candidate}, o relatório \"{report_name}\" foi gerado e está disponível no sistema."
+
+    return {"subject": subject, "message": message}
+
+async def _get_notification_context(event: NotificationEvent, campaign_id: str, days_ahead: int = 7, report_name: Optional[str] = None) -> Optional[dict]:
+    now = datetime.now().date()
+    if event == NotificationEvent.PAYMENT_DUE:
+        payments = await db.payments.find(
+            {"campaign_id": campaign_id, "status": {"$ne": "pago"}},
+            {"_id": 0}
+        ).to_list(1000)
+        due = []
+        for p in payments:
+            due_date = _parse_date(p.get("due_date", ""))
+            if not due_date:
+                continue
+            days_until = (due_date.date() - now).days
+            if days_until <= days_ahead:
+                due.append((days_until, due_date))
+        if not due:
+            return None
+        next_due = sorted(due, key=lambda x: x[0])[0][1].strftime("%d/%m/%Y")
+        return {"count": len(due), "next_due_date": next_due}
+
+    if event == NotificationEvent.CONTRACT_PENDING:
+        contracts = await db.contracts.find(
+            {"campaign_id": campaign_id, "status": {"$in": ["aguardando_assinatura", "assinado_locador"]}},
+            {"_id": 0}
+        ).to_list(1000)
+        if not contracts:
+            return None
+        return {"count": len(contracts)}
+
+    if event == NotificationEvent.EXPENSE_NO_RECEIPT:
+        expenses = await db.expenses.find(
+            {"campaign_id": campaign_id},
+            {"_id": 0}
+        ).to_list(2000)
+        missing = [e for e in expenses if not e.get("attachment_id")]
+        if not missing:
+            return None
+        return {"count": len(missing)}
+
+    if event == NotificationEvent.TSE_LIMIT_NEAR:
+        campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
+        limit = float(campaign.get("limite_gastos") or 0)
+        if limit <= 0:
+            return None
+        expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(2000)
+        total = sum(e.get("amount", 0) for e in expenses)
+        percent = (total / limit) * 100 if limit else 0
+        if percent < 90:
+            return None
+        return {"percent": percent}
+
+    if event == NotificationEvent.REPORT_READY:
+        return {"report_name": report_name or "Relatório"}
+
+    return None
+
+async def _dispatch_notifications(event: NotificationEvent, campaign: dict, user: dict, context: dict, channels: List[str]):
+    campaign_id = campaign.get("id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Campanha não encontrada")
+
+    contact_email = campaign.get("email") or user.get("email")
+    contact_phone = _normalize_phone_e164(campaign.get("telefone") or user.get("phone"))
+    msg = _build_notification_message(event, campaign, context)
+
+    results = {"email": False, "whatsapp": False}
+
+    if "email" in channels and contact_email:
+        if await _should_send_notification(campaign_id, event, "email"):
+            html = f"<p>{msg['message']}</p><p>Abra o painel para mais detalhes.</p>"
+            ok = await send_email_async(contact_email, msg["subject"], html, reply_to=SENDER_EMAIL)
+            if ok:
+                await _log_notification(campaign_id, event, "email")
+                results["email"] = True
+
+    if "whatsapp" in channels and contact_phone:
+        if await _should_send_notification(campaign_id, event, "whatsapp"):
+            template = _resolve_whatsapp_template(event)
+            ok = await send_whatsapp_template(contact_phone, template, body_parameters=[msg["message"]])
+            if ok:
+                await _log_notification(campaign_id, event, "whatsapp")
+                results["whatsapp"] = True
+
+    return results
+
 @api_router.post("/email/send-signature-request")
 async def send_signature_email(
     contract_id: str,
@@ -4907,6 +5149,34 @@ async def send_signature_email(
         "expires_in_days": 7
     }
 
+@api_router.post("/notifications/dispatch")
+async def dispatch_notifications(
+    payload: NotificationDispatchRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Campanha não vinculada ao usuário")
+
+    campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
+    context = await _get_notification_context(
+        payload.event,
+        campaign_id,
+        days_ahead=payload.days_ahead or 7,
+        report_name=payload.report_name
+    )
+    if not context:
+        return {"message": "Nenhum alerta para enviar", "event": payload.event}
+
+    channels = payload.channels or ["whatsapp", "email"]
+    results = await _dispatch_notifications(payload.event, campaign, current_user, context, channels)
+    return {
+        "message": "Notificações processadas",
+        "event": payload.event,
+        "channels": channels,
+        "sent": results
+    }
+
 # ============== FACIAL SIGNATURE ROUTES ==============
 class FacialSignature(BaseModel):
     signature_hash: str
@@ -4928,26 +5198,26 @@ async def sign_contract_with_facial(
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             if payload["contract_id"] != contract_id:
-                raise HTTPException(status_code=400, detail="Token invÃ¡lido para este contrato")
+                raise HTTPException(status_code=400, detail="Token inválido para este contrato")
             contract = await db.contracts.find_one({"id": contract_id}, {"_id": 0})
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=400, detail="Token expirado")
         except jwt.InvalidTokenError:
-            raise HTTPException(status_code=400, detail="Token invÃ¡lido")
+            raise HTTPException(status_code=400, detail="Token inválido")
     elif party == "locatario" and current_user:
         contract = await db.contracts.find_one(
             {"id": contract_id, "campaign_id": current_user.get("campaign_id")},
             {"_id": 0}
         )
     else:
-        raise HTTPException(status_code=400, detail="AutenticaÃ§Ã£o necessÃ¡ria")
+        raise HTTPException(status_code=400, detail="Autenticação necessária")
     
     if not contract:
-        raise HTTPException(status_code=404, detail="Contrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Contrato não encontrado")
     
     # Validate selfie (must be base64 image)
     if not data.selfie_base64 or len(data.selfie_base64) < 1000:
-        raise HTTPException(status_code=400, detail="Selfie invÃ¡lida")
+        raise HTTPException(status_code=400, detail="Selfie inválida")
     
     # Generate unique signature hash with selfie
     now = datetime.now(timezone.utc).isoformat()
@@ -4994,7 +5264,7 @@ async def sign_contract_with_facial(
     await db.contracts.update_one({"id": contract_id}, {"$set": {"contract_html": html}})
     
     return {
-        "message": f"Contrato assinado pelo {party} com validaÃ§Ã£o facial",
+        "message": f"Contrato assinado pelo {party} com validação facial",
         "status": update_data["status"],
         "signature_hash": full_hash[:20] + "...",
         "selfie_id": selfie_id
@@ -5156,7 +5426,7 @@ async def export_spce_despesas(current_user: dict = Depends(get_current_user)):
     ensure_spce_ready(build_spce_precheck(campaign, expenses=expenses))
     
     if not campaign.get("cnpj"):
-        raise HTTPException(status_code=400, detail="CNPJ da campanha nÃ£o configurado")
+        raise HTTPException(status_code=400, detail="CNPJ da campanha não configurado")
     
     # Generate CSV format for SPCE import
     lines = ["DATA;DESCRICAO;VALOR;CATEGORIA;FORNECEDOR;CPF_CNPJ;NOTA_FISCAL"]
@@ -5184,22 +5454,22 @@ async def export_spce_despesas(current_user: dict = Depends(get_current_user)):
     }
 
 # ============== SPCE LAYOUT - DESPAGTOS (Despesas de Gastos) ==============
-# Layout oficial conforme ResoluÃ§Ã£o TSE 23.607/2019
+# Layout oficial conforme Resolução TSE 23.607/2019
 SPCE_DESPESA_CATEGORIAS = {
     "propaganda": {"codigo": "101", "descricao": "Despesas com Propaganda"},
     "pessoal": {"codigo": "102", "descricao": "Despesas com Pessoal"},
     "transporte": {"codigo": "103", "descricao": "Despesas de Transporte"},
     "material": {"codigo": "104", "descricao": "Despesas com Material de Expediente"},
-    "alimentacao": {"codigo": "105", "descricao": "Despesas com AlimentaÃ§Ã£o"},
-    "combustivel": {"codigo": "106", "descricao": "Despesas com CombustÃ­vel e Lubrificantes"},
-    "locacao_veiculo": {"codigo": "107", "descricao": "LocaÃ§Ã£o/CessÃ£o de VeÃ­culos"},
-    "locacao_imovel": {"codigo": "108", "descricao": "LocaÃ§Ã£o/CessÃ£o de ImÃ³veis"},
+    "alimentacao": {"codigo": "105", "descricao": "Despesas com Alimentação"},
+    "combustivel": {"codigo": "106", "descricao": "Despesas com Combustível e Lubrificantes"},
+    "locacao_veiculo": {"codigo": "107", "descricao": "Locação/Cessão de Veículos"},
+    "locacao_imovel": {"codigo": "108", "descricao": "Locação/Cessão de Imóveis"},
     "eventos": {"codigo": "109", "descricao": "Despesas com Eventos"},
     "servicos_terceiros": {"codigo": "110", "descricao": "Serviços Prestados por Terceiros"},
-    "agua_luz_telefone": {"codigo": "111", "descricao": "Ãgua, Luz, Telefone e Internet"},
-    "taxa_bancaria": {"codigo": "112", "descricao": "Taxas e Tarifas BancÃ¡rias"},
-    "producao_audiovisual": {"codigo": "113", "descricao": "ProduÃ§Ã£o de Programas de RÃ¡dio/TV/VÃ­deo"},
-    "impulsionamento": {"codigo": "114", "descricao": "Impulsionamento de ConteÃºdos"},
+    "agua_luz_telefone": {"codigo": "111", "descricao": "Água, Luz, Telefone e Internet"},
+    "taxa_bancaria": {"codigo": "112", "descricao": "Taxas e Tarifas Bancárias"},
+    "producao_audiovisual": {"codigo": "113", "descricao": "Produção de Programas de Rádio/TV/Vídeo"},
+    "impulsionamento": {"codigo": "114", "descricao": "Impulsionamento de Conteúdos"},
     "outros": {"codigo": "199", "descricao": "Outras Despesas"}
 }
 
@@ -5215,7 +5485,7 @@ async def export_spce_despagtos(current_user: dict = Depends(get_current_user)):
     
     cnpj = (campaign.get("cnpj") or "").replace(".", "").replace("/", "").replace("-", "")
     if not cnpj or len(cnpj) != 14:
-        raise HTTPException(status_code=400, detail="CNPJ da campanha invÃ¡lido ou nÃ£o configurado")
+        raise HTTPException(status_code=400, detail="CNPJ da campanha inválido ou não configurado")
     
     # Generate DESPAGTOS format
     # Header: versao|tipo_registro|cnpj_campanha|uf|ano_eleicao
@@ -5263,21 +5533,21 @@ async def export_spce_despagtos(current_user: dict = Depends(get_current_user)):
 
 # ============== SPCE LAYOUT - CONTRATOS ==============
 SPCE_CONTRATO_TIPOS = {
-    "veiculo_com_motorista": {"codigo": "01", "descricao": "LocaÃ§Ã£o de VeÃ­culo com Motorista"},
-    "veiculo_sem_motorista": {"codigo": "02", "descricao": "LocaÃ§Ã£o de VeÃ­culo sem Motorista"},
-    "imovel_comite": {"codigo": "03", "descricao": "LocaÃ§Ã£o de Imóvel para ComitÃª"},
-    "imovel_evento": {"codigo": "04", "descricao": "LocaÃ§Ã£o de Imóvel para Evento"},
-    "servico_grafico": {"codigo": "05", "descricao": "Serviços GrÃ¡ficos"},
+    "veiculo_com_motorista": {"codigo": "01", "descricao": "Locação de Veículo com Motorista"},
+    "veiculo_sem_motorista": {"codigo": "02", "descricao": "Locação de Veículo sem Motorista"},
+    "imovel_comite": {"codigo": "03", "descricao": "Locação de Imóvel para Comitê"},
+    "imovel_evento": {"codigo": "04", "descricao": "Locação de Imóvel para Evento"},
+    "servico_grafico": {"codigo": "05", "descricao": "Serviços Gráficos"},
     "servico_publicidade": {"codigo": "06", "descricao": "Serviços de Publicidade"},
     "servico_pesquisa": {"codigo": "07", "descricao": "Serviços de Pesquisa"},
-    "servico_juridico": {"codigo": "08", "descricao": "Serviços JurÃ­dicos"},
-    "servico_contabil": {"codigo": "09", "descricao": "Serviços ContÃ¡beis"},
+    "servico_juridico": {"codigo": "08", "descricao": "Serviços Jurídicos"},
+    "servico_contabil": {"codigo": "09", "descricao": "Serviços Contábeis"},
     "servico_ti": {"codigo": "10", "descricao": "Serviços de TI"},
-    "producao_audiovisual": {"codigo": "11", "descricao": "ProduÃ§Ã£o Audiovisual"},
-    "impulsionamento": {"codigo": "12", "descricao": "Impulsionamento de ConteÃºdos"},
+    "producao_audiovisual": {"codigo": "11", "descricao": "Produção Audiovisual"},
+    "impulsionamento": {"codigo": "12", "descricao": "Impulsionamento de Conteúdos"},
     # aliases legados para compatibilidade de contratos antigos
-    "imovel": {"codigo": "03", "descricao": "LocaÃ§Ã£o de Imóvel para ComitÃª"},
-    "espaco_evento": {"codigo": "04", "descricao": "LocaÃ§Ã£o de Imóvel para Evento"},
+    "imovel": {"codigo": "03", "descricao": "Locação de Imóvel para Comitê"},
+    "espaco_evento": {"codigo": "04", "descricao": "Locação de Imóvel para Evento"},
     "bem_movel": {"codigo": "99", "descricao": "Outros Contratos"},
     "outros": {"codigo": "99", "descricao": "Outros Contratos"}
 }
@@ -5295,7 +5565,7 @@ async def export_spce_contratos(current_user: dict = Depends(get_current_user)):
     
     cnpj = (campaign.get("cnpj") or "").replace(".", "").replace("/", "").replace("-", "")
     if not cnpj or len(cnpj) != 14:
-        raise HTTPException(status_code=400, detail="CNPJ da campanha invÃ¡lido ou nÃ£o configurado")
+        raise HTTPException(status_code=400, detail="CNPJ da campanha inválido ou não configurado")
     
     # Generate CONTRATOS format
     lines = []
@@ -5399,8 +5669,8 @@ async def export_spce_despesas_pdf(current_user: dict = Depends(get_current_user
     # Header
     elements.append(Paragraph("RELATÃ“RIO DE DESPESAS ELEITORAIS", styles['Title2']))
     elements.append(Paragraph(f"Campanha: {campaign.get('candidate_name', '')} - {campaign.get('party', '')}", styles['Normal']))
-    elements.append(Paragraph(f"CNPJ: {campaign.get('cnpj', 'NÃ£o informado')}", styles['Normal']))
-    elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y Ã s %H:%M')}", styles['Subtitle']))
+    elements.append(Paragraph(f"CNPJ: {campaign.get('cnpj', 'Não informado')}", styles['Normal']))
+    elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}", styles['Subtitle']))
     elements.append(Spacer(1, 20))
     
     # Summary
@@ -5436,7 +5706,7 @@ async def export_spce_despesas_pdf(current_user: dict = Depends(get_current_user
         # Sort by date
         expenses_sorted = sorted(expenses, key=lambda x: x.get("date", ""))
         
-        exp_data = [["Data", "DescriÃ§Ã£o", "Fornecedor", "Valor", "Status"]]
+        exp_data = [["Data", "Descrição", "Fornecedor", "Valor", "Status"]]
         for exp in expenses_sorted:
             date_str = exp.get("date", "")
             if date_str:
@@ -5471,7 +5741,7 @@ async def export_spce_despesas_pdf(current_user: dict = Depends(get_current_user
     # Footer
     elements.append(Spacer(1, 30))
     elements.append(Paragraph("_" * 80, styles['Normal']))
-    elements.append(Paragraph("<i>Documento gerado pelo sistema Eleitora 360 - Formato compatÃ­vel SPCE/TSE</i>", styles['Subtitle']))
+    elements.append(Paragraph("<i>Documento gerado pelo sistema Eleitora 360 - Formato compatível SPCE/TSE</i>", styles['Subtitle']))
     
     doc.build(elements)
     buffer.seek(0)
@@ -5510,8 +5780,8 @@ async def export_spce_contratos_pdf(current_user: dict = Depends(get_current_use
     # Header
     elements.append(Paragraph("RELATÃ“RIO DE CONTRATOS ELEITORAIS", styles['Title2']))
     elements.append(Paragraph(f"Campanha: {campaign.get('candidate_name', '')} - {campaign.get('party', '')}", styles['Normal']))
-    elements.append(Paragraph(f"CNPJ: {campaign.get('cnpj', 'NÃ£o informado')}", styles['Normal']))
-    elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y Ã s %H:%M')}", styles['Subtitle']))
+    elements.append(Paragraph(f"CNPJ: {campaign.get('cnpj', 'Não informado')}", styles['Normal']))
+    elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}", styles['Subtitle']))
     elements.append(Spacer(1, 20))
     
     # Summary
@@ -5544,7 +5814,7 @@ async def export_spce_contratos_pdf(current_user: dict = Depends(get_current_use
     elements.append(Spacer(1, 10))
     
     if contracts:
-        contract_data = [["TÃ­tulo", "Contratado", "PerÃ­odo", "Valor", "Status"]]
+        contract_data = [["Título", "Contratado", "Período", "Valor", "Status"]]
         for c in contracts:
             start = c.get("start_date", "")
             end = c.get("end_date", "")
@@ -5583,7 +5853,7 @@ async def export_spce_contratos_pdf(current_user: dict = Depends(get_current_use
     # Footer
     elements.append(Spacer(1, 30))
     elements.append(Paragraph("_" * 80, styles['Normal']))
-    elements.append(Paragraph("<i>Documento gerado pelo sistema Eleitora 360 - Formato compatÃ­vel SPCE/TSE</i>", styles['Subtitle']))
+    elements.append(Paragraph("<i>Documento gerado pelo sistema Eleitora 360 - Formato compatível SPCE/TSE</i>", styles['Subtitle']))
     
     doc.build(elements)
     buffer.seek(0)
@@ -5602,7 +5872,7 @@ async def get_spce_categorias():
     return {
         "despesas": SPCE_DESPESA_CATEGORIAS,
         "contratos": SPCE_CONTRATO_TIPOS,
-        "nota": "Categorias conforme ResoluÃ§Ã£o TSE 23.607/2019"
+        "nota": "Categorias conforme Resolução TSE 23.607/2019"
     }
 
 # ============== BANK STATEMENT IMPORT ==============
@@ -5667,7 +5937,7 @@ async def import_bank_statement(
         "import_id": import_id,
         "total_entries": len(entries),
         "entries": entries[:20],  # Return first 20 for preview
-        "message": f"Importadas {len(entries)} transaÃ§Ãµes"
+        "message": f"Importadas {len(entries)} transações"
     }
 
 @api_router.post("/reconcile/auto")
@@ -5686,7 +5956,7 @@ async def auto_reconcile(
         {"_id": 0}
     )
     if not bank_import:
-        raise HTTPException(status_code=404, detail="ImportaÃ§Ã£o nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Importação não encontrada")
     
     # Get revenues and expenses
     revenues = await db.revenues.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
@@ -5937,11 +6207,11 @@ async def ai_chat(
         if campaign_context.get("limite_gastos", 0) > 0:
             percentage = (total_expenses / campaign_context["limite_gastos"]) * 100
             if percentage >= 90:
-                alerts.append(f"?? Gastos em {percentage:.1f}% do limite!")
+                alerts.append(f"Alerta: Gastos em {percentage:.1f}% do limite!")
         if pending_count > 0:
-            alerts.append(f"?? {pending_count} despesa(s) pendente(s)")
+            alerts.append(f"Alerta: {pending_count} despesa(s) pendente(s)")
         if contracts_missing_docs > 0:
-            alerts.append(f"?? {contracts_missing_docs} contrato(s) sem documentação completa")
+            alerts.append(f"Alerta: {contracts_missing_docs} contrato(s) sem documentação completa")
         
         return {
             "response": response,
@@ -6014,7 +6284,7 @@ async def clear_chat_history(
     
     await db.chat_history.delete_one({"session_id": query_session})
     
-    return {"message": "HistÃ³rico limpo com sucesso"}
+    return {"message": "Histórico limpo com sucesso"}
 
 @api_router.post("/ai/analyze-expenses")
 async def ai_analyze_expenses(current_user: dict = Depends(get_current_user)):
@@ -6027,7 +6297,7 @@ async def ai_analyze_expenses(current_user: dict = Depends(get_current_user)):
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(1000)
     
     if not expenses:
-        return {"analysis": "NÃ£o hÃ¡ despesas registradas para analisar."}
+        return {"analysis": "Não há despesas registradas para analisar."}
     
     campaign_context = {
         "campaign_id": campaign_id,
@@ -6039,7 +6309,7 @@ async def ai_analyze_expenses(current_user: dict = Depends(get_current_user)):
         analysis = await assistant.analyze_expenses(expenses, campaign_context)
         return {"analysis": analysis}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro na anÃ¡lise: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro na análise: {str(e)}")
 
 @api_router.post("/ai/check-compliance")
 async def ai_check_compliance(current_user: dict = Depends(get_current_user)):
@@ -6066,7 +6336,7 @@ async def ai_check_compliance(current_user: dict = Depends(get_current_user)):
         compliance = await assistant.check_compliance(campaign_context, contracts)
         return {"compliance_report": compliance}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro na verificaÃ§Ã£o: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro na verificação: {str(e)}")
 
 @api_router.get("/ai/tse-rules")
 async def get_tse_rules():
@@ -6252,12 +6522,12 @@ async def _execute_voice_command_text(transcribed_text: str, current_user: dict)
         action_data = {"route": "/contratos"}
 
     elif command == "sign_contract":
-        response_text = "Vou abrir contratos para voce assinar. Quer que eu abra o contrato pendente?"
+        response_text = "Vou abrir contratos para você assinar. Quer que eu abra o contrato pendente?"
         action = "navigate"
         action_data = {"route": "/contratos"}
 
     elif command == "upload_documents":
-        response_text = "Vou abrir contratos para voce anexar documentos. Quer ver as pendencias primeiro?"
+        response_text = "Vou abrir contratos para você anexar documentos. Quer ver as pendências primeiro?"
         action = "navigate"
         action_data = {"route": "/contratos"}
 
@@ -6316,13 +6586,13 @@ async def voice_transcribe(
     
     # Check file size (max 25MB)
     if len(contents) > 25 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Arquivo muito grande (mÃ¡ximo 25MB)")
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (máximo 25MB)")
     
     try:
         text = await voice_assistant.transcribe_audio(contents, audio.filename or "audio.webm")
         return {"text": text, "success": True}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro na transcriÃ§Ã£o: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro na transcrição: {str(e)}")
 
 @api_router.post("/voice/speak")
 async def voice_speak(
@@ -6331,7 +6601,7 @@ async def voice_speak(
 ):
     """Convert text to speech using TTS"""
     if not text:
-        raise HTTPException(status_code=400, detail="Texto nÃ£o fornecido")
+        raise HTTPException(status_code=400, detail="Texto não fornecido")
     
     try:
         audio_base64 = await voice_assistant.generate_speech_base64(text)
@@ -6497,7 +6767,7 @@ async def get_professional(professional_id: str, current_user: dict = Depends(ge
         {"_id": 0, "password_hash": 0}
     )
     if not professional:
-        raise HTTPException(status_code=404, detail="Profissional nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
     return professional
 
 @api_router.put("/professionals/{professional_id}", response_model=ProfessionalResponse)
@@ -6512,7 +6782,7 @@ async def update_professional(
         {"id": professional_id, "campaigns": campaign_id}
     )
     if not professional:
-        raise HTTPException(status_code=404, detail="Profissional nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
     
     update_data = data.model_dump(exclude={"password"})
     update_data["cpf"] = validate_and_normalize_document(
@@ -6540,7 +6810,7 @@ async def remove_professional(professional_id: str, current_user: dict = Depends
     )
     
     if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Profissional nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
     
     return {"message": "Profissional removido da campanha"}
 
@@ -6554,7 +6824,7 @@ async def get_contador_campaigns(current_user: dict = Depends(get_current_user))
     )
     
     if not professional:
-        return {"campaigns": [], "message": "VocÃª nÃ£o é um contador cadastrado"}
+        return {"campaigns": [], "message": "Você não é um contador cadastrado"}
     
     campaign_ids = professional.get("campaigns", [])
     campaigns = await db.campaigns.find(
@@ -6734,7 +7004,7 @@ async def get_pix_payment(pix_id: str, current_user: dict = Depends(get_current_
         {"_id": 0}
     )
     if not payment:
-        raise HTTPException(status_code=404, detail="Pagamento nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
     return payment
 
 @api_router.post("/pix/simulate-execution/{pix_id}")
@@ -6746,11 +7016,11 @@ async def simulate_pix_execution(pix_id: str, current_user: dict = Depends(get_c
         {"id": pix_id, "campaign_id": campaign_id}
     )
     if not payment:
-        raise HTTPException(status_code=404, detail="Pagamento nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
     
     # Check if already executed
     if payment.get("status") == "executado":
-        raise HTTPException(status_code=400, detail="PIX jÃ¡ foi executado")
+        raise HTTPException(status_code=400, detail="PIX já foi executado")
     
     # Simulate transaction
     transaction_id = f"E{uuid.uuid4().hex[:20].upper()}"
@@ -6774,7 +7044,7 @@ async def simulate_pix_execution(pix_id: str, current_user: dict = Depends(get_c
         )
     
     return {
-        "message": "PIX executado com sucesso (simulaÃ§Ã£o)",
+        "message": "PIX executado com sucesso (simulação)",
         "transaction_id": transaction_id,
         "status": "executado"
     }
@@ -6791,19 +7061,19 @@ async def get_bank_info():
         "bank": "Banco do Brasil",
         "integration_available": BB_PIX_AVAILABLE,
         "environment": BB_ENVIRONMENT if BB_PIX_AVAILABLE else None,
-        "integration_status": "ativo" if BB_PIX_AVAILABLE else "nÃ£o_configurado",
+        "integration_status": "ativo" if BB_PIX_AVAILABLE else "não_configurado",
         "strict_mode": BB_STRICT_MODE,
         "mtls_configured": cert_ready,
         "operation_mode": "real_only" if BB_STRICT_MODE else "real_with_simulation_fallback",
         "features": [
-            "PIX CobranÃ§a (cobv)",
+            "PIX Cobrança (cobv)",
             "PIX Pagamento",
             "Consulta de Status",
-            "GeraÃ§Ã£o de QR Code",
+            "Geração de QR Code",
             "PIX Copia e Cola"
         ] if BB_PIX_AVAILABLE else [],
         "api_docs": "https://developers.bb.com.br",
-        "note": "IntegraÃ§Ã£o com Banco do Brasil para PIX" if BB_PIX_AVAILABLE else "Configure as credenciais BB_APP_KEY, BB_CLIENT_ID e BB_CLIENT_SECRET no ambiente"
+        "note": "Integração com Banco do Brasil para PIX" if BB_PIX_AVAILABLE else "Configure as credenciais BB_APP_KEY, BB_CLIENT_ID e BB_CLIENT_SECRET no ambiente"
     }
 
 @api_router.get("/pix/bank-diagnostic")
@@ -6831,7 +7101,7 @@ async def check_pix_status(pix_id: str, current_user: dict = Depends(get_current
         {"id": pix_id, "campaign_id": campaign_id}
     )
     if not payment:
-        raise HTTPException(status_code=404, detail="Pagamento nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
     
     txid = payment.get("transaction_id")
     
@@ -6886,7 +7156,7 @@ async def check_pix_status(pix_id: str, current_user: dict = Depends(get_current
                     "txid": txid,
                     "local_status": payment.get("status"),
                     "error": bb_status.get("error"),
-                    "note": "NÃ£o foi possÃ­vel consultar o status no Banco do Brasil"
+                    "note": "Não foi possível consultar o status no Banco do Brasil"
                 }
         except Exception as e:
             logging.error(f"Erro ao verificar status PIX: {e}")
@@ -6912,10 +7182,10 @@ async def execute_pix_payment(pix_id: str, current_user: dict = Depends(get_curr
         {"id": pix_id, "campaign_id": campaign_id}
     )
     if not payment:
-        raise HTTPException(status_code=404, detail="Pagamento nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
     
     if payment.get("status") == "executado":
-        raise HTTPException(status_code=400, detail="PIX jÃ¡ foi executado")
+        raise HTTPException(status_code=400, detail="PIX já foi executado")
     
     txid = payment.get("transaction_id")
     
@@ -6927,11 +7197,11 @@ async def execute_pix_payment(pix_id: str, current_user: dict = Depends(get_curr
             bb_status = await bb_pix_client.check_pix_status(txid)
             
             return {
-                "message": "PIX jÃ¡ estÃ¡ ativo no Banco do Brasil",
+                "message": "PIX já está ativo no Banco do Brasil",
                 "txid": txid,
                 "bb_status": bb_status.get("status") if bb_status.get("success") else "unknown",
                 "pix_copia_cola": payment.get("pix_copia_cola"),
-                "note": "O destinatÃ¡rio pode pagar usando o cÃ³digo PIX Copia e Cola ou QR Code"
+                "note": "O destinatário pode pagar usando o código PIX Copia e Cola ou QR Code"
             }
     
     # Simulate execution for non-integrated payments
@@ -7358,7 +7628,7 @@ async def get_campaign_spending_status(current_user: dict = Depends(get_current_
     
     campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
     
     # Calculate total expenses
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(10000)
@@ -7391,20 +7661,20 @@ async def get_campaign_spending_status(current_user: dict = Depends(get_current_
     if status == "excedido":
         alerts.append({
             "type": "error",
-            "message": f"ATENÃ‡ÃƒO: Limite de gastos excedido em {format_currency(abs(remaining))}!",
-            "detail": "O candidato pode ser multado em 100% do valor excedente e enquadrado por abuso de poder econÃ´mico."
+            "message": f"ATENÇÃO: Limite de gastos excedido em {format_currency(abs(remaining))}!",
+            "detail": "O candidato pode ser multado em 100% do valor excedente e enquadrado por abuso de poder econômico."
         })
     elif status == "critico":
         alerts.append({
             "type": "warning",
-            "message": f"CRÃTICO: {percentage_used:.1f}% do limite jÃ¡ utilizado!",
+            "message": f"CRÍTICO: {percentage_used:.1f}% do limite já utilizado!",
             "detail": f"Restam apenas {format_currency(remaining)} para gastar."
         })
     elif status == "atencao":
         alerts.append({
             "type": "info",
-            "message": f"ATENÃ‡ÃƒO: {percentage_used:.1f}% do limite jÃ¡ utilizado.",
-            "detail": f"Restam {format_currency(remaining)} disponÃ­veis."
+            "message": f"ATENÇÃO: {percentage_used:.1f}% do limite já utilizado.",
+            "detail": f"Restam {format_currency(remaining)} disponíveis."
         })
     
     return {
@@ -7430,8 +7700,8 @@ async def get_campaign_spending_status(current_user: dict = Depends(get_current_
         "alerts": alerts,
         "penalidades": {
             "multa": "100% do valor excedente",
-            "crime": "Abuso de poder econÃ´mico",
-            "consequencias": ["CassaÃ§Ã£o do registro/diploma", "Inelegibilidade por 8 anos"]
+            "crime": "Abuso de poder econômico",
+            "consequencias": ["Cassação do registro/diploma", "Inelegibilidade por 8 anos"]
         }
     }
 
@@ -7478,14 +7748,14 @@ async def admin_contador_login(credentials: ContadorLogin):
             await db.professionals.insert_one(admin_doc)
             professional = admin_doc
         else:
-            raise HTTPException(status_code=401, detail="Credenciais invÃ¡lidas")
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
     
     # Verify password
     if not professional.get("password_hash"):
-        raise HTTPException(status_code=401, detail="Conta nÃ£o possui senha configurada. Entre em contato com o administrador.")
+        raise HTTPException(status_code=401, detail="Conta não possui senha configurada. Entre em contato com o administrador.")
     
     if not verify_password(credentials.password, professional["password_hash"]):
-        raise HTTPException(status_code=401, detail="Credenciais invÃ¡lidas")
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
     
     # Create token
     token = create_token(
@@ -7518,7 +7788,7 @@ async def admin_invite_professional(
     # Check if professional already exists
     existing = await db.professionals.find_one({"email": data.email.lower()})
     if existing:
-        raise HTTPException(status_code=400, detail="JÃ¡ existe um profissional com este email")
+        raise HTTPException(status_code=400, detail="Já existe um profissional com este email")
     
     # Generate temporary password
     temp_password = str(uuid.uuid4())[:8]
@@ -7555,12 +7825,12 @@ async def admin_invite_professional(
                 "subject": "Convite - Portal Eleitora 360",
                 "html": f"""
                 <h2>Bem-vindo ao Eleitora 360!</h2>
-                <p>OlÃ¡ {data.name},</p>
-                <p>VocÃª foi convidado(a) para fazer parte do Portal de Contadores do Eleitora 360.</p>
+                <p>Olá {data.name},</p>
+                <p>Você foi convidado(a) para fazer parte do Portal de Contadores do Eleitora 360.</p>
                 <p><strong>Suas credenciais de acesso:</strong></p>
                 <ul>
                     <li>Email: {data.email}</li>
-                    <li>Senha temporÃ¡ria: <code>{temp_password}</code></li>
+                    <li>Senha temporária: <code>{temp_password}</code></li>
                 </ul>
                 <p>Acesse: <a href="{APP_URL}/contador/login">{APP_URL}/contador/login</a></p>
                 <p>Por favor, altere sua senha no primeiro acesso.</p>
@@ -7580,7 +7850,7 @@ async def admin_invite_professional(
         "professional": prof_doc,
         "temp_password": temp_password if not email_sent else None,
         "email_sent": email_sent,
-        "note": "Senha temporÃ¡ria enviada por email" if email_sent else "Email nÃ£o enviado. Informe a senha temporÃ¡ria manualmente."
+        "note": "Senha temporária enviada por email" if email_sent else "Email não enviado. Informe a senha temporária manualmente."
     }
 
 @api_router.get("/admin/contador/professionals")
@@ -7639,12 +7909,12 @@ async def admin_assign_campaign_to_professional(
     # Verify professional exists
     professional = await db.professionals.find_one({"id": professional_id})
     if not professional:
-        raise HTTPException(status_code=404, detail="Profissional nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
     
     # Verify campaign exists
     campaign = await db.campaigns.find_one({"id": campaign_id})
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
     
     # Add campaign to professional's list
     await db.professionals.update_one(
@@ -7653,7 +7923,7 @@ async def admin_assign_campaign_to_professional(
     )
     
     return {
-        "message": f"Campanha atribuÃ­da a {professional['name']}",
+        "message": f"Campanha atribuída a {professional['name']}",
         "professional": professional["name"],
         "campaign": campaign["candidate_name"]
     }
@@ -7668,7 +7938,7 @@ async def contador_change_password(
     professional = await db.professionals.find_one({"id": current_user.get("id")})
     
     if not professional:
-        raise HTTPException(status_code=404, detail="Profissional nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
     
     # Verify current password
     if not verify_password(current_password, professional.get("password_hash", "")):
@@ -7688,7 +7958,7 @@ async def contador_get_my_campaigns(current_user: dict = Depends(get_current_use
     professional = await db.professionals.find_one({"id": current_user.get("id")}, {"_id": 0})
     
     if not professional:
-        raise HTTPException(status_code=404, detail="Profissional nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
     
     campaign_ids = professional.get("campaigns", [])
     campaigns = await db.campaigns.find(
@@ -7729,18 +7999,18 @@ async def contador_get_campaign_details(campaign_id: str, current_user: dict = D
     professional = await db.professionals.find_one({"id": current_user.get("id")})
     
     if not professional:
-        raise HTTPException(status_code=404, detail="Profissional nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
     
     # Check access
     is_admin = professional.get("is_admin", False)
     has_access = campaign_id in professional.get("campaigns", [])
     
     if not is_admin and not has_access:
-        raise HTTPException(status_code=403, detail="VocÃª nÃ£o tem acesso a esta campanha")
+        raise HTTPException(status_code=403, detail="Você não tem acesso a esta campanha")
     
     campaign = await db.campaigns.find_one({"id": campaign_id}, {"_id": 0}) or {}
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
     
     # Get all financial data
     expenses = await db.expenses.find({"campaign_id": campaign_id}, {"_id": 0}).to_list(10000)
@@ -7797,16 +8067,16 @@ async def get_ativa_info():
         "website": "https://ativacontabilidade.cnt.br",
         "description": "Contabilidade digital completa para sua empresa",
         "services": [
-            "Ãrea ContÃ¡bil",
-            "ObrigaÃ§Ãµes Trabalhistas",
+            "Área Contábil",
+            "Obrigações Trabalhistas",
             "Assessoria Empresarial",
             "Departamento Fiscal",
-            "PrestaÃ§Ã£o de Contas Eleitorais"
+            "Prestação de Contas Eleitorais"
         ],
         "coverage": [
-            "AssÃº", "PendÃªncias", "ParaÃº", "Afonso Bezerra", 
-            "IpanguaÃ§u", "São Rafael", "Serra do Mel", "Upanema",
-            "Carnaubais", "Triunfo Potiguar", "ItajÃ¡", "MossorÃ³",
+            "Assú", "Pendências", "Paraú", "Afonso Bezerra", 
+            "Ipanguaçu", "São Rafael", "Serra do Mel", "Upanema",
+            "Carnaubais", "Triunfo Potiguar", "Itajá", "Mossoró",
             "São Paulo", "Todo o Rio Grande do Norte"
         ],
         "contact": {
@@ -7859,11 +8129,11 @@ async def upload_bank_statement(
 ):
     """Upload and parse OFX bank statement file"""
     if not OFX_AVAILABLE:
-        raise HTTPException(status_code=500, detail="Parser OFX nÃ£o disponÃ­vel")
+        raise HTTPException(status_code=500, detail="Parser OFX não disponível")
     
     # Validate file extension
     if not file.filename.lower().endswith(('.ofx', '.qfx')):
-        raise HTTPException(status_code=400, detail="Formato de arquivo invÃ¡lido. Use arquivos .ofx ou .qfx")
+        raise HTTPException(status_code=400, detail="Formato de arquivo inválido. Use arquivos .ofx ou .qfx")
     
     try:
         content = await file.read()
@@ -7872,7 +8142,7 @@ async def upload_bank_statement(
         # Get campaign
         campaign = await db.campaigns.find_one({"owner_id": current_user["id"]}, {"_id": 0})
         if not campaign:
-            raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
+            raise HTTPException(status_code=404, detail="Campanha não encontrada")
         
         # Process account info
         account = ofx.account
@@ -7900,7 +8170,7 @@ async def upload_bank_statement(
                 "date": txn.date.strftime("%Y-%m-%d") if txn.date else now[:10],
                 "amount": amount,
                 "type": txn_type.value,
-                "description": txn.memo or txn.payee or "TransaÃ§Ã£o",
+                "description": txn.memo or txn.payee or "Transação",
                 "memo": txn.memo,
                 "payee": txn.payee,
                 "check_number": txn.checknum,
@@ -7940,7 +8210,7 @@ async def upload_bank_statement(
         return {
             "statement": statement,
             "transactions": transactions,
-            "message": f"Extrato importado com sucesso: {len(transactions)} transaÃ§Ãµes"
+            "message": f"Extrato importado com sucesso: {len(transactions)} transações"
         }
         
     except Exception as e:
@@ -7966,7 +8236,7 @@ async def get_bank_statement(statement_id: str, current_user: dict = Depends(get
     """Get bank statement with transactions"""
     statement = await db.bank_statements.find_one({"id": statement_id}, {"_id": 0})
     if not statement:
-        raise HTTPException(status_code=404, detail="Extrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Extrato não encontrado")
     
     transactions = await db.bank_transactions.find(
         {"statement_id": statement_id},
@@ -7999,11 +8269,11 @@ async def auto_reconcile_statement(statement_id: str, current_user: dict = Depen
     # Get statement
     statement = await db.bank_statements.find_one({"id": statement_id}, {"_id": 0})
     if not statement:
-        raise HTTPException(status_code=404, detail="Extrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Extrato não encontrado")
     
     campaign = await db.campaigns.find_one({"owner_id": current_user["id"]}, {"_id": 0})
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
     
     # Get pending transactions
     pending_txns = await db.bank_transactions.find(
@@ -8079,7 +8349,7 @@ async def auto_reconcile_statement(statement_id: str, current_user: dict = Depen
     )
     
     return {
-        "message": f"ConciliaÃ§Ã£o automÃ¡tica concluÃ­da: {reconciled_count} transaÃ§Ãµes conciliadas",
+        "message": f"Conciliação automática concluída: {reconciled_count} transações conciliadas",
         "reconciled_count": reconciled_count,
         "pending_count": pending_total,
         "results": results
@@ -8330,18 +8600,18 @@ async def manual_reconcile_transaction(
     
     # Validate record type
     if record_type not in ["revenue", "expense"]:
-        raise HTTPException(status_code=400, detail="Tipo de registro invÃ¡lido. Use 'revenue' ou 'expense'")
+        raise HTTPException(status_code=400, detail="Tipo de registro inválido. Use 'revenue' ou 'expense'")
     
     # Get transaction
     transaction = await db.bank_transactions.find_one({"id": transaction_id}, {"_id": 0})
     if not transaction:
-        raise HTTPException(status_code=404, detail="TransaÃ§Ã£o nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
     
     # Get record
     collection = db.revenues if record_type == "revenue" else db.expenses
     record = await collection.find_one({"id": record_id}, {"_id": 0})
     if not record:
-        raise HTTPException(status_code=404, detail=f"{'Receita' if record_type == 'revenue' else 'Despesa'} nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail=f"{'Receita' if record_type == 'revenue' else 'Despesa'} não encontrada")
     
     # Update transaction
     now = datetime.now(timezone.utc).isoformat()
@@ -8368,7 +8638,7 @@ async def manual_reconcile_transaction(
             {"$set": {"reconciled_count": reconciled_total, "pending_count": pending_total}}
         )
     
-    return {"message": "TransaÃ§Ã£o conciliada manualmente", "status": "success"}
+    return {"message": "Transação conciliada manualmente", "status": "success"}
 
 @api_router.post("/bank-transactions/{transaction_id}/ignore")
 async def ignore_transaction(transaction_id: str, current_user: dict = Depends(get_current_user)):
@@ -8376,7 +8646,7 @@ async def ignore_transaction(transaction_id: str, current_user: dict = Depends(g
     
     transaction = await db.bank_transactions.find_one({"id": transaction_id}, {"_id": 0})
     if not transaction:
-        raise HTTPException(status_code=404, detail="TransaÃ§Ã£o nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
     
     await db.bank_transactions.update_one(
         {"id": transaction_id},
@@ -8394,7 +8664,7 @@ async def ignore_transaction(transaction_id: str, current_user: dict = Depends(g
             {"$set": {"pending_count": pending_total}}
         )
     
-    return {"message": "TransaÃ§Ã£o ignorada", "status": "success"}
+    return {"message": "Transação ignorada", "status": "success"}
 
 @api_router.post("/bank-transactions/{transaction_id}/create-record")
 async def create_record_from_transaction(
@@ -8406,11 +8676,11 @@ async def create_record_from_transaction(
     
     transaction = await db.bank_transactions.find_one({"id": transaction_id}, {"_id": 0})
     if not transaction:
-        raise HTTPException(status_code=404, detail="TransaÃ§Ã£o nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
     
     campaign = await db.campaigns.find_one({"owner_id": current_user["id"]}, {"_id": 0})
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campanha nÃ£o encontrada")
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
     
     now = datetime.now(timezone.utc).isoformat()
     record_id = str(uuid.uuid4())
@@ -8426,7 +8696,7 @@ async def create_record_from_transaction(
             "donor_cpf_cnpj": None,
             "date": transaction["date"],
             "receipt_number": None,
-            "notes": f"Importado do extrato bancÃ¡rio. ID original: {transaction['transaction_id']}",
+            "notes": f"Importado do extrato bancário. ID original: {transaction['transaction_id']}",
             "campaign_id": campaign["id"],
             "created_at": now,
             "attachment_id": None,
@@ -8449,7 +8719,7 @@ async def create_record_from_transaction(
             "supplier_cpf_cnpj": None,
             "date": transaction["date"],
             "invoice_number": None,
-            "notes": f"Importado do extrato bancÃ¡rio. ID original: {transaction['transaction_id']}",
+            "notes": f"Importado do extrato bancário. ID original: {transaction['transaction_id']}",
             "campaign_id": campaign["id"],
             "created_at": now,
             "attachment_id": None,
@@ -8488,7 +8758,7 @@ async def delete_bank_statement(statement_id: str, current_user: dict = Depends(
     
     statement = await db.bank_statements.find_one({"id": statement_id}, {"_id": 0})
     if not statement:
-        raise HTTPException(status_code=404, detail="Extrato nÃ£o encontrado")
+        raise HTTPException(status_code=404, detail="Extrato não encontrado")
     
     # Delete transactions
     await db.bank_transactions.delete_many({"statement_id": statement_id})
@@ -8496,7 +8766,7 @@ async def delete_bank_statement(statement_id: str, current_user: dict = Depends(
     # Delete statement
     await db.bank_statements.delete_one({"id": statement_id})
     
-    return {"message": "Extrato e transaÃ§Ãµes excluÃ­dos com sucesso"}
+    return {"message": "Extrato e transações excluídos com sucesso"}
 
 # ============== CPF/CNPJ VALIDATION ENDPOINT ==============
 
@@ -8532,8 +8802,16 @@ async def validate_document(cpf_cnpj: str = Query(...)):
             "valid": False,
             "formatted": cpf_cnpj,
             "raw": doc,
-            "error": "Documento deve ter 11 dÃ­gitos (CPF) ou 14 dÃ­gitos (CNPJ)"
+            "error": "Documento deve ter 11 dígitos (CPF) ou 14 dígitos (CNPJ)"
         }
+
+# OCR status check (does not call external providers)
+@api_router.get("/ocr/status")
+async def ocr_status(current_user: dict = Depends(get_current_user)):
+    return {
+        "provider": OCR_PROVIDER or "none",
+        "google_vision_configured": bool(GOOGLE_VISION_API_KEY),
+    }
 
 # ============== TSE IMPORT ENDPOINTS ==============
 
@@ -8719,6 +8997,58 @@ def _guess_content_type(file_path: Path) -> Optional[str]:
     if ext in (".png",):
         return "image/png"
     return None
+
+async def _extract_text_from_pdf(file_path: Path) -> str:
+    if not PDF_TEXT_EXTRACTION_AVAILABLE:
+        return ""
+    try:
+        reader = await asyncio.to_thread(PdfReader, str(file_path))
+        text_parts = []
+        for page in reader.pages[:10]:
+            try:
+                text_parts.append(page.extract_text() or "")
+            except Exception:
+                continue
+        return "\n".join(t for t in text_parts if t).strip()
+    except Exception:
+        return ""
+
+async def _extract_text_from_image_google(file_path: Path) -> str:
+    if not GOOGLE_VISION_API_KEY:
+        return ""
+    try:
+        content = await asyncio.to_thread(file_path.read_bytes)
+        payload = {
+            "requests": [
+                {
+                    "image": {"content": base64.b64encode(content).decode("utf-8")},
+                    "features": [{"type": "DOCUMENT_TEXT_DETECTION"}]
+                }
+            ]
+        }
+        url = f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}"
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(url, json=payload)
+            if resp.status_code >= 400:
+                logging.warning(f"OCR Google Vision falhou: {resp.status_code}")
+                return ""
+            data = resp.json()
+            text = (
+                data.get("responses", [{}])[0]
+                .get("fullTextAnnotation", {})
+                .get("text", "")
+            )
+            return (text or "").strip()
+    except Exception as e:
+        logging.warning(f"OCR Google Vision erro: {e}")
+        return ""
+
+async def _extract_text_from_file(file_path: Path, content_type: Optional[str]) -> str:
+    if content_type == "application/pdf":
+        return await _extract_text_from_pdf(file_path)
+    if content_type in ("image/jpeg", "image/png") and OCR_PROVIDER == "google_vision":
+        return await _extract_text_from_image_google(file_path)
+    return ""
 
 
 def _find_tse_file(root: Path, category: str, code: str) -> Optional[Path]:
@@ -9129,6 +9459,178 @@ async def execute_tse_import_file(
         if temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+# ============== SCANNED DOCS TRIAGE (2024 Manual ZIPs) ==============
+class ScanDocsApplyRequest(BaseModel):
+    triage_id: str
+    kind: str  # expense | contract | revenue
+    description: Optional[str] = None
+    amount: Optional[float] = None
+    date: Optional[str] = None
+    supplier_name: Optional[str] = None
+    contractor_name: Optional[str] = None
+    contractor_cpf_cnpj: Optional[str] = None
+    value: Optional[float] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+def _infer_doc_kind(path: str) -> str:
+    p = path.upper()
+    if "RECEITAS" in p:
+        return "revenue"
+    if "DESPESAS" in p:
+        return "expense"
+    if "CONTRATOS" in p or "CONTRATO" in p:
+        return "contract"
+    return "unknown"
+
+@api_router.post("/import/scan-docs/upload")
+async def upload_scanned_docs_zip(
+    file: UploadFile = File(...),
+    campaign_id: Optional[str] = Form(None),
+    current_user: dict = Depends(get_current_user)
+):
+    if not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Somente arquivos ZIP são suportados")
+
+    campaign_id = campaign_id or current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Campanha não encontrada")
+
+    temp_dir = tempfile.mkdtemp()
+    created = 0
+    skipped = 0
+    try:
+        content = await file.read()
+        with zipfile.ZipFile(io.BytesIO(content)) as zip_ref:
+            zip_ref.extractall(temp_dir)
+
+        root = Path(temp_dir)
+        files = [p for p in root.rglob("*") if p.is_file()]
+        for file_path in files:
+            content_type = _guess_content_type(file_path)
+            if not content_type or content_type not in ALLOWED_FILE_TYPES:
+                skipped += 1
+                continue
+
+            attachment_id, err = await _save_tse_attachment(file_path, campaign_id, current_user["id"])
+            if not attachment_id:
+                skipped += 1
+                continue
+
+            extracted_text = await _extract_text_from_file(file_path, content_type)
+            triage_doc = {
+                "id": str(uuid.uuid4()),
+                "campaign_id": campaign_id,
+                "filename": file_path.name,
+                "source_path": str(file_path.relative_to(root)).replace("\\", "/"),
+                "attachment_id": attachment_id,
+                "content_type": content_type,
+                "extracted_text": (extracted_text[:5000] if extracted_text else ""),
+                "suggested_kind": _infer_doc_kind(str(file_path)),
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.document_triage.insert_one(triage_doc)
+            created += 1
+
+        return {
+            "message": "Documentos escaneados importados para triagem",
+            "created": created,
+            "skipped": skipped
+        }
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+@api_router.get("/import/scan-docs")
+async def list_scanned_docs(current_user: dict = Depends(get_current_user)):
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Campanha não encontrada")
+    docs = await db.document_triage.find(
+        {"campaign_id": campaign_id, "status": "pending"},
+        {"_id": 0}
+    ).to_list(500)
+    return {"items": docs}
+
+@api_router.post("/import/scan-docs/apply")
+async def apply_scanned_doc(
+    payload: ScanDocsApplyRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    campaign_id = current_user.get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="Campanha não encontrada")
+
+    triage = await db.document_triage.find_one(
+        {"id": payload.triage_id, "campaign_id": campaign_id},
+        {"_id": 0}
+    )
+    if not triage:
+        raise HTTPException(status_code=404, detail="Documento não encontrado na triagem")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    kind = payload.kind.lower()
+
+    if kind == "expense":
+        expense_doc = {
+            "id": str(uuid.uuid4()),
+            "campaign_id": campaign_id,
+            "description": payload.description or f"Despesa importada - {triage.get('filename')}",
+            "amount": float(payload.amount or 0),
+            "category": "outros",
+            "supplier_name": payload.supplier_name or "",
+            "supplier_cpf_cnpj": "",
+            "date": payload.date or datetime.now().date().isoformat(),
+            "payment_status": "pendente",
+            "attachment_id": triage.get("attachment_id"),
+            "created_at": now_iso
+        }
+        await db.expenses.insert_one(expense_doc)
+        entity = {"type": "expense", "id": expense_doc["id"]}
+    elif kind == "contract":
+        start_date = payload.start_date or datetime.now().date().isoformat()
+        end_date = payload.end_date or start_date
+        contract_doc = {
+            "id": str(uuid.uuid4()),
+            "campaign_id": campaign_id,
+            "title": payload.description or f"Contrato importado - {triage.get('filename')}",
+            "description": payload.description or "Contrato importado de documento escaneado",
+            "contractor_name": payload.contractor_name or "Fornecedor",
+            "contractor_cpf_cnpj": payload.contractor_cpf_cnpj or "00000000000",
+            "value": float(payload.value or payload.amount or 0),
+            "start_date": start_date,
+            "end_date": end_date,
+            "status": "rascunho",
+            "attachment_id": triage.get("attachment_id"),
+            "created_at": now_iso
+        }
+        await db.contracts.insert_one(contract_doc)
+        entity = {"type": "contract", "id": contract_doc["id"]}
+    elif kind == "revenue":
+        revenue_doc = {
+            "id": str(uuid.uuid4()),
+            "campaign_id": campaign_id,
+            "description": payload.description or f"Receita importada - {triage.get('filename')}",
+            "amount": float(payload.amount or 0),
+            "category": "outros",
+            "donor_name": payload.contractor_name or "",
+            "donor_cpf_cnpj": "",
+            "date": payload.date or datetime.now().date().isoformat(),
+            "attachment_id": triage.get("attachment_id"),
+            "created_at": now_iso
+        }
+        await db.revenues.insert_one(revenue_doc)
+        entity = {"type": "revenue", "id": revenue_doc["id"]}
+    else:
+        raise HTTPException(status_code=400, detail="Tipo inválido. Use expense, contract ou revenue.")
+
+    await db.document_triage.update_one(
+        {"id": payload.triage_id},
+        {"$set": {"status": "applied", "linked_entity": entity, "applied_at": now_iso}}
+    )
+
+    return {"message": "Documento aplicado com sucesso", "linked_entity": entity}
+
 # Include router - AFTER all route definitions
 app.include_router(api_router)
 
@@ -9168,6 +9670,3 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
-
-
-

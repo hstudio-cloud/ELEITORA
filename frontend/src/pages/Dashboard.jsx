@@ -98,7 +98,7 @@ export default function Inicio() {
                     </div>
                     <h2 className="font-heading text-3xl font-bold mb-4">Configure sua Campanha</h2>
                     <p className="text-muted-foreground mb-8">
-                        Para comeÃ§ar a usar o sistema, vocÃª precisa configurar os dados da sua campanha eleitoral.
+                        Para começar a usar o sistema, você precisa configurar os dados da sua campanha eleitoral.
                     </p>
                     <Button
                         size="lg"
@@ -201,7 +201,7 @@ export default function Inicio() {
                         <CardContent className="p-6">
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <p className="text-sm text-muted-foreground mb-1">PendÃªncias</p>
+                                    <p className="text-sm text-muted-foreground mb-1">Pendências</p>
                                     <div className="flex items-baseline gap-4">
                                         <div>
                                             <span className="font-heading text-2xl font-bold text-accent">
@@ -251,8 +251,8 @@ export default function Inicio() {
                                             'secondary'
                                         }>
                                             {tseStatus.status === 'excedido' ? 'EXCEDIDO' :
-                                             tseStatus.status === 'critico' ? 'CRÃTICO' :
-                                             tseStatus.status === 'atencao' ? 'ATENÃ‡ÃƒO' : 'OK'}
+                                             tseStatus.status === 'critico' ? 'CRÍTICO' :
+                                             tseStatus.status === 'atencao' ? 'ATENÇÃO' : 'OK'}
                                         </Badge>
                                     </div>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -265,7 +265,7 @@ export default function Inicio() {
                                             <p className="font-semibold text-destructive">{tseStatus.spending?.total_gasto_formatado}</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs text-muted-foreground">DisponÃ­vel</p>
+                                            <p className="text-xs text-muted-foreground">Disponível</p>
                                             <p className={`font-semibold ${tseStatus.spending?.saldo_disponivel >= 0 ? 'text-secondary' : 'text-destructive'}`}>
                                                 {tseStatus.spending?.saldo_formatado}
                                             </p>
@@ -465,7 +465,7 @@ export default function Inicio() {
                                                 <p className="font-medium text-sm">{alert.description}</p>
                                                 <p className="text-xs text-muted-foreground">
                                                     {alert.is_overdue 
-                                                        ? `Vencido hÃ¡ ${Math.abs(alert.days_until_due)} dia${Math.abs(alert.days_until_due) > 1 ? 's' : ''}`
+                                                        ? `Vencido há ${Math.abs(alert.days_until_due)} dia${Math.abs(alert.days_until_due) > 1 ? 's' : ''}`
                                                         : alert.days_until_due === 0 
                                                             ? 'Vence hoje!'
                                                             : `Vence em ${alert.days_until_due} dia${alert.days_until_due > 1 ? 's' : ''}`
@@ -486,7 +486,7 @@ export default function Inicio() {
                 {/* Quick Actions */}
                 <Card className="animate-fade-in-up" data-testid="quick-actions">
                     <CardHeader>
-                        <CardTitle className="font-heading">AÃ§Ãµes RÃ¡pidas</CardTitle>
+                        <CardTitle className="font-heading">Ações Rápidas</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -524,7 +524,7 @@ export default function Inicio() {
                                 data-testid="quick-relatorios-btn"
                             >
                                 <CreditCard className="h-6 w-6 text-accent" />
-                                <span>RelatÃ³rios</span>
+                                <span>Relatórios</span>
                             </Button>
                         </div>
                     </CardContent>
