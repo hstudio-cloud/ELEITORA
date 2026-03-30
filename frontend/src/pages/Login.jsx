@@ -7,6 +7,7 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from 'sonner';
 import { Vote, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { getErrorMessage } from '../lib/utils';
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -25,7 +26,7 @@ export default function Login() {
             toast.success('Login realizado com sucesso!');
             navigate('/dashboard');
         } catch (error) {
-            toast.error(error.response?.data?.detail || 'Erro ao fazer login');
+            toast.error(getErrorMessage(error, 'Erro ao fazer login'));
         } finally {
             setLoading(false);
         }

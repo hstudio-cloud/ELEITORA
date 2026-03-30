@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { toast } from 'sonner';
 import { Calculator, Eye, EyeOff, ArrowRight, Building2 } from 'lucide-react';
 import axios from 'axios';
+import { getErrorMessage } from '../lib/utils';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -34,7 +35,7 @@ export default function ContadorLogin() {
             toast.success('Login realizado com sucesso!');
             navigate('/contador/dashboard');
         } catch (error) {
-            toast.error(error.response?.data?.detail || 'Credenciais inválidas');
+            toast.error(getErrorMessage(error, 'Credenciais inválidas'));
         } finally {
             setLoading(false);
         }

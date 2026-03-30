@@ -23,6 +23,23 @@ export function formatDateInput(dateString) {
     return dateString.split('T')[0];
 }
 
+export function getErrorMessage(error, fallback = 'Erro inesperado') {
+    const detail = error?.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+        const msgs = detail
+            .map((item) => item?.msg || item?.message)
+            .filter(Boolean);
+        if (msgs.length) return msgs.join(' | ');
+    }
+    if (detail && typeof detail === 'object') {
+        if (detail.msg) return detail.msg;
+        if (detail.message) return detail.message;
+    }
+    if (typeof error?.message === 'string') return error.message;
+    return fallback;
+}
+
 export const categoryLabels = {
     // Revenue categories
     doacao_pf: 'Doação Pessoa Física',

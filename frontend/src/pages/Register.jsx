@@ -7,6 +7,7 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../lib/utils';
 import { Vote, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
 export default function Register() {
@@ -49,7 +50,7 @@ export default function Register() {
             toast.success('Conta criada com sucesso!');
             navigate('/dashboard');
         } catch (error) {
-            toast.error(error.response?.data?.detail || 'Erro ao criar conta');
+            toast.error(getErrorMessage(error, 'Erro ao criar conta'));
         } finally {
             setLoading(false);
         }
