@@ -150,7 +150,7 @@ export function FloraAssistant() {
     const [voiceEnabled, setVoiceEnabled] = useState(true);
     const [isListening, setIsListening] = useState(false);
     const [speechSupported, setSpeechSupported] = useState(false);
-    const [wakeEnabled, setWakeEnabled] = useState(true);
+    const [wakeEnabled] = useState(true);
     const [wakeStatus, setWakeStatus] = useState('inativo');
     const scrollRef = useRef(null);
     const inputRef = useRef(null);
@@ -404,16 +404,6 @@ export function FloraAssistant() {
                                 >
                                     {voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
                                 </Button>
-                                <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => setWakeEnabled((prev) => !prev)}
-                                    className="text-white hover:bg-white/20"
-                                    aria-label="Ativar escuta por palavra-chave"
-                                    disabled={!speechSupported}
-                                >
-                                    {wakeEnabled ? <MicOff size={16} /> : <Mic size={16} />}
-                                </Button>
                             </div>
                         </div>
                         {!speechSupported && (
@@ -421,7 +411,7 @@ export function FloraAssistant() {
                         )}
                         {speechSupported && (
                             <p className="text-[11px] text-blue-100 mt-2">
-                                Escuta por \"flora\": {wakeEnabled ? wakeStatus : 'desligada'}
+                                Escuta por \"flora\": {wakeStatus}
                             </p>
                         )}
                     </div>
@@ -450,20 +440,37 @@ export function FloraAssistant() {
                     </ScrollArea>
 
                     <div className="border-t border-slate-200 p-3">
-                        <div className="flex gap-2">
-                            <Input
-                                ref={inputRef}
-                                value={inputMessage}
-                                onChange={(event) => setInputMessage(event.target.value)}
-                                onKeyPress={handleKeyPress}
-                                placeholder="Digite seu pedido..."
-                                className="flex-1 text-sm"
-                                disabled={loading}
-                            />
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1 flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+                                <Input
+                                    ref={inputRef}
+                                    value={inputMessage}
+                                    onChange={(event) => setInputMessage(event.target.value)}
+                                    onKeyPress={handleKeyPress}
+                                    placeholder="Digite seu pedido..."
+                                    className="flex-1 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                                    disabled={loading}
+                                />
+                                {speechSupported && (
+                                    <div
+                                        className={`h-9 w-9 rounded-full border flex items-center justify-center transition ${
+                                            wakeStatus === 'ouvindo'
+                                                ? 'border-emerald-400 text-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.15)]'
+                                                : wakeStatus === 'bloqueado'
+                                                    ? 'border-amber-300 text-amber-500'
+                                                    : 'border-slate-200 text-slate-500'
+                                        }`}
+                                        aria-label="Escuta por voz ativa"
+                                        title="Escuta ativa por voz: diga Flora"
+                                    >
+                                        <Mic size={16} />
+                                    </div>
+                                )}
+                            </div>
                             <Button
                                 onClick={() => sendMessage()}
                                 disabled={loading || !inputMessage.trim()}
-                                className="bg-blue-600 hover:bg-blue-700"
+                                className="h-10 w-10 rounded-full bg-blue-600 hover:bg-blue-700 p-0"
                                 aria-label="Enviar mensagem"
                             >
                                 <Send size={16} />
