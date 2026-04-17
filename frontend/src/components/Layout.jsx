@@ -28,12 +28,12 @@ const navItems = [
     { path: '/despesas', label: 'Despesas', icon: TrendingDown },
     { path: '/contratos', label: 'Contratos', icon: FileText },
     { path: '/pagamentos', label: 'Pagamentos', icon: CreditCard },
-    { path: '/extratos', label: 'Extratos BancÃ¡rios', icon: Landmark, highlight: true },
-    { path: '/relatorios', label: 'RelatÃ³rios', icon: BarChart3 },
+    { path: '/extratos', label: 'Extratos Bancários', icon: Landmark, highlight: true },
+    { path: '/relatorios', label: 'Relatórios', icon: BarChart3 },
     { path: '/conformidade', label: 'Conformidade TSE', icon: ClipboardCheck },
-    { path: '/importar-prestacao', label: 'Importar PrestaÃ§Ã£o', icon: Download },
+    { path: '/importar-prestacao', label: 'Importar Prestação', icon: Download },
     { path: '/assistente', label: 'Assistente IA', icon: Bot },
-    { path: '/configuracoes', label: 'ConfiguraÃ§Ãµes', icon: Settings },
+    { path: '/configuracoes', label: 'Configurações', icon: Settings },
 ];
 
 export const Layout = ({ children }) => {

@@ -1,6 +1,5 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { Layout } from '../components/Layout';
-import { AtivaBrand } from '../components/AtivaBrand';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -22,20 +21,20 @@ const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
 // Quick action buttons
 const quickActions = [
-    { label: 'Resumo financeiro', prompt: 'Qual Ã© o resumo financeiro da minha campanha?', icon: BarChart3 },
-    { label: 'Verificar conformidade', prompt: 'Minha campanha estÃ¡ em conformidade com as regras do TSE?', icon: Shield },
-    { label: 'Analisar despesas', prompt: 'Analise minhas despesas e sugira otimizaÃ§Ãµes', icon: FileText },
-    { label: 'Documentos pendentes', prompt: 'Quais documentos estÃ£o pendentes nos meus contratos?', icon: AlertTriangle },
+    { label: 'Resumo financeiro', prompt: 'Qual é o resumo financeiro da minha campanha?', icon: BarChart3 },
+    { label: 'Verificar conformidade', prompt: 'Minha campanha está em conformidade com as regras do TSE?', icon: Shield },
+    { label: 'Analisar despesas', prompt: 'Analise minhas despesas e sugira otimizações', icon: FileText },
+    { label: 'Documentos pendentes', prompt: 'Quais documentos estão pendentes nos meus contratos?', icon: AlertTriangle },
 ];
 
 // Voice commands examples
 const voiceExamples = [
-    "Flora, qual Ã© meu saldo?",
-    "Flora, tenho alguma despesa pra gerar?",
-    "Flora, tem contrato pra fazer?",
-    "Flora, quais pagamentos vencem esta semana?",
-    "Adicionar despesa de 500 reais em publicidade",
-    "Mostrar contratos pendentes"
+    'Flora, qual é meu saldo?',
+    'Flora, tenho alguma despesa para registrar?',
+    'Flora, tem contrato para finalizar?',
+    'Flora, quais pagamentos vencem esta semana?',
+    'Adicionar despesa de 500 reais em publicidade',
+    'Mostrar contratos pendentes'
 ];
 
 export default function Assistente() {
@@ -62,10 +61,12 @@ export default function Assistente() {
     const [wakePermission, setWakePermission] = useState('unknown');
     const [wakeSupported, setWakeSupported] = useState(false);
     const [wakeStatus, setWakeStatus] = useState('inativo');
+    const [manualListening, setManualListening] = useState(false);
     const [wakePhrase, setWakePhrase] = useState('');
     const [lastTranscription, setLastTranscription] = useState('');
     const audioRef = useRef(null);
     const recognitionRef = useRef(null);
+    const manualRecognitionRef = useRef(null);
     const wakeCooldownRef = useRef(0);
     const wakePendingRef = useRef(false);
     const wakeTimeoutRef = useRef(null);
@@ -136,7 +137,7 @@ export default function Assistente() {
             setMessages(response.data.messages || []);
             setSessionId(response.data.session_id);
         } catch (error) {
-            console.error('Erro ao carregar histÃ³rico:', error);
+            console.error('Erro ao carregar histórico:', error);
         } finally {
             setLoadingHistory(false);
         }
@@ -150,7 +151,7 @@ export default function Assistente() {
 
         // Morning greeting
         if (hour < 12) {
-            questions.push('Qual Ã© o cenÃ¡rio financeiro da campanha hoje?');
+            questions.push('Qual é o cenário financeiro da campanha hoje?');
         } else if (hour >= 12 && hour < 15) {
             questions.push('Teve alguma despesa nova a registrar nesta tarde?');
         } else {
@@ -160,7 +161,7 @@ export default function Assistente() {
         // If there are pending expenses
         if (summary.pendingExpensesCount > 0) {
             if (summary.pendingExpensesCount === 1) {
-                questions.push('Tenho 1 despesa pendente. Me ajuda a registrÃ¡-la?');
+                questions.push('Tenho 1 despesa pendente. Me ajuda a registrá-la?');
             } else {
                 questions.push(`Tenho ${summary.pendingExpensesCount} despesas para registrar. Quer me ajudar?`);
             }
@@ -179,7 +180,7 @@ export default function Assistente() {
         // Compliance check (once a week)
         const weekCheck = Math.floor(Math.random() * 7) === 0;
         if (weekCheck) {
-            questions.push('Minha campanha estÃ¡ em conformidade com as regras do TSE?');
+            questions.push('Minha campanha está em conformidade com as regras do TSE?');
         }
 
         return questions;
@@ -227,19 +228,19 @@ export default function Assistente() {
                 let greeting = `Oi, ${role}! `;
 
                 if (summary.pendingExpensesCount > 0 || summary.dueSoonCount > 0 || summary.unsignedContractsCount > 0) {
-                    greeting += `Tenho um resumo rÃ¡pido:\n`;
+                    greeting += 'Tenho um resumo rápido:\n';
                     if (summary.pendingExpensesCount > 0) {
-                        greeting += `ðŸ’° ${summary.pendingExpensesCount} despesa(s) pendente(s) (R$ ${summary.pendingExpensesValue.toFixed(2)})\n`;
+                        greeting += `${summary.pendingExpensesCount} despesa(s) pendente(s) (R$ ${summary.pendingExpensesValue.toFixed(2)})\n`;
                     }
                     if (summary.dueSoonCount > 0) {
-                        greeting += `â° ${summary.dueSoonCount} pagamento(s) vencendo em 7 dias\n`;
+                        greeting += `${summary.dueSoonCount} pagamento(s) vencendo em 7 dias\n`;
                     }
                     if (summary.unsignedContractsCount > 0) {
-                        greeting += `ðŸ“‹ ${summary.unsignedContractsCount} contrato(s) para finalizar\n`;
+                        greeting += `${summary.unsignedContractsCount} contrato(s) para finalizar\n`;
                     }
                     greeting += `\n${randomQuestion}`;
                 } else {
-                    greeting += `Sua campanha estÃ¡ em ordem! ${randomQuestion}`;
+                    greeting += `Sua campanha está em ordem! ${randomQuestion}`;
                 }
 
                 const proactiveMessage = {
@@ -311,14 +312,14 @@ export default function Assistente() {
     };
 
     const clearHistory = async () => {
-        if (!window.confirm('Tem certeza que deseja limpar o histÃ³rico de conversas?')) return;
+        if (!window.confirm('Tem certeza que deseja limpar o histórico de conversas?')) return;
         
         try {
             await axios.delete(`${API}/ai/chat/history`);
             setMessages([]);
-            toast.success('HistÃ³rico limpo');
+            toast.success('Histórico limpo');
         } catch (error) {
-            toast.error('Erro ao limpar histÃ³rico');
+            toast.error('Erro ao limpar histórico');
         }
     };
 
@@ -457,6 +458,15 @@ const handleVoiceAction = (action, data) => {
         }
     };
 
+    const stopManualVoiceCapture = () => {
+        if (manualRecognitionRef.current) {
+            manualRecognitionRef.current.onend = null;
+            manualRecognitionRef.current.stop();
+            manualRecognitionRef.current = null;
+        }
+        setManualListening(false);
+    };
+
     const scheduleWakePrompt = () => {
         if (wakeTimeoutRef.current) {
             clearTimeout(wakeTimeoutRef.current);
@@ -483,7 +493,7 @@ const handleVoiceAction = (action, data) => {
             if (transcribed_text) {
                 const userMessage = {
                     role: 'user',
-                    content: `ðŸŽ¤ ${transcribed_text}`,
+                    content: `🎤 ${transcribed_text}`,
                     timestamp: new Date().toISOString(),
                     isVoice: true
                 };
@@ -509,7 +519,7 @@ const handleVoiceAction = (action, data) => {
             }
 
             if (!success) {
-                toast.error('NÃ£o consegui entender o comando');
+                toast.error('Não consegui entender o comando');
             }
         } catch (error) {
             toast.error('Erro ao processar comando de voz');
@@ -517,6 +527,73 @@ const handleVoiceAction = (action, data) => {
         } finally {
             setIsProcessingVoice(false);
         }
+    };
+
+    const startManualVoiceCapture = async () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            toast.error('Reconhecimento de voz indisponível neste navegador');
+            return;
+        }
+
+        if (manualListening) {
+            stopManualVoiceCapture();
+            return;
+        }
+
+        const granted = wakePermission === 'granted' ? true : await requestMicrophoneAccess();
+        if (!granted) {
+            toast.error('Permita o acesso ao microfone para usar a escuta da Flora');
+            return;
+        }
+
+        stopWakeListener();
+        clearWakePending();
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'pt-BR';
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            setManualListening(true);
+            setWakeStatus('escutando');
+        };
+
+        recognition.onresult = (event) => {
+            const transcript = event?.results?.[0]?.[0]?.transcript?.trim();
+            if (!transcript) {
+                toast.error('Não consegui captar o comando de voz');
+                return;
+            }
+            processVoiceTextCommand(transcript);
+        };
+
+        recognition.onerror = (event) => {
+            const error = event?.error;
+            if (error === 'not-allowed' || error === 'service-not-allowed') {
+                setWakePermission('denied');
+                toast.error('O navegador bloqueou o microfone');
+            } else if (error === 'no-speech') {
+                toast.error('Nenhuma fala detectada');
+            } else {
+                toast.error('Erro ao capturar áudio no navegador');
+            }
+            setWakeStatus('erro');
+        };
+
+        recognition.onend = () => {
+            manualRecognitionRef.current = null;
+            setManualListening(false);
+            setWakeStatus('ouvindo');
+            if (wakeEnabled && wakeSupported && wakePermission !== 'denied' && !isProcessingVoice) {
+                setTimeout(() => startWakeListener(), 300);
+            }
+        };
+
+        manualRecognitionRef.current = recognition;
+        recognition.start();
     };
 
     const requestMicrophoneAccess = async () => {
@@ -584,145 +661,110 @@ const handleVoiceAction = (action, data) => {
     };
 
     useEffect(() => {
-        if (wakeEnabled && wakeSupported && wakePermission !== 'denied' && !isProcessingVoice) {
+        if (wakeEnabled && wakeSupported && wakePermission !== 'denied' && !isProcessingVoice && !manualListening) {
             startWakeListener();
         } else {
             stopWakeListener();
+            if (!manualListening) {
+                setWakeStatus('inativo');
+            }
         }
 
         return () => {
             stopWakeListener();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [wakeEnabled, wakeSupported, wakePermission, isProcessingVoice]);
+    }, [wakeEnabled, wakeSupported, wakePermission, isProcessingVoice, manualListening]);
+
+    useEffect(() => () => {
+        stopWakeListener();
+        stopManualVoiceCapture();
+    }, []);
 
     const formatMessage = (content) => {
         return content
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\n/g, '<br/>')
-            .replace(/- /g, 'â€¢ ');
+            .replace(/- /g, '• ');
     };
 
     return (
         <Layout>
-            <div className="space-y-6 min-h-[calc(100vh-120px)]">
-                <section className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-                    <div className="grid gap-8 px-6 py-8 lg:grid-cols-[1.4fr_0.9fr] lg:px-8">
-                        <div className="space-y-5">
-                            <AtivaBrand detail="Flora, a camada conversacional da operação eleitoral" />
-                            <div className="space-y-3">
-                                <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
-                                    Interface Flora
-                                </div>
-                                <h1 className="font-heading text-4xl font-black tracking-[-0.05em] text-slate-950 md:text-5xl">
-                                    Um chat mais limpo, direto e pronto para executar a rotina da campanha.
-                                </h1>
-                                <p className="max-w-2xl text-sm leading-6 text-slate-600 md:text-base">
-                                    Converse por texto ou voz, revise pendências e navegue pela operação sem sair do fluxo.
-                                    Diga "Flora" para ativar o comando por voz.
-                                </p>
-                            </div>
-
-                            <div className="flex flex-wrap gap-3">
-                                <Button
-                                    variant={voiceEnabled ? 'default' : 'outline'}
-                                    onClick={() => setVoiceEnabled(!voiceEnabled)}
-                                    className="gap-2 rounded-full px-5"
-                                >
-                                    {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                                    {voiceEnabled ? 'Voz ativa' : 'Ativar voz'}
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={clearHistory}
-                                    className="gap-2 rounded-full px-5 text-destructive hover:text-destructive"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                    Limpar conversa
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    onClick={() => sendMessage('Flora, me lembre os próximos pagamentos e contratos pendentes')}
-                                    className="gap-2 rounded-full px-5"
-                                >
-                                    <Sparkles className="h-4 w-4" />
-                                    Revisar pendências
-                                </Button>
-                            </div>
-
-                            {alerts.length > 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                    {alerts.map((alert, i) => (
-                                        <Badge
-                                            key={i}
-                                            variant="outline"
-                                            className="rounded-full border-amber-200 bg-amber-50 px-3 py-1 text-amber-700"
-                                        >
-                                            {alert}
-                                        </Badge>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
-                            <div className="rounded-[1.75rem] border border-primary/10 bg-[#fff7f7] p-5">
-                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-                                    Despesas
-                                </p>
-                                <p className="mt-4 text-3xl font-black tracking-[-0.04em] text-slate-950">
-                                    {proactiveSummary?.pendingExpensesCount ?? 0}
-                                </p>
-                                <p className="mt-2 text-sm text-slate-600">
-                                    pendentes, somando {formatCurrency(proactiveSummary?.pendingExpensesValue || 0)}
-                                </p>
-                            </div>
-                            <div className="rounded-[1.75rem] border border-emerald-100 bg-emerald-50 p-5">
-                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">
-                                    Vencimentos
-                                </p>
-                                <p className="mt-4 text-3xl font-black tracking-[-0.04em] text-slate-950">
-                                    {proactiveSummary?.dueSoonCount ?? 0}
-                                </p>
-                                <p className="mt-2 text-sm text-slate-600">
-                                    pagamentos com alerta nos próximos 7 dias
-                                </p>
-                            </div>
-                            <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
-                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                                    Contratos
-                                </p>
-                                <p className="mt-4 text-3xl font-black tracking-[-0.04em] text-slate-950">
-                                    {proactiveSummary?.unsignedContractsCount ?? 0}
-                                </p>
-                                <p className="mt-2 text-sm text-slate-600">
-                                    contratos aguardando finalização
-                                </p>
-                            </div>
-                            <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
-                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                                    Sessão
-                                </p>
-                                <p className="mt-4 text-lg font-bold text-slate-950">
-                                    {sessionId ? `#${String(sessionId).slice(0, 8)}` : 'Nova conversa'}
-                                </p>
-                                <p className="mt-2 text-sm text-slate-600">
-                                    Perfil {perfil} com escuta {wakeStatus}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <section className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <div className="min-h-[calc(100vh-120px)]">
+                <section className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
                     <div className="space-y-5">
+                        <Card className="overflow-hidden rounded-[2rem] border-white/70 bg-[radial-gradient(circle_at_top,#fff7f7_0%,#ffffff_72%)] shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+                            <CardHeader className="pb-4">
+                                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/15 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                                    Flora
+                                </div>
+                                <CardTitle className="text-3xl font-black tracking-[-0.05em] text-slate-950">
+                                    Um chat para tocar a rotina eleitoral sem sair do fluxo.
+                                </CardTitle>
+                                <CardDescription className="max-w-sm text-sm leading-6 text-slate-600">
+                                    Menos cara de dashboard, mais conversa direta. Texto e voz continuam no mesmo fluxo operacional.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                                    <div className="rounded-[1.5rem] border border-primary/10 bg-white/85 p-4">
+                                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Despesas</p>
+                                        <p className="mt-3 text-3xl font-black tracking-[-0.04em] text-slate-950">
+                                            {proactiveSummary?.pendingExpensesCount ?? 0}
+                                        </p>
+                                        <p className="mt-1 text-sm text-slate-600">
+                                            pendentes, somando {formatCurrency(proactiveSummary?.pendingExpensesValue || 0)}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/80 p-4">
+                                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">Vencimentos</p>
+                                        <p className="mt-3 text-3xl font-black tracking-[-0.04em] text-slate-950">
+                                            {proactiveSummary?.dueSoonCount ?? 0}
+                                        </p>
+                                        <p className="mt-1 text-sm text-slate-600">alertas ativos nos próximos 7 dias</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    <Button
+                                        variant={voiceEnabled ? 'default' : 'outline'}
+                                        onClick={() => setVoiceEnabled(!voiceEnabled)}
+                                        className="gap-2 rounded-full px-4"
+                                    >
+                                        {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                                        {voiceEnabled ? 'Voz ativa' : 'Ativar voz'}
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={clearHistory}
+                                        className="gap-2 rounded-full px-4 text-destructive hover:text-destructive"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Limpar
+                                    </Button>
+                                </div>
+                                {alerts.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 pt-2">
+                                        {alerts.map((alert, i) => (
+                                            <Badge
+                                                key={i}
+                                                variant="outline"
+                                                className="rounded-full border-amber-200 bg-amber-50 px-3 py-1 text-amber-700"
+                                            >
+                                                {alert}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
                         <Card className="rounded-[1.75rem] border-white/70 bg-white/85 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
                                     Escuta ativa
                                 </CardTitle>
                                 <CardDescription>
-                                    Estado atual do microfone e do gatilho por voz.
+                                    Estado do microfone e do gatilho por voz.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -735,7 +777,7 @@ const handleVoiceAction = (action, data) => {
                                             <p className="mt-1 text-lg font-bold text-slate-950">{wakeStatus}</p>
                                         </div>
                                         <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
-                                            wakeStatus === 'ouvindo'
+                                            wakeStatus === 'ouvindo' || manualListening
                                                 ? 'bg-emerald-100 text-emerald-700'
                                                 : wakePermission === 'denied'
                                                     ? 'bg-amber-100 text-amber-600'
@@ -749,7 +791,9 @@ const handleVoiceAction = (action, data) => {
                                             ? 'Reconhecimento de voz indisponível neste navegador.'
                                             : wakePermission === 'denied'
                                                 ? 'Microfone bloqueado nas permissões do navegador.'
-                                                : 'Diga "Flora" e continue com o comando que a assistente assume a próxima ação.'}
+                                                : manualListening
+                                                    ? 'Escuta manual ativa. Fale agora e a Flora envia o comando.'
+                                                    : 'Diga "Flora" ou toque no microfone para falar com a assistente.'}
                                     </p>
                                 </div>
 
@@ -785,7 +829,7 @@ const handleVoiceAction = (action, data) => {
                                     Ações rápidas
                                 </CardTitle>
                                 <CardDescription>
-                                    Atalhos para começar sem digitar tudo.
+                                    Prompts para abrir a conversa.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-2">
@@ -826,40 +870,68 @@ const handleVoiceAction = (action, data) => {
                         </Card>
                     </div>
 
-                    <Card className="flex min-h-[720px] flex-col overflow-hidden rounded-[2rem] border-white/70 bg-white/90 shadow-[0_22px_80px_rgba(15,23,42,0.08)]">
-                        <CardHeader className="border-b border-slate-100 bg-[linear-gradient(180deg,#fff8f7_0%,#ffffff_100%)]">
-                            <div className="flex flex-wrap items-center gap-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_16px_32px_rgba(239,68,68,0.24)]">
-                                    <Bot className="h-5 w-5" />
+                    <Card className="flex min-h-[780px] flex-col overflow-hidden rounded-[2.2rem] border-white/80 bg-[linear-gradient(180deg,#fffaf9_0%,#ffffff_16%,#fff7f2_100%)] shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+                        <CardHeader className="border-b border-slate-100/80 bg-white/70 backdrop-blur">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+                                <div className="flex min-w-0 flex-1 items-center gap-3">
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-[0_16px_32px_rgba(15,23,42,0.18)]">
+                                        <Bot className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <CardTitle className="text-xl font-bold text-slate-950">Flora</CardTitle>
+                                            <Badge className="rounded-full border-0 bg-primary/10 px-3 py-1 text-primary">
+                                                {wakeSupported ? (manualListening ? 'voz manual' : `voz ${wakeStatus}`) : 'texto'}
+                                            </Badge>
+                                        </div>
+                                        <CardDescription>
+                                            Assistente operacional da Ativa Eleitoral
+                                        </CardDescription>
+                                    </div>
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                    <CardTitle className="text-xl font-bold text-slate-950">Flora</CardTitle>
-                                    <CardDescription>
-                                        Assistente operacional da Ativa Eleitoral
-                                    </CardDescription>
+                                <div className="flex flex-wrap gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => sendMessage('Flora, me lembre os próximos pagamentos e contratos pendentes')}
+                                        className="rounded-full px-4"
+                                    >
+                                        <Sparkles className="mr-2 h-4 w-4" />
+                                        Revisar pendências
+                                    </Button>
+                                    <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
+                                        {sessionId ? `Sessão ${String(sessionId).slice(0, 8)}` : 'Nova conversa'}
+                                    </div>
                                 </div>
-                                <Badge className="rounded-full border-0 bg-slate-100 px-3 py-1 text-slate-600">
-                                    {wakeSupported ? `voz ${wakeStatus}` : 'texto'}
-                                </Badge>
+                            </div>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                {quickActions.map((action) => (
+                                    <button
+                                        key={action.label}
+                                        type="button"
+                                        onClick={() => sendMessage(action.prompt)}
+                                        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-primary/25 hover:text-primary"
+                                    >
+                                        {action.label}
+                                    </button>
+                                ))}
                             </div>
                         </CardHeader>
 
-                        <ScrollArea className="flex-1 bg-[linear-gradient(180deg,#fffdfc_0%,#fff8f5_100%)] px-5 py-6" ref={scrollRef}>
+                        <ScrollArea className="flex-1 px-5 py-6 md:px-7" ref={scrollRef}>
                             {loadingHistory ? (
                                 <div className="flex h-40 items-center justify-center">
                                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                                 </div>
                             ) : messages.length === 0 ? (
                                 <div className="flex h-full min-h-[420px] flex-col items-center justify-center text-center">
-                                    <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-primary/10 text-primary shadow-inner">
+                                    <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-slate-950 text-white shadow-[0_20px_40px_rgba(15,23,42,0.12)]">
                                         <Bot className="h-10 w-10" />
                                     </div>
                                     <h2 className="mt-6 font-heading text-3xl font-black tracking-[-0.04em] text-slate-950">
                                         Olá, {perfil}.
                                     </h2>
                                     <p className="mt-3 max-w-md text-sm leading-6 text-slate-600">
-                                        Posso revisar despesas, abrir contratos, priorizar vencimentos e orientar seu fluxo
-                                        de prestação de contas.
+                                        Posso revisar despesas, abrir contratos, priorizar vencimentos e orientar sua prestação de contas.
                                     </p>
                                     <div className="mt-6 flex flex-wrap justify-center gap-2">
                                         {quickActions.slice(0, 3).map((action) => (
@@ -878,10 +950,10 @@ const handleVoiceAction = (action, data) => {
                                 <div className="space-y-5">
                                     {messages.map((msg, i) => (
                                         <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                            <div className={`max-w-[88%] rounded-[1.6rem] px-5 py-4 shadow-sm ${
+                                            <div className={`max-w-[88%] rounded-[1.8rem] px-5 py-4 shadow-sm ${
                                                 msg.role === 'user'
                                                     ? 'bg-slate-950 text-white'
-                                                    : 'border border-white/70 bg-white text-slate-900'
+                                                    : 'border border-white/80 bg-white/90 text-slate-900'
                                             }`}>
                                                 {msg.role === 'assistant' && (
                                                     <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
@@ -919,14 +991,14 @@ const handleVoiceAction = (action, data) => {
 
                         <div className="border-t border-slate-100 bg-white p-4 md:p-5">
                             <div className="flex items-end gap-3">
-                                <div className="flex-1 rounded-[1.75rem] border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner">
+                                <div className="flex-1 rounded-[1.9rem] border border-slate-200 bg-white px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                                     <div className="flex items-center gap-3">
                                         <Input
                                             ref={inputRef}
                                             value={inputMessage}
                                             onChange={(e) => setInputMessage(e.target.value)}
                                             onKeyPress={handleKeyPress}
-                                            placeholder="Pergunte à Flora sobre pagamentos, contratos, despesas ou conformidade"
+                                            placeholder="Pergunte sobre pagamentos, contratos, despesas ou conformidade"
                                             disabled={loading}
                                             className="h-auto border-0 bg-transparent px-0 py-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                                             data-testid="chat-input"
@@ -934,13 +1006,22 @@ const handleVoiceAction = (action, data) => {
                                         {wakeSupported && (
                                             <div
                                                 className={`flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
-                                                    wakeStatus === 'ouvindo'
+                                                    wakeStatus === 'ouvindo' || manualListening
                                                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                                                         : wakePermission === 'denied'
                                                             ? 'border-amber-200 bg-amber-50 text-amber-600'
                                                             : 'border-slate-200 bg-white text-slate-500'
                                                 }`}
-                                                title='Escuta ativa por voz: diga Flora'
+                                                title={manualListening ? 'Parar escuta manual' : 'Falar com a Flora'}
+                                                onClick={startManualVoiceCapture}
+                                                role="button"
+                                                tabIndex={0}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        startManualVoiceCapture();
+                                                    }
+                                                }}
                                             >
                                                 <Mic className="h-4 w-4" />
                                             </div>
@@ -957,7 +1038,7 @@ const handleVoiceAction = (action, data) => {
                                 </Button>
                             </div>
                             <p className="mt-3 text-xs text-slate-500">
-                                Enter para enviar. Se o navegador suportar, diga "Flora" para iniciar por voz.
+                                Enter para enviar. Diga "Flora" ou toque no microfone para falar.
                             </p>
                         </div>
                     </Card>
