@@ -1,6 +1,7 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { AtivaBrand } from './AtivaBrand';
 import { FloraAssistant } from './FloraAssistant';
 import { Button } from './ui/button';
 import {
@@ -15,7 +16,6 @@ import {
     Menu,
     X,
     ChevronRight,
-    Vote,
     Bot,
     ClipboardCheck,
     Landmark,
@@ -23,17 +23,17 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-    { path: '/dashboard', label: 'In�cio', icon: LayoutDashboard },
+    { path: '/dashboard', label: 'Início', icon: LayoutDashboard },
     { path: '/receitas', label: 'Receitas', icon: TrendingUp },
     { path: '/despesas', label: 'Despesas', icon: TrendingDown },
     { path: '/contratos', label: 'Contratos', icon: FileText },
     { path: '/pagamentos', label: 'Pagamentos', icon: CreditCard },
-    { path: '/extratos', label: 'Extratos Bancários', icon: Landmark, highlight: true },
-    { path: '/relatorios', label: 'Relatórios', icon: BarChart3 },
+    { path: '/extratos', label: 'Extratos BancÃ¡rios', icon: Landmark, highlight: true },
+    { path: '/relatorios', label: 'RelatÃ³rios', icon: BarChart3 },
     { path: '/conformidade', label: 'Conformidade TSE', icon: ClipboardCheck },
-    { path: '/importar-prestacao', label: 'Importar Prestação', icon: Download },
+    { path: '/importar-prestacao', label: 'Importar PrestaÃ§Ã£o', icon: Download },
     { path: '/assistente', label: 'Assistente IA', icon: Bot },
-    { path: '/configuracoes', label: 'Configurações', icon: Settings },
+    { path: '/configuracoes', label: 'ConfiguraÃ§Ãµes', icon: Settings },
 ];
 
 export const Layout = ({ children }) => {
@@ -61,10 +61,7 @@ export const Layout = ({ children }) => {
                         >
                             <Menu className="h-5 w-5" />
                         </Button>
-                        <div className="flex items-center gap-2">
-                            <Vote className="h-6 w-6 text-primary" />
-                            <span className="font-heading font-bold text-lg">Eleitora 360</span>
-                        </div>
+                        <AtivaBrand compact className="gap-2" textClassName="leading-tight" />
                     </div>
                 </div>
             </header>
@@ -79,7 +76,7 @@ export const Layout = ({ children }) => {
 
             {/* Sidebar */}
             <aside
-                className={`fixed top-0 left-0 z-50 h-full w-64 bg-card border-r border-border transform transition-transform duration-200 ease-out lg:translate-x-0 ${
+                className={`fixed top-0 left-0 z-50 h-full w-64 border-r border-border/80 bg-white/95 shadow-[0_0_40px_rgba(15,23,42,0.06)] transform transition-transform duration-200 ease-out lg:translate-x-0 ${
                     sidebarOpen ? 'translate-x-0' : '-translate-x-full'
                 }`}
                 data-testid="sidebar"
@@ -87,12 +84,7 @@ export const Layout = ({ children }) => {
                 <div className="flex flex-col h-full">
                     {/* Logo */}
                     <div className="flex items-center justify-between p-6 border-b border-border">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                                <Vote className="h-5 w-5 text-primary" />
-                            </div>
-                            <span className="font-heading font-bold text-xl">Eleitora 360</span>
-                        </div>
+                        <AtivaBrand compact />
                         <Button
                             variant="ghost"
                             size="icon"
@@ -174,5 +166,6 @@ export const Layout = ({ children }) => {
         </div>
     );
 };
+
 
 

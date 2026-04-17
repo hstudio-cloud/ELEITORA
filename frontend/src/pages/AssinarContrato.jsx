@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { AtivaBrand } from '../components/AtivaBrand';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -8,7 +9,7 @@ import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
 import { formatCurrency } from '../lib/utils';
-import { Vote, FileSignature, CheckCircle, AlertCircle, Loader2, Camera, RefreshCw } from 'lucide-react';
+import { FileSignature, CheckCircle, AlertCircle, Loader2, Camera, RefreshCw } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -48,7 +49,7 @@ export default function AssinarContrato() {
                 setSigned(true);
             }
         } catch (err) {
-            setError(err.response?.data?.detail || 'Link inválido ou expirado');
+            setError(err.response?.data?.detail || 'Link invÃ¡lido ou expirado');
         } finally {
             setLoading(false);
         }
@@ -74,7 +75,7 @@ export default function AssinarContrato() {
             }
         } catch (err) {
             console.error('Camera error:', err);
-            setCameraError('Não foi possível acessar a câmera. Verifique as permissões do navegador.');
+            setCameraError('NÃ£o foi possÃ­vel acessar a cÃ¢mera. Verifique as permissÃµes do navegador.');
         }
     };
 
@@ -108,7 +109,7 @@ export default function AssinarContrato() {
 
     const handleSign = async () => {
         if (!agreement) {
-            toast.error('Você precisa concordar com os termos do contrato');
+            toast.error('VocÃª precisa concordar com os termos do contrato');
             return;
         }
         if (!signerName.trim()) {
@@ -116,7 +117,7 @@ export default function AssinarContrato() {
             return;
         }
         if (!selfieCapture) {
-            toast.error('Capture uma selfie para validação facial');
+            toast.error('Capture uma selfie para validaÃ§Ã£o facial');
             return;
         }
 
@@ -161,10 +162,10 @@ export default function AssinarContrato() {
                 <Card className="max-w-md w-full">
                     <CardContent className="pt-6 text-center">
                         <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-                        <h2 className="font-heading text-xl font-bold mb-2">Link Inválido</h2>
+                        <h2 className="font-heading text-xl font-bold mb-2">Link InvÃ¡lido</h2>
                         <p className="text-muted-foreground mb-4">{error}</p>
                         <p className="text-sm text-muted-foreground">
-                            Se você acredita que isso é um erro, entre em contato com o remetente do contrato.
+                            Se vocÃª acredita que isso Ã© um erro, entre em contato com o remetente do contrato.
                         </p>
                     </CardContent>
                 </Card>
@@ -180,7 +181,7 @@ export default function AssinarContrato() {
                         <CheckCircle className="h-16 w-16 text-secondary mx-auto mb-4" />
                         <h2 className="font-heading text-xl font-bold mb-2">Contrato Assinado!</h2>
                         <p className="text-muted-foreground mb-4">
-                            O contrato foi assinado com sucesso com validação facial.
+                            O contrato foi assinado com sucesso com validaÃ§Ã£o facial.
                         </p>
                         <div className="bg-muted/50 p-4 rounded-lg text-left text-sm">
                             <p><strong>Locador:</strong> {contractData?.locador_nome}</p>
@@ -188,7 +189,7 @@ export default function AssinarContrato() {
                             <p><strong>Valor:</strong> {formatCurrency(contractData?.value)}</p>
                         </div>
                         <p className="text-xs text-muted-foreground mt-4">
-                            A assinatura digital com validação facial foi registrada e tem validade jurídica.
+                            A assinatura digital com validaÃ§Ã£o facial foi registrada e tem validade jurÃ­dica.
                         </p>
                     </CardContent>
                 </Card>
@@ -201,13 +202,7 @@ export default function AssinarContrato() {
             {/* Header */}
             <header className="border-b border-border bg-card">
                 <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <Vote className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="font-heading font-bold">Eleitora 360</h1>
-                        <p className="text-sm text-muted-foreground">Assinatura Digital com Validação Facial</p>
-                    </div>
+                    <AtivaBrand detail="Assinatura digital com validação facial" />
                 </div>
             </header>
 
@@ -274,7 +269,7 @@ export default function AssinarContrato() {
                                 <div className="space-y-2">
                                     <Label className="flex items-center gap-2">
                                         <Camera className="h-4 w-4" />
-                                        Validação Facial *
+                                        ValidaÃ§Ã£o Facial *
                                     </Label>
                                     
                                     {cameraError && (
@@ -294,7 +289,7 @@ export default function AssinarContrato() {
                                                     data-testid="start-camera-btn"
                                                 >
                                                     <Camera className="h-4 w-4" />
-                                                    Abrir Câmera
+                                                    Abrir CÃ¢mera
                                                 </Button>
                                             ) : (
                                                 <>
@@ -359,7 +354,7 @@ export default function AssinarContrato() {
                                         className="text-sm text-muted-foreground leading-relaxed cursor-pointer"
                                     >
                                         Li e concordo com todos os termos do contrato. Confirmo que a selfie 
-                                        capturada é minha e autorizo seu uso para validação da assinatura digital.
+                                        capturada Ã© minha e autorizo seu uso para validaÃ§Ã£o da assinatura digital.
                                     </label>
                                 </div>
 
@@ -378,14 +373,14 @@ export default function AssinarContrato() {
                                     ) : (
                                         <>
                                             <FileSignature className="h-5 w-5" />
-                                            Assinar com Validação Facial
+                                            Assinar com ValidaÃ§Ã£o Facial
                                         </>
                                     )}
                                 </Button>
 
                                 <p className="text-xs text-muted-foreground text-center">
-                                    A assinatura digital com validação facial possui validade jurídica 
-                                    e será registrada no contrato.
+                                    A assinatura digital com validaÃ§Ã£o facial possui validade jurÃ­dica 
+                                    e serÃ¡ registrada no contrato.
                                 </p>
                             </CardContent>
                         </Card>
@@ -395,3 +390,4 @@ export default function AssinarContrato() {
         </div>
     );
 }
+

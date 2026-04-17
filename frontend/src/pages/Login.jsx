@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { AtivaBrand } from '../components/AtivaBrand';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from 'sonner';
-import { Vote, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { getErrorMessage } from '../lib/utils';
 
 export default function Login() {
@@ -34,20 +35,11 @@ export default function Login() {
 
     return (
         <div className="min-h-screen flex" data-testid="login-page">
-            {/* Left side - Form */}
             <div className="flex-1 flex items-center justify-center p-8">
                 <div className="w-full max-w-md animate-fade-in-up">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                            <Vote className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                            <h1 className="font-heading text-2xl font-bold">Eleitora 360</h1>
-                            <p className="text-sm text-muted-foreground">Gestão Eleitoral Inteligente</p>
-                        </div>
-                    </div>
+                    <AtivaBrand className="mb-8" />
 
-                    <Card className="border-border bg-card">
+                    <Card className="border-border/80 bg-white/90 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
                         <CardHeader className="space-y-1">
                             <CardTitle className="font-heading text-2xl">Entrar</CardTitle>
                             <CardDescription>
@@ -116,7 +108,7 @@ export default function Login() {
                                 <p className="text-sm text-muted-foreground">
                                     <Link
                                         to="/contador/login"
-                                        className="text-emerald-500 hover:underline font-medium"
+                                        className="text-emerald-600 hover:underline font-medium"
                                         data-testid="contador-login-link"
                                     >
                                         Acesso para Contadores
@@ -128,21 +120,25 @@ export default function Login() {
                 </div>
             </div>
 
-            {/* Right side - Image */}
             <div className="hidden lg:flex flex-1 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20" />
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-transparent to-secondary/20" />
                 <img
                     src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGZpbmFuY2lhbCUyMGRhdGElMjB2aXN1YWxpemF0aW9uJTIwZGFyayUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzY4OTI4NzUxfDA&ixlib=rb-4.1.0&q=85"
-                    alt="Dashboard analytics"
-                    className="w-full h-full object-cover opacity-50"
+                    alt="Painel financeiro"
+                    className="w-full h-full object-cover opacity-60"
                 />
                 <div className="absolute inset-0 flex items-center justify-center p-12">
-                    <div className="text-center">
+                    <div className="max-w-lg rounded-[2rem] border border-white/50 bg-white/65 p-10 text-slate-900 shadow-[0_24px_80px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+                        <p className="mb-4 text-sm font-semibold uppercase tracking-[0.28em] text-primary">
+                            Flora + Operação
+                        </p>
                         <h2 className="font-heading text-4xl font-bold mb-4">
-                            Gerencie sua campanha<br />com precisão
+                            Governança eleitoral
+                            <br />
+                            com clareza
                         </h2>
-                        <p className="text-lg text-muted-foreground max-w-md">
-                            Controle financeiro, contratos e conformidade TSE em uma única plataforma
+                        <p className="text-lg text-slate-600">
+                            Controle financeiro, contratos, conformidade e a Flora em uma única operação.
                         </p>
                     </div>
                 </div>

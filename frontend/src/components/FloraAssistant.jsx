@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from './ui/button';
@@ -9,7 +9,6 @@ import {
     X,
     Send,
     Mic,
-    MicOff,
     Volume2,
     VolumeX,
     Loader2,
@@ -370,9 +369,11 @@ export function FloraAssistant() {
         <>
             <button
                 onClick={() => setIsOpen((prev) => !prev)}
-                className={`fixed bottom-6 right-6 rounded-full p-4 shadow-lg transition-all z-50 ${
-                    isOpen ? 'bg-slate-700 hover:bg-slate-800' : 'bg-blue-600 hover:bg-blue-700'
-                } text-white`}
+                className={`fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center rounded-[1.75rem] border border-white/40 text-white shadow-[0_22px_44px_rgba(15,23,42,0.24)] transition-all ${
+                    isOpen
+                        ? 'bg-slate-900 hover:bg-slate-800'
+                        : 'bg-[linear-gradient(135deg,#ff5a5f_0%,#d92b3a_100%)] hover:scale-[1.02]'
+                }`}
                 aria-label="Abrir Flora"
                 data-testid="flora-floating-btn"
             >
@@ -381,84 +382,108 @@ export function FloraAssistant() {
 
             {isOpen && (
                 <div
-                    className="fixed bottom-24 right-6 w-[360px] max-w-[92vw] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col z-50"
-                    style={{ height: '560px' }}
+                    className="fixed bottom-24 right-6 z-50 flex h-[620px] w-[390px] max-w-[94vw] flex-col overflow-hidden rounded-[2rem] border border-white/70 bg-white/92 shadow-[0_28px_90px_rgba(15,23,42,0.18)] backdrop-blur-xl"
                     data-testid="flora-assistant-panel"
                 >
-                    <div className="rounded-t-2xl bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4">
+                    <div className="border-b border-slate-100 bg-[linear-gradient(180deg,#fff7f7_0%,#ffffff_100%)] p-5">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#ff5a5f_0%,#d92b3a_100%)] text-white shadow-[0_16px_32px_rgba(239,68,68,0.28)]">
                                 <Sparkles className="h-5 w-5" />
                             </div>
                             <div>
-                                <p className="font-semibold">Flora</p>
-                                <p className="text-xs text-blue-100">Assistente da campanha</p>
+                                <p className="font-semibold text-slate-950">Flora</p>
+                                <p className="text-xs text-slate-500">Assistente da Ativa Eleitoral</p>
                             </div>
                             <div className="ml-auto flex items-center gap-2">
                                 <Button
                                     size="icon"
                                     variant="ghost"
                                     onClick={() => setVoiceEnabled((prev) => !prev)}
-                                    className="text-white hover:bg-white/20"
+                                    className="text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                                     aria-label="Alternar voz"
                                 >
                                     {voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
                                 </Button>
                             </div>
                         </div>
-                        {!speechSupported && (
-                            <p className="text-[11px] text-blue-100 mt-2">Microfone indisponivel neste navegador.</p>
-                        )}
-                        {speechSupported && (
-                            <p className="text-[11px] text-blue-100 mt-2">
-                                Escuta por \"flora\": {wakeStatus}
-                            </p>
-                        )}
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            <span className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                                {voiceEnabled ? 'voz ativa' : 'texto'}
+                            </span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-500">
+                                {speechSupported ? `escuta ${wakeStatus}` : 'microfone indisponível'}
+                            </span>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            {[
+                                'Resumo financeiro',
+                                'Contratos pendentes',
+                                'Pagamentos da semana'
+                            ].map((prompt) => (
+                                <button
+                                    key={prompt}
+                                    type="button"
+                                    onClick={() => sendMessage(prompt)}
+                                    className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-primary/20 hover:text-primary"
+                                >
+                                    {prompt}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    <ScrollArea ref={scrollRef} className="flex-1 p-4 space-y-4">
-                        {messages.map((msg, idx) => (
-                            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div
-                                    className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
-                                        msg.role === 'user'
-                                            ? 'bg-blue-600 text-white rounded-br-none'
-                                            : 'bg-slate-100 text-slate-900 rounded-bl-none'
-                                    }`}
-                                >
-                                    {msg.content}
+                    <ScrollArea ref={scrollRef} className="flex-1 bg-[linear-gradient(180deg,#fffdfc_0%,#fff8f5_100%)] px-4 py-5">
+                        <div className="space-y-4">
+                            {messages.map((msg, idx) => (
+                                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    <div
+                                        className={`max-w-[84%] rounded-[1.4rem] px-4 py-3 text-sm shadow-sm ${
+                                            msg.role === 'user'
+                                                ? 'bg-slate-950 text-white'
+                                                : 'border border-white/80 bg-white text-slate-900'
+                                        }`}
+                                    >
+                                        {msg.role === 'assistant' && (
+                                            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                                                Flora
+                                            </div>
+                                        )}
+                                        {msg.content}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                         {loading && (
                             <div className="flex justify-start">
-                                <div className="bg-slate-100 text-slate-900 px-4 py-2 rounded-2xl rounded-bl-none">
+                                <div className="rounded-[1.4rem] border border-white/80 bg-white px-4 py-3 text-slate-900 shadow-sm">
                                     <Loader2 size={16} className="animate-spin" />
                                 </div>
                             </div>
                         )}
                     </ScrollArea>
 
-                    <div className="border-t border-slate-200 p-3">
+                    <div className="border-t border-slate-100 bg-white p-4">
                         <div className="flex items-center gap-2">
-                            <div className="flex-1 flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+                            <div className="flex-1 flex items-center gap-2 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-3 py-3 shadow-inner">
                                 <Input
                                     ref={inputRef}
                                     value={inputMessage}
                                     onChange={(event) => setInputMessage(event.target.value)}
                                     onKeyPress={handleKeyPress}
-                                    placeholder="Digite seu pedido..."
+                                    placeholder="Pergunte sobre receitas, despesas ou contratos..."
                                     className="flex-1 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                                     disabled={loading}
                                 />
                                 {speechSupported && (
                                     <div
-                                        className={`h-9 w-9 rounded-full border flex items-center justify-center transition ${
+                                        className={`flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
                                             wakeStatus === 'ouvindo'
-                                                ? 'border-emerald-400 text-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.15)]'
+                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                                                 : wakeStatus === 'bloqueado'
-                                                    ? 'border-amber-300 text-amber-500'
-                                                    : 'border-slate-200 text-slate-500'
+                                                    ? 'border-amber-200 bg-amber-50 text-amber-600'
+                                                    : 'border-slate-200 bg-white text-slate-500'
                                         }`}
                                         aria-label="Escuta por voz ativa"
                                         title="Escuta ativa por voz: diga Flora"
@@ -470,15 +495,19 @@ export function FloraAssistant() {
                             <Button
                                 onClick={() => sendMessage()}
                                 disabled={loading || !inputMessage.trim()}
-                                className="h-10 w-10 rounded-full bg-blue-600 hover:bg-blue-700 p-0"
+                                className="h-12 w-12 rounded-2xl bg-[linear-gradient(135deg,#ff5a5f_0%,#d92b3a_100%)] p-0 shadow-[0_16px_32px_rgba(239,68,68,0.24)] hover:opacity-95"
                                 aria-label="Enviar mensagem"
                             >
                                 <Send size={16} />
                             </Button>
                         </div>
+                        <p className="mt-3 text-xs text-slate-500">
+                            Enter para enviar. Diga "Flora" para ativar por voz.
+                        </p>
                     </div>
                 </div>
             )}
         </>
     );
 }
+

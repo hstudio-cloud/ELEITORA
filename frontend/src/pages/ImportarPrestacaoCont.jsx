@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -33,7 +33,7 @@ export function ImportarPrestacaoCont() {
     const handleFileSelected = (file) => {
         // Validate file size (2GB max)
         if (file.size > 2 * 1024 * 1024 * 1024) {
-            toast.error('Arquivo muito grande (máx 2GB)');
+            toast.error('Arquivo muito grande (mÃ¡x 2GB)');
             return;
         }
 
@@ -59,7 +59,7 @@ export function ImportarPrestacaoCont() {
                 toast.success(`Arquivo validado: ${file.name}`);
             } else {
                 setValidationErrors(response.data.errors || []);
-                toast.error('Arquivo inválido');
+                toast.error('Arquivo invÃ¡lido');
                 setPreview(null);
                 setSelectedFile(null);
             }
@@ -76,7 +76,7 @@ export function ImportarPrestacaoCont() {
 
     const handleExecuteImport = async () => {
         if (!user?.campaign_id) {
-            toast.error('Campanha não encontrada. Configure a campanha primeiro.');
+            toast.error('Campanha nÃ£o encontrada. Configure a campanha primeiro.');
             return;
         }
 
@@ -100,10 +100,10 @@ export function ImportarPrestacaoCont() {
             });
 
             setImportSummary(response.data);
-            setCurrentStep('Concluído');
-            toast.success('Importação concluída com sucesso!');
+            setCurrentStep('ConcluÃ­do');
+            toast.success('ImportaÃ§Ã£o concluÃ­da com sucesso!');
         } catch (error) {
-            const message = error.response?.data?.detail || 'Erro ao executar importação';
+            const message = error.response?.data?.detail || 'Erro ao executar importaÃ§Ã£o';
             toast.error(message);
             console.error(error);
         } finally {
@@ -149,12 +149,12 @@ export function ImportarPrestacaoCont() {
 
     const handleScanFileSelected = async (file) => {
         if (file.size > 2 * 1024 * 1024 * 1024) {
-            toast.error('Arquivo muito grande (máx 2GB)');
+            toast.error('Arquivo muito grande (mÃ¡x 2GB)');
             return;
         }
 
         if (!user?.campaign_id) {
-            toast.error('Campanha não encontrada. Configure a campanha primeiro.');
+            toast.error('Campanha nÃ£o encontrada. Configure a campanha primeiro.');
             return;
         }
 
@@ -220,10 +220,10 @@ export function ImportarPrestacaoCont() {
                     <div className="flex items-center gap-3 text-muted-foreground">
                         <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
                             <ArrowLeft className="h-4 w-4 mr-2" />
-                            Voltar ao início
+                            Voltar ao inÃ­cio
                         </Button>
                         <FolderOpen className="h-5 w-5" />
-                        <h1 className="text-3xl font-bold text-foreground">Importação Concluída</h1>
+                        <h1 className="text-3xl font-bold text-foreground">ImportaÃ§Ã£o ConcluÃ­da</h1>
                     </div>
                 </div>
 
@@ -244,7 +244,7 @@ export function ImportarPrestacaoCont() {
                     <div className="flex items-center gap-3 text-muted-foreground">
                         <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
                             <ArrowLeft className="h-4 w-4 mr-2" />
-                            Voltar ao início
+                            Voltar ao inÃ­cio
                         </Button>
                         <FolderOpen className="h-5 w-5" />
                         <h1 className="text-3xl font-bold text-foreground">Importando Dados...</h1>
@@ -268,13 +268,13 @@ export function ImportarPrestacaoCont() {
                 <div className="flex items-center gap-3 text-muted-foreground">
                     <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
                         <ArrowLeft className="h-4 w-4 mr-2" />
-                        Voltar ao início
+                        Voltar ao inÃ­cio
                     </Button>
                     <FolderOpen className="h-5 w-5" />
-                    <h1 className="text-3xl font-bold text-foreground">Importar Prestação de Contas</h1>
+                    <h1 className="text-3xl font-bold text-foreground">Importar PrestaÃ§Ã£o de Contas</h1>
                 </div>
                 <p className="text-muted-foreground">
-                    Importe dados completos de uma prestação de contas do TSE para o ELEITORA
+                    Importe dados completos de uma prestaÃ§Ã£o de contas do TSE para a Ativa Eleitoral
                 </p>
             </div>
 
@@ -288,7 +288,7 @@ export function ImportarPrestacaoCont() {
                                 O arquivo TSE
                             </h2>
                             <p className="text-muted-foreground mb-4">
-                                Arraste ou clique para selecionar o arquivo ZIP com a prestação de contas
+                                Arraste ou clique para selecionar o arquivo ZIP com a prestaÃ§Ã£o de contas
                             </p>
                         </div>
 
@@ -300,12 +300,12 @@ export function ImportarPrestacaoCont() {
                         {validationErrors.length > 0 && (
                             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                                 <p className="text-sm font-medium text-red-900 mb-2">
-                                    Erros de Validação:
+                                    Erros de ValidaÃ§Ã£o:
                                 </p>
                                 <ul className="space-y-1">
                                     {validationErrors.map((error, idx) => (
                                         <li key={idx} className="text-sm text-red-800">
-                                            • {error}
+                                            â€¢ {error}
                                         </li>
                                     ))}
                                 </ul>
@@ -320,7 +320,7 @@ export function ImportarPrestacaoCont() {
                                 Revisar Dados
                             </h2>
                             <p className="text-muted-foreground">
-                                Verifique os dados que serão importados
+                                Verifique os dados que serÃ£o importados
                             </p>
                         </div>
 
@@ -441,7 +441,7 @@ export function ImportarPrestacaoCont() {
                                     <div>
                                         <p className="text-sm font-medium text-foreground">{item.filename}</p>
                                         <p className="text-xs text-muted-foreground">
-                                            Sugestão: {item.suggested_kind || 'desconhecido'}
+                                            SugestÃ£o: {item.suggested_kind || 'desconhecido'}
                                         </p>
                                     </div>
                                     <div className="flex gap-2 flex-wrap">
@@ -527,3 +527,4 @@ export function ImportarPrestacaoCont() {
         </div>
     );
 }
+

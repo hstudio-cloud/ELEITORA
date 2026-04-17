@@ -1,19 +1,20 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { Layout } from '../components/Layout';
+import { AtivaBrand } from '../components/AtivaBrand';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { formatCurrency } from '../lib/utils';
 import { 
     Bot, Send, Loader2, Trash2, AlertTriangle, 
-    FileText, BarChart3, Shield, Sparkles, MessageSquare,
-    ChevronRight, RefreshCw, Mic, Volume2, VolumeX,
+    FileText, BarChart3, Shield, Sparkles,
+    Mic, Volume2, VolumeX,
     Radio
 } from 'lucide-react';
 
@@ -21,15 +22,15 @@ const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
 // Quick action buttons
 const quickActions = [
-    { label: 'Resumo financeiro', prompt: 'Qual é o resumo financeiro da minha campanha?', icon: BarChart3 },
-    { label: 'Verificar conformidade', prompt: 'Minha campanha está em conformidade com as regras do TSE?', icon: Shield },
-    { label: 'Analisar despesas', prompt: 'Analise minhas despesas e sugira otimizações', icon: FileText },
-    { label: 'Documentos pendentes', prompt: 'Quais documentos estão pendentes nos meus contratos?', icon: AlertTriangle },
+    { label: 'Resumo financeiro', prompt: 'Qual Ã© o resumo financeiro da minha campanha?', icon: BarChart3 },
+    { label: 'Verificar conformidade', prompt: 'Minha campanha estÃ¡ em conformidade com as regras do TSE?', icon: Shield },
+    { label: 'Analisar despesas', prompt: 'Analise minhas despesas e sugira otimizaÃ§Ãµes', icon: FileText },
+    { label: 'Documentos pendentes', prompt: 'Quais documentos estÃ£o pendentes nos meus contratos?', icon: AlertTriangle },
 ];
 
 // Voice commands examples
 const voiceExamples = [
-    "Flora, qual é meu saldo?",
+    "Flora, qual Ã© meu saldo?",
     "Flora, tenho alguma despesa pra gerar?",
     "Flora, tem contrato pra fazer?",
     "Flora, quais pagamentos vencem esta semana?",
@@ -135,7 +136,7 @@ export default function Assistente() {
             setMessages(response.data.messages || []);
             setSessionId(response.data.session_id);
         } catch (error) {
-            console.error('Erro ao carregar histórico:', error);
+            console.error('Erro ao carregar histÃ³rico:', error);
         } finally {
             setLoadingHistory(false);
         }
@@ -149,7 +150,7 @@ export default function Assistente() {
 
         // Morning greeting
         if (hour < 12) {
-            questions.push('Qual é o cenário financeiro da campanha hoje?');
+            questions.push('Qual Ã© o cenÃ¡rio financeiro da campanha hoje?');
         } else if (hour >= 12 && hour < 15) {
             questions.push('Teve alguma despesa nova a registrar nesta tarde?');
         } else {
@@ -159,7 +160,7 @@ export default function Assistente() {
         // If there are pending expenses
         if (summary.pendingExpensesCount > 0) {
             if (summary.pendingExpensesCount === 1) {
-                questions.push('Tenho 1 despesa pendente. Me ajuda a registrá-la?');
+                questions.push('Tenho 1 despesa pendente. Me ajuda a registrÃ¡-la?');
             } else {
                 questions.push(`Tenho ${summary.pendingExpensesCount} despesas para registrar. Quer me ajudar?`);
             }
@@ -178,7 +179,7 @@ export default function Assistente() {
         // Compliance check (once a week)
         const weekCheck = Math.floor(Math.random() * 7) === 0;
         if (weekCheck) {
-            questions.push('Minha campanha está em conformidade com as regras do TSE?');
+            questions.push('Minha campanha estÃ¡ em conformidade com as regras do TSE?');
         }
 
         return questions;
@@ -226,19 +227,19 @@ export default function Assistente() {
                 let greeting = `Oi, ${role}! `;
 
                 if (summary.pendingExpensesCount > 0 || summary.dueSoonCount > 0 || summary.unsignedContractsCount > 0) {
-                    greeting += `Tenho um resumo rápido:\n`;
+                    greeting += `Tenho um resumo rÃ¡pido:\n`;
                     if (summary.pendingExpensesCount > 0) {
-                        greeting += `💰 ${summary.pendingExpensesCount} despesa(s) pendente(s) (R$ ${summary.pendingExpensesValue.toFixed(2)})\n`;
+                        greeting += `ðŸ’° ${summary.pendingExpensesCount} despesa(s) pendente(s) (R$ ${summary.pendingExpensesValue.toFixed(2)})\n`;
                     }
                     if (summary.dueSoonCount > 0) {
-                        greeting += `⏰ ${summary.dueSoonCount} pagamento(s) vencendo em 7 dias\n`;
+                        greeting += `â° ${summary.dueSoonCount} pagamento(s) vencendo em 7 dias\n`;
                     }
                     if (summary.unsignedContractsCount > 0) {
-                        greeting += `📋 ${summary.unsignedContractsCount} contrato(s) para finalizar\n`;
+                        greeting += `ðŸ“‹ ${summary.unsignedContractsCount} contrato(s) para finalizar\n`;
                     }
                     greeting += `\n${randomQuestion}`;
                 } else {
-                    greeting += `Sua campanha está em ordem! ${randomQuestion}`;
+                    greeting += `Sua campanha estÃ¡ em ordem! ${randomQuestion}`;
                 }
 
                 const proactiveMessage = {
@@ -310,14 +311,14 @@ export default function Assistente() {
     };
 
     const clearHistory = async () => {
-        if (!window.confirm('Tem certeza que deseja limpar o histórico de conversas?')) return;
+        if (!window.confirm('Tem certeza que deseja limpar o histÃ³rico de conversas?')) return;
         
         try {
             await axios.delete(`${API}/ai/chat/history`);
             setMessages([]);
-            toast.success('Histórico limpo');
+            toast.success('HistÃ³rico limpo');
         } catch (error) {
-            toast.error('Erro ao limpar histórico');
+            toast.error('Erro ao limpar histÃ³rico');
         }
     };
 
@@ -482,7 +483,7 @@ const handleVoiceAction = (action, data) => {
             if (transcribed_text) {
                 const userMessage = {
                     role: 'user',
-                    content: `🎤 ${transcribed_text}`,
+                    content: `ðŸŽ¤ ${transcribed_text}`,
                     timestamp: new Date().toISOString(),
                     isVoice: true
                 };
@@ -508,7 +509,7 @@ const handleVoiceAction = (action, data) => {
             }
 
             if (!success) {
-                toast.error('Não consegui entender o comando');
+                toast.error('NÃ£o consegui entender o comando');
             }
         } catch (error) {
             toast.error('Erro ao processar comando de voz');
@@ -599,129 +600,178 @@ const handleVoiceAction = (action, data) => {
         return content
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\n/g, '<br/>')
-            .replace(/- /g, '• ');
+            .replace(/- /g, 'â€¢ ');
     };
 
     return (
         <Layout>
-            <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col">
-                {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                        <h1 className="text-3xl font-heading font-bold flex items-center gap-3">
-                            <div className="p-2 bg-gradient-to-br from-accent to-secondary rounded-lg">
-                                <Bot className="h-6 w-6 text-white" />
+            <div className="space-y-6 min-h-[calc(100vh-120px)]">
+                <section className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+                    <div className="grid gap-8 px-6 py-8 lg:grid-cols-[1.4fr_0.9fr] lg:px-8">
+                        <div className="space-y-5">
+                            <AtivaBrand detail="Flora, a camada conversacional da operação eleitoral" />
+                            <div className="space-y-3">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+                                    Interface Flora
+                                </div>
+                                <h1 className="font-heading text-4xl font-black tracking-[-0.05em] text-slate-950 md:text-5xl">
+                                    Um chat mais limpo, direto e pronto para executar a rotina da campanha.
+                                </h1>
+                                <p className="max-w-2xl text-sm leading-6 text-slate-600 md:text-base">
+                                    Converse por texto ou voz, revise pendências e navegue pela operação sem sair do fluxo.
+                                    Diga "Flora" para ativar o comando por voz.
+                                </p>
                             </div>
-                            Flora
-                            <Badge variant="outline" className="ml-2 text-accent border-accent/50">
-                                Assistente IA com Voz
-                            </Badge>
-                        </h1>
-                        <p className="text-muted-foreground mt-1">
-                            Converse por texto ou use comandos de voz. Diga "Flora" para ativar.
-                        </p>
-                    </div>
-                    <div className="flex gap-2">
-                        <Button 
-                            variant={voiceEnabled ? "default" : "outline"}
-                            size="sm" 
-                            onClick={() => setVoiceEnabled(!voiceEnabled)}
-                            className="gap-2"
-                        >
-                            {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                            {voiceEnabled ? 'Voz Ativa' : 'Voz Desativada'}
-                        </Button>
-<Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={clearHistory}
-                            className="gap-2 text-destructive hover:text-destructive"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            Limpar
-                        </Button>
-                    </div>
-                </div>
 
-                {/* Alerts */}
-                {alerts.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                        {alerts.map((alert, i) => (
-                            <Badge 
-                                key={i} 
-                                variant="outline" 
-                                className="text-amber-400 border-amber-500/30 bg-amber-500/10"
-                            >
-                                {alert}
-                            </Badge>
-                        ))}
-                    </div>
-                )}
-
-                {proactiveSummary && (
-                    <Card className="border-accent/40 bg-accent/5">
-                        <CardContent className="p-4">
-                            <div className="flex flex-wrap items-center gap-3 text-sm">
-                                <Badge variant="outline" className="border-accent/40 text-accent">Flora Ativa</Badge>
-                                <span>{proactiveSummary.pendingExpensesCount} despesas pendentes</span>
-                                <span>{proactiveSummary.dueSoonCount} vencimentos em 7 dias</span>
-                                <span>{proactiveSummary.unsignedContractsCount} contratos para finalizar</span>
+                            <div className="flex flex-wrap gap-3">
                                 <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    className="ml-auto"
-                                    onClick={() => sendMessage('Flora, me lembre os próximos pagamentos e contratos pendentes')}
+                                    variant={voiceEnabled ? 'default' : 'outline'}
+                                    onClick={() => setVoiceEnabled(!voiceEnabled)}
+                                    className="gap-2 rounded-full px-5"
                                 >
-                                    Revisar Pendências
+                                    {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                                    {voiceEnabled ? 'Voz ativa' : 'Ativar voz'}
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={clearHistory}
+                                    className="gap-2 rounded-full px-5 text-destructive hover:text-destructive"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    Limpar conversa
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => sendMessage('Flora, me lembre os próximos pagamentos e contratos pendentes')}
+                                    className="gap-2 rounded-full px-5"
+                                >
+                                    <Sparkles className="h-4 w-4" />
+                                    Revisar pendências
                                 </Button>
                             </div>
-                        </CardContent>
-                    </Card>
-                )}
 
-                {/* Main Content */}
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-0">
-                    {/* Sidebar */}
-                    <div className="lg:col-span-1 space-y-4">
-                        {/* Escuta Ativa */}
-                        <Card className="border-accent/30 bg-accent/5">
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                    <Mic className="h-4 w-4 text-accent" />
-                                    Escuta Ativa
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="text-xs p-2 rounded bg-muted/40">
-                                    {!wakeSupported
-                                        ? 'N??o suportado no navegador'
-                                        : wakePermission === 'denied'
-                                            ? 'Microfone bloqueado nas permiss??es do navegador'
-                                            : `Diga \"Flora\" para ativar (${wakeStatus})`}
-                                </div>
-                                {wakePhrase && (
-                                    <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
-                                        <span className="font-medium">Frase detectada:</span>
-                                        <br />&quot;{wakePhrase}&quot;
-                                    </div>
-                                )}
-                                {lastTranscription && (
-                                    <div className="text-xs text-muted-foreground p-2 bg-muted/50 rounded">
-                                        <span className="font-medium">??ltimo comando:</span>
-                                        <br />&quot;{lastTranscription}&quot;
-                                    </div>
-                                )}
-                                {isSpeaking && (
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-accent">
-                                            <Radio className="h-4 w-4 animate-pulse" />
-                                            <span className="text-sm">Flora falando...</span>
-                                        </div>
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm"
-                                            onClick={stopSpeaking}
+                            {alerts.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                    {alerts.map((alert, i) => (
+                                        <Badge
+                                            key={i}
+                                            variant="outline"
+                                            className="rounded-full border-amber-200 bg-amber-50 px-3 py-1 text-amber-700"
                                         >
+                                            {alert}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
+                            <div className="rounded-[1.75rem] border border-primary/10 bg-[#fff7f7] p-5">
+                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
+                                    Despesas
+                                </p>
+                                <p className="mt-4 text-3xl font-black tracking-[-0.04em] text-slate-950">
+                                    {proactiveSummary?.pendingExpensesCount ?? 0}
+                                </p>
+                                <p className="mt-2 text-sm text-slate-600">
+                                    pendentes, somando {formatCurrency(proactiveSummary?.pendingExpensesValue || 0)}
+                                </p>
+                            </div>
+                            <div className="rounded-[1.75rem] border border-emerald-100 bg-emerald-50 p-5">
+                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                                    Vencimentos
+                                </p>
+                                <p className="mt-4 text-3xl font-black tracking-[-0.04em] text-slate-950">
+                                    {proactiveSummary?.dueSoonCount ?? 0}
+                                </p>
+                                <p className="mt-2 text-sm text-slate-600">
+                                    pagamentos com alerta nos próximos 7 dias
+                                </p>
+                            </div>
+                            <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
+                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                    Contratos
+                                </p>
+                                <p className="mt-4 text-3xl font-black tracking-[-0.04em] text-slate-950">
+                                    {proactiveSummary?.unsignedContractsCount ?? 0}
+                                </p>
+                                <p className="mt-2 text-sm text-slate-600">
+                                    contratos aguardando finalização
+                                </p>
+                            </div>
+                            <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
+                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                    Sessão
+                                </p>
+                                <p className="mt-4 text-lg font-bold text-slate-950">
+                                    {sessionId ? `#${String(sessionId).slice(0, 8)}` : 'Nova conversa'}
+                                </p>
+                                <p className="mt-2 text-sm text-slate-600">
+                                    Perfil {perfil} com escuta {wakeStatus}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+                    <div className="space-y-5">
+                        <Card className="rounded-[1.75rem] border-white/70 bg-white/85 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                    Escuta ativa
+                                </CardTitle>
+                                <CardDescription>
+                                    Estado atual do microfone e do gatilho por voz.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                                Status
+                                            </p>
+                                            <p className="mt-1 text-lg font-bold text-slate-950">{wakeStatus}</p>
+                                        </div>
+                                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
+                                            wakeStatus === 'ouvindo'
+                                                ? 'bg-emerald-100 text-emerald-700'
+                                                : wakePermission === 'denied'
+                                                    ? 'bg-amber-100 text-amber-600'
+                                                    : 'bg-slate-100 text-slate-500'
+                                        }`}>
+                                            <Mic className="h-5 w-5" />
+                                        </div>
+                                    </div>
+                                    <p className="mt-3 text-sm text-slate-600">
+                                        {!wakeSupported
+                                            ? 'Reconhecimento de voz indisponível neste navegador.'
+                                            : wakePermission === 'denied'
+                                                ? 'Microfone bloqueado nas permissões do navegador.'
+                                                : 'Diga "Flora" e continue com o comando que a assistente assume a próxima ação.'}
+                                    </p>
+                                </div>
+
+                                {wakePhrase && (
+                                    <div className="rounded-2xl bg-[#fff7f7] p-4 text-sm text-slate-700">
+                                        <span className="font-semibold text-slate-950">Frase detectada:</span> "{wakePhrase}"
+                                    </div>
+                                )}
+
+                                {lastTranscription && (
+                                    <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
+                                        <span className="font-semibold text-slate-950">Último comando:</span> "{lastTranscription}"
+                                    </div>
+                                )}
+
+                                {isSpeaking && (
+                                    <div className="flex items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3">
+                                        <div className="flex items-center gap-2 text-primary">
+                                            <Radio className="h-4 w-4 animate-pulse" />
+                                            <span className="text-sm font-medium">Flora está falando</span>
+                                        </div>
+                                        <Button variant="ghost" size="sm" onClick={stopSpeaking}>
                                             <VolumeX className="h-4 w-4" />
                                         </Button>
                                     </div>
@@ -729,112 +779,125 @@ const handleVoiceAction = (action, data) => {
                             </CardContent>
                         </Card>
 
-                        {/* Quick Actions */}
-                        <Card>
+                        <Card className="rounded-[1.75rem] border-white/70 bg-white/85 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                    <Sparkles className="h-4 w-4 text-accent" />
-                                    Ações Rápidas
+                                <CardTitle className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                    Ações rápidas
                                 </CardTitle>
+                                <CardDescription>
+                                    Atalhos para começar sem digitar tudo.
+                                </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-2">
                                 {quickActions.map((action, i) => (
-                                    <Button
+                                    <button
                                         key={i}
-                                        variant="ghost"
-                                        className="w-full justify-start gap-2 h-auto py-3 text-left"
+                                        type="button"
                                         onClick={() => sendMessage(action.prompt)}
                                         disabled={loading}
                                         data-testid={`quick-action-${i}`}
+                                        className="flex w-full items-center gap-3 rounded-2xl border border-transparent bg-slate-50 px-4 py-3 text-left transition hover:border-primary/20 hover:bg-[#fff7f7]"
                                     >
-                                        <action.icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                                        <span className="text-sm">{action.label}</span>
-                                    </Button>
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-primary shadow-sm">
+                                            <action.icon className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-950">{action.label}</p>
+                                            <p className="text-xs text-slate-500">{action.prompt}</p>
+                                        </div>
+                                    </button>
                                 ))}
                             </CardContent>
                         </Card>
 
-                        {/* Voice Examples */}
-                        <Card>
+                        <Card className="rounded-[1.75rem] border-white/70 bg-white/85 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                                    Exemplos de Comandos
+                                <CardTitle className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                    Exemplos de comando
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <ul className="text-xs text-muted-foreground space-y-2">
-                                    {voiceExamples.map((example, i) => (
-                                        <li key={i} className="flex items-start gap-2">
-                                            <span className="text-accent">•</span>
-                                            &quot;{example}&quot;
-                                        </li>
-                                    ))}
-                                </ul>
+                            <CardContent className="space-y-2">
+                                {voiceExamples.map((example, i) => (
+                                    <div key={i} className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                        "{example}"
+                                    </div>
+                                ))}
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Chat Window */}
-                    <Card className="lg:col-span-3 flex flex-col min-h-0">
-                        <CardHeader className="pb-3 border-b">
-                            <div className="flex items-center gap-2">
-                                <MessageSquare className="h-5 w-5 text-accent" />
-                                <CardTitle className="text-base">Conversa com Flora</CardTitle>
+                    <Card className="flex min-h-[720px] flex-col overflow-hidden rounded-[2rem] border-white/70 bg-white/90 shadow-[0_22px_80px_rgba(15,23,42,0.08)]">
+                        <CardHeader className="border-b border-slate-100 bg-[linear-gradient(180deg,#fff8f7_0%,#ffffff_100%)]">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_16px_32px_rgba(239,68,68,0.24)]">
+                                    <Bot className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <CardTitle className="text-xl font-bold text-slate-950">Flora</CardTitle>
+                                    <CardDescription>
+                                        Assistente operacional da Ativa Eleitoral
+                                    </CardDescription>
+                                </div>
+                                <Badge className="rounded-full border-0 bg-slate-100 px-3 py-1 text-slate-600">
+                                    {wakeSupported ? `voz ${wakeStatus}` : 'texto'}
+                                </Badge>
                             </div>
                         </CardHeader>
-                        
-                        {/* Messages */}
-                        <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+
+                        <ScrollArea className="flex-1 bg-[linear-gradient(180deg,#fffdfc_0%,#fff8f5_100%)] px-5 py-6" ref={scrollRef}>
                             {loadingHistory ? (
-                                <div className="flex items-center justify-center h-40">
+                                <div className="flex h-40 items-center justify-center">
                                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                                 </div>
                             ) : messages.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-40 text-center">
-                                    <div className="relative">
-                                        <Bot className="h-16 w-16 text-accent/50 mb-4" />
-                                        <Mic className="h-6 w-6 text-accent absolute -right-2 -bottom-2" />
+                                <div className="flex h-full min-h-[420px] flex-col items-center justify-center text-center">
+                                    <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-primary/10 text-primary shadow-inner">
+                                        <Bot className="h-10 w-10" />
                                     </div>
-                                    <p className="text-lg font-medium text-foreground">
-                                        Ola {perfil}, em que posso te ajudar hoje?
+                                    <h2 className="mt-6 font-heading text-3xl font-black tracking-[-0.04em] text-slate-950">
+                                        Olá, {perfil}.
+                                    </h2>
+                                    <p className="mt-3 max-w-md text-sm leading-6 text-slate-600">
+                                        Posso revisar despesas, abrir contratos, priorizar vencimentos e orientar seu fluxo
+                                        de prestação de contas.
                                     </p>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                        Sua assistente de campanha com voz
-                                    </p>
-                                    <p className="text-xs text-muted-foreground/70 mt-2">
-                                        Diga &quot;Flora&quot; ou digite sua pergunta
-                                    </p>
+                                    <div className="mt-6 flex flex-wrap justify-center gap-2">
+                                        {quickActions.slice(0, 3).map((action) => (
+                                            <button
+                                                key={action.label}
+                                                type="button"
+                                                onClick={() => sendMessage(action.prompt)}
+                                                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-primary/25 hover:text-primary"
+                                            >
+                                                {action.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="space-y-4">
+                                <div className="space-y-5">
                                     {messages.map((msg, i) => (
-                                        <div 
-                                            key={i}
-                                            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                                        >
-                                            <div 
-                                                className={`max-w-[85%] rounded-lg p-3 ${
-                                                    msg.role === 'user' 
-                                                        ? 'bg-accent text-accent-foreground' 
-                                                        : 'bg-muted'
-                                                }`}
-                                            >
+                                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`max-w-[88%] rounded-[1.6rem] px-5 py-4 shadow-sm ${
+                                                msg.role === 'user'
+                                                    ? 'bg-slate-950 text-white'
+                                                    : 'border border-white/70 bg-white text-slate-900'
+                                            }`}>
                                                 {msg.role === 'assistant' && (
-                                                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
-                                                        <Bot className="h-4 w-4 text-accent" />
-                                                        <span className="text-xs font-medium text-accent">Flora</span>
-                                                        {msg.isVoice && <Mic className="h-3 w-3 text-accent/70" />}
+                                                    <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                                                        <Bot className="h-3.5 w-3.5" />
+                                                        Flora
+                                                        {msg.isVoice && <Mic className="h-3.5 w-3.5 text-primary/70" />}
                                                     </div>
                                                 )}
-                                                <div 
-                                                    className="text-sm leading-relaxed"
+                                                <div
+                                                    className="text-sm leading-7"
                                                     dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
                                                 />
-                                                <div className="text-xs text-muted-foreground/70 mt-2">
-                                                    {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { 
-                                                        hour: '2-digit', 
-                                                        minute: '2-digit' 
+                                                <div className={`mt-3 text-[11px] ${msg.role === 'user' ? 'text-white/65' : 'text-slate-400'}`}>
+                                                    {new Date(msg.timestamp).toLocaleTimeString('pt-BR', {
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
                                                     })}
                                                 </div>
                                             </div>
@@ -842,10 +905,10 @@ const handleVoiceAction = (action, data) => {
                                     ))}
                                     {loading && (
                                         <div className="flex justify-start">
-                                            <div className="bg-muted rounded-lg p-3">
+                                            <div className="rounded-[1.6rem] border border-white/70 bg-white px-5 py-4 shadow-sm">
                                                 <div className="flex items-center gap-2">
-                                                    <Loader2 className="h-4 w-4 animate-spin text-accent" />
-                                                    <span className="text-sm text-muted-foreground">Flora pensando...</span>
+                                                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                                    <span className="text-sm text-slate-500">Flora está organizando a resposta...</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -853,56 +916,55 @@ const handleVoiceAction = (action, data) => {
                                 </div>
                             )}
                         </ScrollArea>
-                        {/* Input Area */}
-                        <div className="p-4 border-t">
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1 flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-2">
-                                    <Input
-                                        ref={inputRef}
-                                        value={inputMessage}
-                                        onChange={(e) => setInputMessage(e.target.value)}
-                                        onKeyPress={handleKeyPress}
-                                        placeholder="Digite sua pergunta..."
-                                        disabled={loading}
-                                        className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
-                                        data-testid="chat-input"
-                                    />
-                                    {wakeSupported && (
-                                        <div
-                                            className={`h-9 w-9 rounded-full border flex items-center justify-center transition ${
-                                                wakeStatus === 'ouvindo'
-                                                    ? 'border-emerald-400 text-emerald-600 shadow-[0_0_0_4px_rgba(16,185,129,0.15)]'
-                                                    : wakePermission === 'denied'
-                                                        ? 'border-amber-300 text-amber-500'
-                                                        : 'border-slate-200 text-slate-500'
-                                            }`}
-                                            title="Escuta ativa por voz: diga Flora"
-                                        >
-                                            <Mic className="h-4 w-4" />
-                                        </div>
-                                    )}
+
+                        <div className="border-t border-slate-100 bg-white p-4 md:p-5">
+                            <div className="flex items-end gap-3">
+                                <div className="flex-1 rounded-[1.75rem] border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner">
+                                    <div className="flex items-center gap-3">
+                                        <Input
+                                            ref={inputRef}
+                                            value={inputMessage}
+                                            onChange={(e) => setInputMessage(e.target.value)}
+                                            onKeyPress={handleKeyPress}
+                                            placeholder="Pergunte à Flora sobre pagamentos, contratos, despesas ou conformidade"
+                                            disabled={loading}
+                                            className="h-auto border-0 bg-transparent px-0 py-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+                                            data-testid="chat-input"
+                                        />
+                                        {wakeSupported && (
+                                            <div
+                                                className={`flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
+                                                    wakeStatus === 'ouvindo'
+                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                        : wakePermission === 'denied'
+                                                            ? 'border-amber-200 bg-amber-50 text-amber-600'
+                                                            : 'border-slate-200 bg-white text-slate-500'
+                                                }`}
+                                                title='Escuta ativa por voz: diga Flora'
+                                            >
+                                                <Mic className="h-4 w-4" />
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <Button 
+                                <Button
                                     onClick={() => sendMessage()}
                                     disabled={loading || !inputMessage.trim()}
-                                    className="h-10 w-10 rounded-full p-0"
+                                    className="h-12 w-12 rounded-2xl p-0 shadow-[0_16px_32px_rgba(239,68,68,0.24)]"
                                     data-testid="send-message-btn"
                                 >
-                                    {loading ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                        <Send className="h-4 w-4" />
-                                    )}
+                                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                                 </Button>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-2">
-                                Enter para enviar ??? Diga &quot;Flora&quot; para comandar por voz
+                            <p className="mt-3 text-xs text-slate-500">
+                                Enter para enviar. Se o navegador suportar, diga "Flora" para iniciar por voz.
                             </p>
                         </div>
                     </Card>
-                </div>
+                </section>
             </div>
         </Layout>
     );
 }
+
 

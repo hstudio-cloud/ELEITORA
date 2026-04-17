@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Layout } from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -51,7 +51,7 @@ const categoryIcons = {
     'Receitas': DollarSign,
     'Despesas': DollarSign,
     'Contratos': FileSignature,
-    'Documentos Comprobatórios': Paperclip
+    'Documentos ComprobatÃ³rios': Paperclip
 };
 
 const categoryLinks = {
@@ -59,7 +59,7 @@ const categoryLinks = {
     'Receitas': '/receitas',
     'Despesas': '/despesas',
     'Contratos': '/contratos',
-    'Documentos Comprobatórios': '/despesas'
+    'Documentos ComprobatÃ³rios': '/despesas'
 };
 
 export default function ConformidadeTSE() {
@@ -112,7 +112,7 @@ export default function ConformidadeTSE() {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
                         <h1 className="font-heading text-3xl font-bold">Conformidade TSE</h1>
-                        <p className="text-muted-foreground">Verificação de completude para prestação de contas</p>
+                        <p className="text-muted-foreground">VerificaÃ§Ã£o de completude para prestaÃ§Ã£o de contas</p>
                     </div>
                     <div className="flex gap-3">
                         <Button variant="outline" className="gap-2" onClick={fetchData}>
@@ -205,7 +205,7 @@ export default function ConformidadeTSE() {
                     <div className="space-y-3">
                         <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
                             <AlertCircle className="h-5 w-5 text-yellow-500" />
-                            Ações Pendentes
+                            AÃ§Ãµes Pendentes
                         </h2>
                         <div className="grid gap-3">
                             {data.alertas.map((alerta, index) => (
@@ -321,12 +321,12 @@ export default function ConformidadeTSE() {
                             </div>
                             <div className="flex-1">
                                 <h3 className="font-heading text-lg font-semibold mb-2">
-                                    Sobre a Prestação de Contas Eleitoral
+                                    Sobre a PrestaÃ§Ã£o de Contas Eleitoral
                                 </h3>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                    A prestação de contas deve ser enviada ao TSE através do Sistema de Prestação de Contas 
-                                    Eleitorais (SPCE) até 30 dias após as eleições. Todos os campos obrigatórios devem estar 
-                                    preenchidos conforme a Resolução TSE nº 23.607/2019.
+                                    A prestaÃ§Ã£o de contas deve ser enviada ao TSE atravÃ©s do Sistema de PrestaÃ§Ã£o de Contas 
+                                    Eleitorais (SPCE) atÃ© 30 dias apÃ³s as eleiÃ§Ãµes. Todos os campos obrigatÃ³rios devem estar 
+                                    preenchidos conforme a ResoluÃ§Ã£o TSE nÂº 23.607/2019.
                                 </p>
                                 <div className="flex gap-3">
                                     <Button variant="outline" size="sm" asChild>
@@ -336,7 +336,7 @@ export default function ConformidadeTSE() {
                                     </Button>
                                     <Link to="/assistente">
                                         <Button variant="outline" size="sm">
-                                            Perguntar à Eleitora
+                                            Perguntar à Flora
                                         </Button>
                                     </Link>
                                 </div>
@@ -348,3 +348,4 @@ export default function ConformidadeTSE() {
         </Layout>
     );
 }
+
