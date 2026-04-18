@@ -674,10 +674,17 @@ const handleVoiceAction = (action, data) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [wakeEnabled, wakeSupported, autoWakeAvailable, wakePermission, isProcessingVoice, manualListening]);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => () => {
-        stopWakeListener();
-        stopManualVoiceCapture();
+        if (recognitionRef.current) {
+            recognitionRef.current.onend = null;
+            recognitionRef.current.stop();
+            recognitionRef.current = null;
+        }
+        if (manualRecognitionRef.current) {
+            manualRecognitionRef.current.onend = null;
+            manualRecognitionRef.current.stop();
+            manualRecognitionRef.current = null;
+        }
     }, []);
 
     const formatMessage = (content) => {
