@@ -689,116 +689,122 @@ const handleVoiceAction = (action, data) => {
 
     return (
         <Layout immersive hideFloatingAssistant>
-            <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fff7f6_0%,#fffdfb_34%,#f7f6f4_100%)] px-4 py-4 md:px-6 md:py-6">
-                <div className="mx-auto flex h-[calc(100vh-2rem)] max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-white/80 bg-white/88 shadow-[0_30px_120px_rgba(15,23,42,0.10)] backdrop-blur-xl md:h-[calc(100vh-3rem)]">
-                    <div className="border-b border-slate-100 bg-white/80 px-4 py-4 backdrop-blur md:px-6">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-                            <div className="flex min-w-0 flex-1 items-center gap-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-[0_16px_32px_rgba(15,23,42,0.18)]">
-                                    <Bot className="h-5 w-5" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <h1 className="text-xl font-bold tracking-[-0.03em] text-slate-950">Flora</h1>
-                                        <Badge className="rounded-full border-0 bg-primary/10 px-3 py-1 text-primary">
-                                            {manualListening
-                                                ? 'escuta manual'
-                                                : autoWakeAvailable && wakeSupported
-                                                    ? `auto ${wakeStatus}`
-                                                    : wakePermission === 'denied'
-                                                        ? 'microfone bloqueado'
-                                                        : 'modo manual'}
-                                        </Badge>
-                                        {isSpeaking && (
-                                            <Badge className="rounded-full border-0 bg-slate-100 px-3 py-1 text-slate-600">
-                                                falando
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <p className="text-sm text-slate-500">
-                                        Chat operacional da Ativa Eleitoral
-                                    </p>
-                                </div>
+            <div className="relative min-h-screen overflow-hidden bg-[#120507] text-white">
+                <div className="pointer-events-none absolute inset-0 opacity-80">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(143,13,24,0.42)_0%,rgba(18,5,7,0)_38%)]" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,70,70,0.12)_0%,transparent_18%),radial-gradient(circle_at_80%_15%,rgba(255,110,110,0.08)_0%,transparent_16%),radial-gradient(circle_at_30%_75%,rgba(255,255,255,0.05)_0%,transparent_14%)]" />
+                    <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.1)_1px,transparent_1px)] [background-size:140px_140px]" />
+                    <div className="absolute inset-y-0 left-[7%] w-px bg-white/6" />
+                    <div className="absolute inset-y-0 right-[7%] w-px bg-white/6" />
+                </div>
+
+                <div className="relative mx-auto flex h-screen max-w-[1640px] flex-col px-5 pb-6 pt-8 md:px-8">
+                    <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-4">
+                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                            <div className="min-w-0">
+                                <p className="text-[11px] uppercase tracking-[0.38em] text-white/40">
+                                    Flora
+                                </p>
+                                <h1 className="mt-3 text-3xl font-black tracking-[-0.05em] text-white md:text-4xl">
+                                    Olá, {perfil}.
+                                </h1>
+                                <p className="mt-2 max-w-2xl text-sm leading-6 text-white/62 md:text-base">
+                                    Use a Flora para organizar a operação eleitoral, registrar movimentações e entender o que precisa da sua atenção.
+                                </p>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+                                <Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/78">
+                                    {manualListening
+                                        ? 'escuta manual'
+                                        : autoWakeAvailable && wakeSupported
+                                            ? `auto ${wakeStatus}`
+                                            : wakePermission === 'denied'
+                                                ? 'microfone bloqueado'
+                                                : 'modo manual'}
+                                </Badge>
+                                <Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/60">
                                     {proactiveSummary?.pendingExpensesCount ?? 0} despesas
-                                </div>
-                                <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+                                </Badge>
+                                <Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/60">
                                     {proactiveSummary?.dueSoonCount ?? 0} vencimentos
-                                </div>
+                                </Badge>
                                 <Button
-                                    variant={voiceEnabled ? 'default' : 'outline'}
+                                    variant="ghost"
                                     onClick={() => setVoiceEnabled(!voiceEnabled)}
-                                    className="rounded-full px-4"
+                                    className="rounded-full border border-white/12 bg-white/5 px-4 text-white hover:bg-white/10 hover:text-white"
                                 >
                                     {voiceEnabled ? <Volume2 className="mr-2 h-4 w-4" /> : <VolumeX className="mr-2 h-4 w-4" />}
-                                    {voiceEnabled ? 'Voz ativa' : 'Voz desligada'}
+                                    {voiceEnabled ? 'voz ativa' : 'voz desligada'}
                                 </Button>
                                 <Button
-                                    variant="outline"
+                                    variant="ghost"
                                     onClick={clearHistory}
-                                    className="rounded-full px-4 text-destructive hover:text-destructive"
+                                    className="rounded-full border border-white/12 bg-white/5 px-4 text-white/70 hover:bg-white/10 hover:text-white"
                                 >
                                     <Trash2 className="mr-2 h-4 w-4" />
-                                    Limpar
+                                    nova conversa
                                 </Button>
                             </div>
                         </div>
 
-                        <div className="mt-4 flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2">
                             {quickActions.map((action) => (
                                 <button
                                     key={action.label}
                                     type="button"
                                     onClick={() => sendMessage(action.prompt)}
-                                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-primary/25 hover:text-primary"
+                                    className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/70 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
                                 >
                                     {action.label}
                                 </button>
                             ))}
                         </div>
 
-                        {(alerts.length > 0 || lastTranscription || wakePhrase) && (
-                            <div className="mt-4 flex flex-wrap gap-2">
+                        {(alerts.length > 0 || lastTranscription || wakePhrase || isSpeaking) && (
+                            <div className="flex flex-wrap gap-2">
                                 {alerts.map((alert, i) => (
                                     <Badge
                                         key={i}
-                                        variant="outline"
-                                        className="rounded-full border-amber-200 bg-amber-50 px-3 py-1 text-amber-700"
+                                        className="rounded-full border border-[#a73d3d]/40 bg-[#381114] px-3 py-1 text-[#ffb4b4]"
                                     >
                                         {alert}
                                     </Badge>
                                 ))}
                                 {wakePhrase && (
-                                    <Badge variant="outline" className="rounded-full px-3 py-1 text-slate-600">
+                                    <Badge className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-white/60">
                                         gatilho: {wakePhrase}
                                     </Badge>
                                 )}
                                 {lastTranscription && (
-                                    <Badge variant="outline" className="rounded-full px-3 py-1 text-slate-600">
+                                    <Badge className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-white/60">
                                         último comando: {lastTranscription}
+                                    </Badge>
+                                )}
+                                {isSpeaking && (
+                                    <Badge className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-white/60">
+                                        Flora está falando
                                     </Badge>
                                 )}
                             </div>
                         )}
                     </div>
 
-                    <ScrollArea className="flex-1 px-4 py-6 md:px-6" ref={scrollRef}>
+                    <ScrollArea className="flora-scroll mt-6 flex-1 px-1" ref={scrollRef}>
+                        <div className="mx-auto flex min-h-full w-full max-w-[1320px] flex-col">
                         {loadingHistory ? (
                             <div className="flex h-40 items-center justify-center">
-                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                <Loader2 className="h-6 w-6 animate-spin text-white/50" />
                             </div>
                         ) : messages.length === 0 ? (
-                            <div className="flex min-h-full flex-col items-center justify-center text-center">
-                                <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-slate-950 text-white shadow-[0_20px_40px_rgba(15,23,42,0.12)]">
+                            <div className="flex flex-1 flex-col items-center justify-center pb-28 pt-12 text-center">
+                                <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] border border-white/10 bg-black/30 text-white shadow-[0_24px_60px_rgba(0,0,0,0.28)]">
                                     <Bot className="h-10 w-10" />
                                 </div>
-                                <h2 className="mt-6 text-4xl font-black tracking-[-0.05em] text-slate-950">
+                                <h2 className="mt-8 text-4xl font-black tracking-[-0.05em] text-white md:text-5xl">
                                     Olá, {perfil}.
                                 </h2>
-                                <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
+                                <p className="mt-4 max-w-xl text-base leading-7 text-white/62">
                                     Posso revisar despesas, abrir contratos, priorizar vencimentos e orientar sua prestação de contas em uma conversa contínua.
                                 </p>
                                 <div className="mt-8 flex flex-wrap justify-center gap-2">
@@ -807,84 +813,105 @@ const handleVoiceAction = (action, data) => {
                                             key={action.label}
                                             type="button"
                                             onClick={() => sendMessage(action.prompt)}
-                                            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-primary/25 hover:text-primary"
+                                            className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/70 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
                                         >
                                             {action.label}
                                         </button>
                                     ))}
                                 </div>
-                                <p className="mt-6 text-sm text-slate-500">
+                                <p className="mt-6 text-sm text-white/45">
                                     {autoWakeAvailable && wakeSupported
                                         ? 'Diga "Flora" para escuta automática ou use o microfone.'
                                         : 'Use o microfone para falar com a Flora neste navegador.'}
                                 </p>
                             </div>
                         ) : (
-                            <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+                            <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-10 pb-28 pt-8">
                                 {messages.map((msg, i) => (
-                                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[90%] rounded-[1.9rem] px-5 py-4 shadow-sm md:max-w-[78%] ${
+                                    <div
+                                        key={i}
+                                        className={`flex animate-fade-in-up ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                                    >
+                                        <div className={`max-w-[88%] md:max-w-[62%] ${
                                             msg.role === 'user'
-                                                ? 'bg-slate-950 text-white'
-                                                : 'border border-white/80 bg-white/92 text-slate-900'
+                                                ? 'rounded-[1.75rem] border border-[#632024] bg-[linear-gradient(180deg,rgba(93,23,30,0.94)_0%,rgba(67,15,20,0.96)_100%)] px-5 py-4 text-white shadow-[0_18px_50px_rgba(0,0,0,0.24)]'
+                                                : 'flex items-start gap-4 text-white'
                                         }`}>
                                             {msg.role === 'assistant' && (
-                                                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                                                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#7d242c] bg-[#1c090b] text-[#ff4d57]">
                                                     <Bot className="h-3.5 w-3.5" />
-                                                    Flora
-                                                    {msg.isVoice && <Mic className="h-3.5 w-3.5 text-primary/70" />}
                                                 </div>
                                             )}
-                                            <div
-                                                className="text-sm leading-7 md:text-[15px]"
-                                                dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
-                                            />
-                                            <div className={`mt-3 text-[11px] ${msg.role === 'user' ? 'text-white/65' : 'text-slate-400'}`}>
-                                                {new Date(msg.timestamp).toLocaleTimeString('pt-BR', {
-                                                    hour: '2-digit',
-                                                    minute: '2-digit'
-                                                })}
+                                            <div className={msg.role === 'assistant' ? 'rounded-[1.75rem] bg-white/[0.04] px-5 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur-sm' : ''}>
+                                                {msg.role === 'assistant' && (
+                                                    <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/42">
+                                                        Flora
+                                                        {msg.isVoice && <Mic className="h-3.5 w-3.5 text-white/28" />}
+                                                    </div>
+                                                )}
+                                                <div
+                                                    className={`text-sm leading-7 md:text-[15px] ${msg.role === 'assistant' ? 'text-white/92' : 'text-white'}`}
+                                                    dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
+                                                />
+                                                <div className={`mt-3 text-[11px] ${msg.role === 'user' ? 'text-white/55' : 'text-white/34'}`}>
+                                                    {new Date(msg.timestamp).toLocaleTimeString('pt-BR', {
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 ))}
                                 {loading && (
                                     <div className="flex justify-start">
-                                        <div className="rounded-[1.8rem] border border-white/70 bg-white px-5 py-4 shadow-sm">
-                                            <div className="flex items-center gap-2">
-                                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                                                <span className="text-sm text-slate-500">Flora está organizando a resposta...</span>
+                                        <div className="flex items-start gap-4">
+                                            <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full border border-[#7d242c] bg-[#1c090b] text-[#ff4d57]">
+                                                <Bot className="h-3.5 w-3.5" />
+                                            </div>
+                                            <div className="rounded-[1.75rem] bg-white/[0.04] px-5 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <Loader2 className="h-4 w-4 animate-spin text-[#ff5a63]" />
+                                                    <span className="text-sm text-white/56">Flora está organizando a resposta...</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 )}
                             </div>
                         )}
+                        </div>
                     </ScrollArea>
 
-                    <div className="border-t border-slate-100 bg-white/90 px-4 py-4 md:px-6">
-                        <div className="mx-auto flex w-full max-w-4xl items-end gap-3">
-                            <div className="flex-1 rounded-[2rem] border border-slate-200 bg-white px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                                <div className="flex items-center gap-3">
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,rgba(18,5,7,0)_0%,rgba(18,5,7,0.94)_34%,#120507_100%)] px-5 pb-6 pt-16 md:px-8">
+                        <div className="pointer-events-auto mx-auto w-full max-w-[1080px]">
+                            <div className="flex items-end gap-3 rounded-[2rem] border border-white/16 bg-black/26 px-4 py-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                                <div className="flex-1">
+                                    <p className="mb-2 text-[11px] uppercase tracking-[0.22em] text-white/28">
+                                        Mensagem
+                                    </p>
                                     <Input
                                         ref={inputRef}
                                         value={inputMessage}
                                         onChange={(e) => setInputMessage(e.target.value)}
                                         onKeyPress={handleKeyPress}
-                                        placeholder="Pergunte sobre pagamentos, contratos, despesas ou conformidade"
+                                        placeholder="Digite sua mensagem..."
                                         disabled={loading}
-                                        className="h-auto border-0 bg-transparent px-0 py-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        className="h-auto border-0 bg-transparent px-0 py-0 text-base text-white placeholder:text-white/26 focus-visible:ring-0 focus-visible:ring-offset-0"
                                         data-testid="chat-input"
                                     />
+                                </div>
+
+                                <div className="flex items-center gap-3">
                                     {wakeSupported && (
                                         <button
                                             type="button"
-                                            className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition ${
+                                            className={`flex h-11 w-11 items-center justify-center rounded-full border transition ${
                                                 manualListening
-                                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                    ? 'border-emerald-300/40 bg-emerald-400/12 text-emerald-200'
                                                     : wakePermission === 'denied'
-                                                        ? 'border-amber-200 bg-amber-50 text-amber-600'
-                                                        : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-primary/25 hover:text-primary'
+                                                        ? 'border-amber-300/40 bg-amber-400/12 text-amber-200'
+                                                        : 'border-white/12 bg-white/[0.04] text-white/55 hover:border-white/22 hover:bg-white/[0.08] hover:text-white'
                                             }`}
                                             title={manualListening ? 'Parar escuta manual' : 'Falar com a Flora'}
                                             onClick={startManualVoiceCapture}
@@ -893,34 +920,34 @@ const handleVoiceAction = (action, data) => {
                                             <Mic className="h-4 w-4" />
                                         </button>
                                     )}
+                                    <Button
+                                        onClick={() => sendMessage()}
+                                        disabled={loading || !inputMessage.trim()}
+                                        className="h-11 w-11 rounded-full bg-[#ff3b3f] p-0 text-white shadow-[0_18px_40px_rgba(255,59,63,0.36)] hover:bg-[#ff4a4e]"
+                                        data-testid="send-message-btn"
+                                    >
+                                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                    </Button>
                                 </div>
                             </div>
-                            <Button
-                                onClick={() => sendMessage()}
-                                disabled={loading || !inputMessage.trim()}
-                                className="h-12 w-12 rounded-2xl p-0 shadow-[0_16px_32px_rgba(239,68,68,0.24)]"
-                                data-testid="send-message-btn"
-                            >
-                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                            </Button>
-                        </div>
-                        <div className="mx-auto mt-3 flex w-full max-w-4xl items-center justify-between gap-3 text-xs text-slate-500">
+                        <div className="mx-auto mt-3 flex w-full max-w-[1080px] items-center justify-between gap-3 text-xs text-white/34">
                             <span>
                                 {autoWakeAvailable && wakeSupported
-                                    ? 'Enter para enviar. Escuta automática ativa quando o navegador permitir.'
-                                    : 'Enter para enviar. Escuta automática indisponível neste navegador; use o microfone.'}
+                                    ? 'Escuta automática ativa quando o navegador permitir. Você também pode usar o microfone.'
+                                    : 'Escuta automática indisponível neste navegador. Use o microfone para falar com a Flora.'}
                             </span>
                             {isSpeaking && (
                                 <button
                                     type="button"
                                     onClick={stopSpeaking}
-                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-slate-600"
+                                    className="inline-flex items-center gap-2 rounded-full border border-white/12 px-3 py-1 text-white/52 transition hover:bg-white/[0.04] hover:text-white"
                                 >
                                     <Radio className="h-3.5 w-3.5 animate-pulse" />
-                                    Parar áudio
+                                    parar áudio
                                 </button>
                             )}
                         </div>
+                    </div>
                     </div>
                 </div>
             </div>
