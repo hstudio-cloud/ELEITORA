@@ -744,6 +744,7 @@ class UserResponse(BaseModel):
 
 class CampaignCreate(BaseModel):
     candidate_name: str
+    candidate_ballot_name: Optional[str] = None
     party: str
     position: str  # Prefeito, Vereador, etc.
     city: str
@@ -785,11 +786,20 @@ class CampaignCreate(BaseModel):
     cep: Optional[str] = None
     telefone: Optional[str] = None
     email: Optional[str] = None
+    candidate_photo_url: Optional[str] = None
+    tse_candidate_id: Optional[str] = None
+    tse_election_id: Optional[str] = None
+    tse_ue_code: Optional[str] = None
+    tse_detail_url: Optional[str] = None
+    tse_validation_status: Optional[str] = None
+    tse_validation_message: Optional[str] = None
+    tse_validated_at: Optional[str] = None
 
 class CampaignResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     candidate_name: str
+    candidate_ballot_name: Optional[str] = None
     party: str
     position: str
     city: str
@@ -832,6 +842,25 @@ class CampaignResponse(BaseModel):
     cep: Optional[str] = None
     telefone: Optional[str] = None
     email: Optional[str] = None
+    candidate_photo_url: Optional[str] = None
+    tse_candidate_id: Optional[str] = None
+    tse_election_id: Optional[str] = None
+    tse_ue_code: Optional[str] = None
+    tse_detail_url: Optional[str] = None
+    tse_validation_status: Optional[str] = None
+    tse_validation_message: Optional[str] = None
+    tse_validated_at: Optional[str] = None
+
+
+class TSECandidateValidationRequest(BaseModel):
+    candidate_name: Optional[str] = None
+    numero_candidato: Optional[str] = None
+    party: str
+    position: str
+    city: str
+    state: str
+    election_year: int = 2024
+    persist: bool = False
 
 # SPCE Revenue Types
 class TipoReceita(str, Enum):
@@ -7282,6 +7311,16 @@ _tse_municipal_limits_loaded_at: Optional[str] = None
 _tse_municipal_limits_lock = asyncio.Lock()
 _ibge_municipios_cache: Dict[str, List[Dict[str, Any]]] = {}
 _ibge_municipios_lock = asyncio.Lock()
+_tse_divulgacand_cache: Dict[str, Dict[str, Any]] = {}
+_tse_divulgacand_lock = asyncio.Lock()
+
+TSE_DIVULGACAND_BASE_URL = "https://divulgacandcontas.tse.jus.br/divulga/rest/v1"
+TSE_DIVULGACAND_TIMEOUT = 15.0
+TSE_MUNICIPAL_CARGO_CODES = {
+    "prefeito": 11,
+    "vice_prefeito": 12,
+    "vereador": 13,
+}
 
 
 def _normalize_text_key(value: Optional[str]) -> str:
@@ -7306,6 +7345,238 @@ def _normalize_position(position: Optional[str]) -> str:
         "dep distrital": "deputado_distrital",
     }
     return aliases.get(raw, raw.replace(" ", "_"))
+
+
+def _digits_only(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    digits = re.sub(r"[^0-9]", "", str(value))
+    return digits or None
+
+
+def _display_or_none(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text in {"-4", "-1", "#NULO", "#NE", "**", "null-null"}:
+        return None
+    return text
+
+
+def _normalize_party_sigla(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(value))
+    normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    normalized = normalized.upper().replace(".", "")
+    normalized = " ".join(normalized.split())
+    return normalized
+
+
+def _find_best_tse_candidate(
+    candidates: List[Dict[str, Any]],
+    candidate_name: Optional[str],
+    candidate_number: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    if not candidates:
+        return None
+
+    name_key = _normalize_text_key(candidate_name)
+    number_key = _digits_only(candidate_number)
+    scored: List[tuple[int, Dict[str, Any]]] = []
+
+    for candidate in candidates:
+        score = 0
+        numero = _digits_only(candidate.get("numero"))
+        nome_urna = _normalize_text_key(candidate.get("nomeUrna"))
+        nome_completo = _normalize_text_key(candidate.get("nomeCompleto"))
+
+        if number_key:
+            if numero != number_key:
+                continue
+            score += 100
+
+        if name_key:
+            if name_key == nome_urna:
+                score += 80
+            elif name_key == nome_completo:
+                score += 90
+            elif name_key in nome_urna or nome_urna in name_key:
+                score += 45
+            elif name_key in nome_completo or nome_completo in name_key:
+                score += 55
+            else:
+                continue
+
+        score += 10 if candidate.get("descricaoSituacao") == "Deferido" else 0
+        score += 5 if candidate.get("fotoUrlPublicavel") else 0
+        scored.append((score, candidate))
+
+    if not scored:
+        return None
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return scored[0][1]
+
+
+async def _tse_divulga_get_json(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    url = f"{TSE_DIVULGACAND_BASE_URL}{path}"
+    async with httpx.AsyncClient(timeout=TSE_DIVULGACAND_TIMEOUT, follow_redirects=True) as client_http:
+        response = await client_http.get(url, params=params)
+        response.raise_for_status()
+    return response.json()
+
+
+async def _get_tse_divulgacand_election(election_year: int) -> Dict[str, Any]:
+    cache_key = str(election_year or "current")
+    if cache_key in _tse_divulgacand_cache:
+        return _tse_divulgacand_cache[cache_key]
+
+    async with _tse_divulgacand_lock:
+        if cache_key in _tse_divulgacand_cache:
+            return _tse_divulgacand_cache[cache_key]
+
+        payload = await _tse_divulga_get_json("/eleicao/eleicao-atual", params={"idEleicao": 0})
+        election = payload.get("eleicao") or {}
+        current_year = int(election.get("nr_ANO_REFERENCIA") or 0)
+        if election_year and current_year and current_year != int(election_year):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Validacao automatica do TSE disponivel apenas para a eleicao oficial carregada ({current_year}).",
+            )
+
+        states = {}
+        for item in payload.get("ues") or []:
+            sigla = (item.get("sigla") or "").strip().upper()
+            regiao = item.get("regiao")
+            if len(sigla) == 2 and regiao:
+                states[sigla] = {
+                    "region": regiao,
+                    "name": item.get("nome"),
+                }
+
+        context = {
+            "election_id": str(election.get("sq_ELEICAO") or ""),
+            "election_year": current_year,
+            "states": states,
+        }
+        _tse_divulgacand_cache[cache_key] = context
+        return context
+
+
+async def _resolve_tse_municipality(uf: str, city: str, election_id: str) -> Dict[str, Any]:
+    payload = await _tse_divulga_get_json(f"/eleicao/buscar/{uf}/{election_id}/municipios")
+    city_key = _normalize_text_key(city)
+    for municipio in payload.get("municipios") or []:
+        if _normalize_text_key(municipio.get("nome")) == city_key:
+            return municipio
+    raise HTTPException(status_code=404, detail="Municipio nao encontrado no DivulgaCand do TSE")
+
+
+async def _resolve_tse_party_number(election_id: str, ue_code: str, cargo_code: int, party_sigla: str) -> int:
+    parties = await _tse_divulga_get_json(f"/eleicao/{election_id}/ues/{ue_code}/cargos/{cargo_code}/partidos")
+    party_key = _normalize_party_sigla(party_sigla)
+    for party in parties or []:
+        if _normalize_party_sigla(party.get("sigla")) == party_key:
+            return int(party.get("numero"))
+    raise HTTPException(status_code=404, detail="Partido nao encontrado para este municipio/cargo no TSE")
+
+
+async def _resolve_ibge_code_for_city(uf: str, city: str) -> Optional[str]:
+    municipios = await _get_ibge_municipios_by_uf(uf)
+    city_key = _normalize_text_key(city)
+    for municipio in municipios:
+        if _normalize_text_key(municipio.get("nome")) == city_key:
+            return municipio.get("codigo_ibge")
+    return None
+
+
+async def _build_tse_candidate_payload(payload: TSECandidateValidationRequest) -> Dict[str, Any]:
+    position_key = _normalize_position(payload.position)
+    cargo_code = TSE_MUNICIPAL_CARGO_CODES.get(position_key)
+    if not cargo_code:
+        raise HTTPException(
+            status_code=400,
+            detail="Validacao do TSE disponivel no momento para Prefeito, Vice-prefeito e Vereador.",
+        )
+
+    election = await _get_tse_divulgacand_election(payload.election_year)
+    election_id = election.get("election_id")
+    state_key = (payload.state or "").strip().upper()
+    state_meta = election.get("states", {}).get(state_key)
+    if not election_id or not state_meta:
+        raise HTTPException(status_code=400, detail="UF nao encontrada no contexto oficial do TSE")
+
+    municipality = await _resolve_tse_municipality(state_key, payload.city, election_id)
+    municipality_code = str(municipality.get("codigo") or "")
+    municipality_name = municipality.get("nome") or payload.city
+    party_number = await _resolve_tse_party_number(election_id, municipality_code, cargo_code, payload.party)
+
+    listing = await _tse_divulga_get_json(
+        f"/candidatura/listar/{payload.election_year}/{municipality_code}/{election_id}/{cargo_code}/candidatos",
+        params={"partido": party_number},
+    )
+    matched = _find_best_tse_candidate(
+        listing.get("candidatos") or [],
+        payload.candidate_name,
+        payload.numero_candidato,
+    )
+    if not matched:
+        raise HTTPException(status_code=404, detail="Candidato nao encontrado no DivulgaCand com os dados informados")
+
+    candidate_id = str(matched.get("id"))
+    detail = await _tse_divulga_get_json(
+        f"/candidatura/buscar/{payload.election_year}/{municipality_code}/{election_id}/candidato/{candidate_id}"
+    )
+    prestador = await _tse_divulga_get_json(
+        f"/prestador/consulta/{election_id}/{payload.election_year}/{municipality_code}/{cargo_code}/{party_number}/{matched.get('numero')}/{candidate_id}"
+    )
+
+    cnpj = _digits_only(prestador.get("cnpj"))
+    titulo_eleitor = _display_or_none(detail.get("tituloEleitor"))
+    cpf = _digits_only(detail.get("cpf"))
+    codigo_ibge = await _resolve_ibge_code_for_city(state_key, municipality_name)
+    validated_at = datetime.now(timezone.utc).isoformat()
+    detail_url = (
+        f"https://divulgacandcontas.tse.jus.br/divulga/#/candidato/"
+        f"{state_meta['region']}/{state_key}/{election_id}/{candidate_id}/{payload.election_year}/{municipality_code}"
+    )
+
+    campaign_data = {
+        "candidate_name": detail.get("nomeCompleto") or matched.get("nomeCompleto") or payload.candidate_name or "",
+        "candidate_ballot_name": detail.get("nomeUrna") or matched.get("nomeUrna"),
+        "party": (detail.get("partido") or {}).get("sigla") or payload.party,
+        "position": (detail.get("cargo") or {}).get("nome") or payload.position,
+        "city": municipality_name,
+        "state": state_key,
+        "codigo_ibge": codigo_ibge,
+        "election_year": payload.election_year,
+        "cnpj": cnpj,
+        "numero_candidato": str(detail.get("numero") or matched.get("numero") or payload.numero_candidato or ""),
+        "cpf_candidato": cpf,
+        "titulo_eleitor": titulo_eleitor,
+        "candidate_photo_url": detail.get("fotoUrl") if detail.get("fotoUrlPublicavel") else None,
+        "tse_candidate_id": candidate_id,
+        "tse_election_id": election_id,
+        "tse_ue_code": municipality_code,
+        "tse_detail_url": detail_url,
+        "tse_validation_status": "validado",
+        "tse_validation_message": (
+            f"Cadastro validado no DivulgaCand/TSE para "
+            f"{(detail.get('cargo') or {}).get('nome') or payload.position} em {municipality_name}/{state_key}"
+        ),
+        "tse_validated_at": validated_at,
+    }
+
+    campaign_data = {key: value for key, value in campaign_data.items() if value not in (None, "")}
+    return {
+        "campaign_data": campaign_data,
+        "detail": detail,
+        "prestador": prestador,
+        "municipality": municipality,
+        "party_number": party_number,
+        "region": state_meta["region"],
+    }
 
 
 def _parse_money_value(value: Any) -> Optional[float]:
@@ -7703,6 +7974,62 @@ async def get_campaign_spending_status(current_user: dict = Depends(get_current_
             "crime": "Abuso de poder econômico",
             "consequencias": ["Cassação do registro/diploma", "Inelegibilidade por 8 anos"]
         }
+    }
+
+
+@api_router.post("/tse/validate-candidate")
+async def validate_tse_candidate(
+    data: TSECandidateValidationRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    tse_payload = await _build_tse_candidate_payload(data)
+    campaign_data = dict(tse_payload["campaign_data"])
+
+    persisted = False
+    if data.persist and current_user.get("campaign_id"):
+        campaign = await db.campaigns.find_one({"id": current_user["campaign_id"]}, {"_id": 0})
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campanha nao encontrada para persistir dados do TSE")
+        if campaign["owner_id"] != current_user["id"] and current_user["role"] != "contador":
+            raise HTTPException(status_code=403, detail="Sem permissao")
+
+        merged = {**campaign, **campaign_data}
+        merged["cnpj"] = validate_and_normalize_document(
+            merged.get("cnpj"), "CNPJ da campanha", allowed_types=("cnpj",), required=False
+        )
+        merged["cpf_candidato"] = validate_and_normalize_document(
+            merged.get("cpf_candidato"), "CPF do candidato", allowed_types=("cpf",), required=False
+        )
+        await db.campaigns.update_one({"id": campaign["id"]}, {"$set": merged})
+        campaign_data = await db.campaigns.find_one({"id": campaign["id"]}, {"_id": 0}) or merged
+        persisted = True
+
+    detail = tse_payload["detail"]
+    prestador = tse_payload["prestador"]
+
+    return {
+        "message": campaign_data.get("tse_validation_message") or "Cadastro validado no TSE",
+        "campaign_data": campaign_data,
+        "candidate": {
+            "candidate_id": str(detail.get("id")),
+            "ballot_name": detail.get("nomeUrna"),
+            "full_name": detail.get("nomeCompleto"),
+            "number": str(detail.get("numero") or ""),
+            "party": (detail.get("partido") or {}).get("sigla"),
+            "party_name": (detail.get("partido") or {}).get("nome"),
+            "position": (detail.get("cargo") or {}).get("nome"),
+            "city": tse_payload["municipality"].get("nome"),
+            "state": data.state,
+            "status": detail.get("descricaoSituacao"),
+            "totalization_status": detail.get("descricaoTotalizacao"),
+            "birth_date": detail.get("dataDeNascimento"),
+            "title": detail.get("tituloEleitor"),
+            "cnpj": prestador.get("cnpj"),
+            "photo_url": detail.get("fotoUrl") if detail.get("fotoUrlPublicavel") else None,
+            "detail_url": campaign_data.get("tse_detail_url"),
+            "validated_at": campaign_data.get("tse_validated_at"),
+        },
+        "persisted": persisted,
     }
 
 # ============== ADMIN CONTADOR (ATIVA CONTABILIDADE) ==============

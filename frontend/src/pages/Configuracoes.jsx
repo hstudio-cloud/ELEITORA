@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Separator } from '../components/ui/separator';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { User, Vote, Save, Building, CreditCard, MapPin, AlertCircle } from 'lucide-react';
+import { User, Vote, Save, Building, CreditCard, MapPin, AlertCircle, ShieldCheck, ExternalLink } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -19,6 +19,7 @@ export default function Configuracoes() {
     const [campaign, setCampaign] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [validatingTse, setValidatingTse] = useState(false);
     
     // Reference data
     const [partidos, setPartidos] = useState([]);
@@ -30,6 +31,7 @@ export default function Configuracoes() {
 
     const [campaignForm, setCampaignForm] = useState({
         candidate_name: '',
+        candidate_ballot_name: '',
         party: '',
         position: 'Vereador',
         city: '',
@@ -61,7 +63,15 @@ export default function Configuracoes() {
         bairro: '',
         cep: '',
         telefone: '',
-        email: ''
+        email: '',
+        candidate_photo_url: '',
+        tse_candidate_id: '',
+        tse_election_id: '',
+        tse_ue_code: '',
+        tse_detail_url: '',
+        tse_validation_status: '',
+        tse_validation_message: '',
+        tse_validated_at: ''
     });
 
     useEffect(() => {
@@ -121,6 +131,7 @@ export default function Configuracoes() {
                 setCampaign(response.data);
                 setCampaignForm({
                     candidate_name: response.data.candidate_name || '',
+                    candidate_ballot_name: response.data.candidate_ballot_name || '',
                     party: response.data.party || '',
                     position: response.data.position || 'Vereador',
                     city: response.data.city || '',
@@ -149,7 +160,15 @@ export default function Configuracoes() {
                     bairro: response.data.bairro || '',
                     cep: response.data.cep || '',
                     telefone: response.data.telefone || '',
-                    email: response.data.email || ''
+                    email: response.data.email || '',
+                    candidate_photo_url: response.data.candidate_photo_url || '',
+                    tse_candidate_id: response.data.tse_candidate_id || '',
+                    tse_election_id: response.data.tse_election_id || '',
+                    tse_ue_code: response.data.tse_ue_code || '',
+                    tse_detail_url: response.data.tse_detail_url || '',
+                    tse_validation_status: response.data.tse_validation_status || '',
+                    tse_validation_message: response.data.tse_validation_message || '',
+                    tse_validated_at: response.data.tse_validated_at || ''
                 });
             }
         } catch (error) {
@@ -161,6 +180,46 @@ export default function Configuracoes() {
 
     const handleCampaignChange = (field, value) => {
         setCampaignForm(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleValidateTse = async () => {
+        if (!campaignForm.state || !campaignForm.city || !campaignForm.position || !campaignForm.party) {
+            toast.error('Preencha UF, cidade, cargo e partido antes de validar no TSE');
+            return;
+        }
+        if (!campaignForm.candidate_name && !campaignForm.numero_candidato) {
+            toast.error('Informe ao menos o nome ou o numero do candidato');
+            return;
+        }
+
+        setValidatingTse(true);
+        try {
+            const response = await axios.post(`${API}/tse/validate-candidate`, {
+                candidate_name: campaignForm.candidate_name,
+                numero_candidato: campaignForm.numero_candidato,
+                party: campaignForm.party,
+                position: campaignForm.position,
+                city: campaignForm.city,
+                state: campaignForm.state,
+                election_year: campaignForm.election_year,
+                persist: Boolean(campaign?.id)
+            });
+
+            setCampaignForm(prev => ({
+                ...prev,
+                ...response.data.campaign_data
+            }));
+
+            if (response.data.persisted) {
+                await fetchCampaign();
+            }
+
+            toast.success(response.data.message || 'Dados validados no TSE');
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Erro ao validar cadastro no TSE');
+        } finally {
+            setValidatingTse(false);
+        }
     };
 
     const handleSaveCampaign = async (e) => {
@@ -259,6 +318,75 @@ export default function Configuracoes() {
                                     <div className="text-center py-8 text-muted-foreground">Carregando...</div>
                                 ) : (
                                     <form onSubmit={handleSaveCampaign} className="space-y-6">
+                                        <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 md:p-5">
+                                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <ShieldCheck className="h-4 w-4 text-primary" />
+                                                        <p className="text-sm font-semibold">Validacao oficial no TSE</p>
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Cruza UF, municipio, cargo, partido e nome/numero com o DivulgaCand e
+                                                        preenche os dados oficiais do candidato.
+                                                    </p>
+                                                    {campaignForm.tse_validation_message && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {campaignForm.tse_validation_message}
+                                                        </p>
+                                                    )}
+                                                    {campaignForm.tse_validated_at && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Ultima validacao: {new Date(campaignForm.tse_validated_at).toLocaleString('pt-BR')}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    onClick={handleValidateTse}
+                                                    disabled={validatingTse}
+                                                    className="gap-2"
+                                                    data-testid="validate-tse-btn"
+                                                >
+                                                    <ShieldCheck className="h-4 w-4" />
+                                                    {validatingTse ? 'Validando...' : 'Validar no TSE'}
+                                                </Button>
+                                            </div>
+
+                                            {(campaignForm.candidate_photo_url || campaignForm.candidate_ballot_name || campaignForm.tse_detail_url) && (
+                                                <div className="mt-4 flex flex-col gap-4 rounded-xl border border-border/70 bg-background/70 p-4 md:flex-row md:items-center">
+                                                    {campaignForm.candidate_photo_url && (
+                                                        <img
+                                                            src={campaignForm.candidate_photo_url}
+                                                            alt={campaignForm.candidate_ballot_name || campaignForm.candidate_name || 'Candidato'}
+                                                            className="h-28 w-24 rounded-xl border border-border object-cover"
+                                                        />
+                                                    )}
+                                                    <div className="space-y-1">
+                                                        {campaignForm.candidate_ballot_name && (
+                                                            <p className="text-sm font-semibold">
+                                                                Nome de urna: {campaignForm.candidate_ballot_name}
+                                                            </p>
+                                                        )}
+                                                        {campaignForm.candidate_name && (
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Nome completo: {campaignForm.candidate_name}
+                                                            </p>
+                                                        )}
+                                                        {campaignForm.tse_detail_url && (
+                                                            <a
+                                                                href={campaignForm.tse_detail_url}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                                                            >
+                                                                Ver ficha publica no DivulgaCand
+                                                                <ExternalLink className="h-3.5 w-3.5" />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                         {/* Basic Info */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2">
@@ -269,6 +397,15 @@ export default function Configuracoes() {
                                                     required
                                                     placeholder="Nome completo"
                                                     data-testid="campaign-candidate-name-input"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Nome de Urna</Label>
+                                                <Input
+                                                    value={campaignForm.candidate_ballot_name}
+                                                    onChange={(e) => handleCampaignChange('candidate_ballot_name', e.target.value)}
+                                                    placeholder="Como aparece na urna"
+                                                    data-testid="campaign-ballot-name-input"
                                                 />
                                             </div>
                                             <div className="space-y-2">
