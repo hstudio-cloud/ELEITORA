@@ -2779,7 +2779,7 @@ async def get_partidos():
             {"sigla": "REDE", "nome": "Rede Sustentabilidade", "numero": 18},
             {"sigla": "REPUBLICANOS", "nome": "Republicanos", "numero": 10},
             {"sigla": "SOLIDARIEDADE", "nome": "Solidariedade", "numero": 77},
-            {"sigla": "UNIÃƒO", "nome": "União Brasil", "numero": 44},
+            {"sigla": "UNIÃO", "nome": "União Brasil", "numero": 44},
             {"sigla": "UP", "nome": "Unidade Popular", "numero": 80}
         ]
     }
