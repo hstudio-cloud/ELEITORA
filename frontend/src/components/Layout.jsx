@@ -36,7 +36,7 @@ const navItems = [
     { path: '/configuracoes', label: 'Configurações', icon: Settings },
 ];
 
-export const Layout = ({ children }) => {
+export const Layout = ({ children, immersive = false, hideFloatingAssistant = false }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { user, logout } = useAuth();
     const location = useLocation();
@@ -49,25 +49,26 @@ export const Layout = ({ children }) => {
 
     return (
         <div className="min-h-screen bg-background" data-testid="app-layout">
-            {/* Mobile header */}
-            <header className="lg:hidden fixed top-0 left-0 right-0 z-50 glass border-b border-border/50 px-4 py-3">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setSidebarOpen(true)}
-                            data-testid="mobile-menu-btn"
-                        >
-                            <Menu className="h-5 w-5" />
-                        </Button>
-                        <AtivaBrand compact className="gap-2" textClassName="leading-tight" />
+            {!immersive && (
+                <header className="lg:hidden fixed top-0 left-0 right-0 z-50 glass border-b border-border/50 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setSidebarOpen(true)}
+                                data-testid="mobile-menu-btn"
+                            >
+                                <Menu className="h-5 w-5" />
+                            </Button>
+                            <AtivaBrand compact className="gap-2" textClassName="leading-tight" />
+                        </div>
                     </div>
-                </div>
-            </header>
+                </header>
+            )}
 
             {/* Mobile sidebar overlay */}
-            {sidebarOpen && (
+            {!immersive && sidebarOpen && (
                 <div
                     className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
                     onClick={() => setSidebarOpen(false)}
@@ -75,7 +76,7 @@ export const Layout = ({ children }) => {
             )}
 
             {/* Sidebar */}
-            <aside
+            {!immersive && <aside
                 className={`fixed top-0 left-0 z-50 h-full w-64 border-r border-border/80 bg-white/95 shadow-[0_0_40px_rgba(15,23,42,0.06)] transform transition-transform duration-200 ease-out lg:translate-x-0 ${
                     sidebarOpen ? 'translate-x-0' : '-translate-x-full'
                 }`}
@@ -152,17 +153,17 @@ export const Layout = ({ children }) => {
                         </Button>
                     </div>
                 </div>
-            </aside>
+            </aside>}
 
             {/* Main content */}
-            <main className="lg:pl-64 pt-16 lg:pt-0 min-h-screen">
-                <div className="p-4 md:p-6 lg:p-8">
+            <main className={`${immersive ? 'min-h-screen' : 'lg:pl-64 pt-16 lg:pt-0 min-h-screen'}`}>
+                <div className={immersive ? '' : 'p-4 md:p-6 lg:p-8'}>
                     {children}
                 </div>
             </main>
 
             {/* Floating Flora Assistant */}
-            <FloraAssistant />
+            {!immersive && !hideFloatingAssistant && <FloraAssistant />}
         </div>
     );
 };
