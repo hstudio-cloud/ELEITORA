@@ -695,8 +695,8 @@ const handleVoiceAction = (action, data) => {
     };
 
     return (
-        <Layout immersive hideFloatingAssistant>
-            <div className="relative min-h-screen overflow-hidden bg-[#120507] text-white">
+        <Layout hideFloatingAssistant>
+            <div className="relative min-h-[calc(100vh-120px)] overflow-hidden rounded-[2rem] bg-[#120507] text-white shadow-[0_30px_120px_rgba(15,23,42,0.16)]">
                 <div className="pointer-events-none absolute inset-0 opacity-80">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(143,13,24,0.42)_0%,rgba(18,5,7,0)_38%)]" />
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,70,70,0.12)_0%,transparent_18%),radial-gradient(circle_at_80%_15%,rgba(255,110,110,0.08)_0%,transparent_16%),radial-gradient(circle_at_30%_75%,rgba(255,255,255,0.05)_0%,transparent_14%)]" />
@@ -705,7 +705,7 @@ const handleVoiceAction = (action, data) => {
                     <div className="absolute inset-y-0 right-[7%] w-px bg-white/6" />
                 </div>
 
-                <div className="relative mx-auto flex h-screen max-w-[1640px] flex-col px-5 pb-6 pt-8 md:px-8">
+                <div className="relative mx-auto flex min-h-[calc(100vh-120px)] max-w-[1640px] flex-col px-5 pb-6 pt-8 md:px-8">
                     <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-4">
                         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                             <div className="min-w-0">
@@ -890,7 +890,7 @@ const handleVoiceAction = (action, data) => {
                         </div>
                     </ScrollArea>
 
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,rgba(18,5,7,0)_0%,rgba(18,5,7,0.94)_34%,#120507_100%)] px-5 pb-6 pt-16 md:px-8">
+                    <div className="pointer-events-none sticky inset-x-0 bottom-0 mt-auto bg-[linear-gradient(180deg,rgba(18,5,7,0)_0%,rgba(18,5,7,0.94)_34%,#120507_100%)] px-5 pb-6 pt-16 md:px-8">
                         <div className="pointer-events-auto mx-auto w-full max-w-[1080px]">
                             <div className="flex items-end gap-3 rounded-[2rem] border border-white/16 bg-black/26 px-4 py-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl">
                                 <div className="flex-1">
